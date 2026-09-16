@@ -1,7 +1,16 @@
 package be.mjodheim.brewstead.repository;
 
-import be.mjodheim.brewstead.entity.Crop;
+import be.mjodheim.brewstead.entity.Ingredient;
+import be.mjodheim.brewstead.entity.PlayerInventory;
+import be.mjodheim.brewstead.entity.PlayerProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PlayerInventoryRepository extends JpaRepository<Crop, Long> {
+import java.util.List;
+import java.util.Optional;
+
+public interface PlayerInventoryRepository extends JpaRepository<PlayerInventory, Long> {
+
+    List<PlayerInventoryRepository> findAllByPlayer(PlayerProfile player);
+
+    Optional<PlayerInventory> findByPlayerAndIngredient(PlayerProfile player, Ingredient ingredient);
 }

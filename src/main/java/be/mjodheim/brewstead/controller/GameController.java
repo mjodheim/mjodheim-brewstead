@@ -8,6 +8,6 @@ public class GameController {
 
     @GetMapping("/")
     public String home(){
-        return "game/brewstead";
+        return "game/brewstead-v2";
     }
 }

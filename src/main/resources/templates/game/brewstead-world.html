@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1613">
+    <title>Mjödheim · Domaine brassicole</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/brewstead-world.css}" href="/css/brewstead-world.css">
+</head>
+<body>
+<div class="jeu" id="jeu" data-zone-active="domaine">
+    <div class="ciel" aria-hidden="true">
+        <div class="aurore"></div>
+        <div class="etoiles"></div>
+        <div class="voile"></div>
+    </div>
+
+    <header class="interface-haute">
+        <button class="marque" type="button" data-zone="domaine" aria-label="Retour au domaine">
+            <span class="marque__rune">ᛗ</span>
+            <span class="marque__texte"><strong>Mjödheim</strong><small>Domaine brassicole</small></span>
+        </button>
+
+        <div class="profil">
+            <div class="portrait"><span>ᛉ</span></div>
+            <div class="profil__identite"><small>Maître brasseur</small><strong th:text="${playerName != null ? playerName : 'Eirik'}">Eirik</strong></div>
+            <div class="ressource"><span>✦</span><small>Niveau</small><strong th:text="${level != null ? level : 7}">7</strong></div>
+            <div class="ressource"><span>●</span><small>Pièces</small><strong th:text="${coins != null ? coins : 1280}">1280</strong></div>
+            <div class="ressource"><span>◆</span><small>Renommée</small><strong th:text="${reputation != null ? reputation : 84}">84</strong></div>
+        </div>
+
+        <div class="actions-hautes">
+            <div class="heure-jeu"><span class="heure-jeu__icone">☾</span><span id="heureJeu">21:37</span></div>
+            <button class="bouton-rond" id="boutonSon" type="button" aria-pressed="false" title="Ambiance sonore, muette par défaut">♪</button>
+            <button class="bouton-rond" id="boutonPleinEcran" type="button" title="Plein écran">⛶</button>
+        </div>
+    </header>
+
+    <main class="monde" id="monde">
+        <div class="camera" id="camera">
+            <svg class="carte" viewBox="0 0 1600 980" role="img" aria-label="Domaine nordique de Mjödheim">
+                <defs>
+                    <linearGradient id="sol" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#39583d"/><stop offset=".55" stop-color="#263e30"/><stop offset="1" stop-color="#172a23"/></linearGradient>
+                    <linearGradient id="montagne" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#49635a"/><stop offset="1" stop-color="#1b2d28"/></linearGradient>
+                    <linearGradient id="eau" x1="0" x2="1"><stop offset="0" stop-color="#244d55"/><stop offset=".5" stop-color="#31636a"/><stop offset="1" stop-color="#183c45"/></linearGradient>
+                    <linearGradient id="bois" x1="0" x2="1"><stop offset="0" stop-color="#6b3e24"/><stop offset=".5" stop-color="#8d5630"/><stop offset="1" stop-color="#4b2d20"/></linearGradient>
+                    <linearGradient id="toit" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#4c332b"/><stop offset="1" stop-color="#211a18"/></linearGradient>
+                    <linearGradient id="cuivre" x1="0" x2="1"><stop offset="0" stop-color="#8e4c2e"/><stop offset=".48" stop-color="#da8a4a"/><stop offset="1" stop-color="#6b351f"/></linearGradient>
+                    <radialGradient id="lueurFenetre"><stop offset="0" stop-color="#ffd984"/><stop offset="1" stop-color="#ba7335"/></radialGradient>
+                    <filter id="ombre" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#000" flood-opacity=".38"/></filter>
+                    <filter id="lueur" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="8"/></filter>
+                    <filter id="papier" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency=".04" numOctaves="3" result="bruit"/><feDisplacementMap in="SourceGraphic" in2="bruit" scale="3"/></filter>
+                </defs>
+
+                <path class="montagne montagne--fond" d="M0,315 C160,210 250,165 390,245 C505,310 570,170 710,235 C840,295 885,120 1045,215 C1160,285 1250,165 1395,235 C1470,270 1540,245 1600,205 L1600,0 L0,0 Z" fill="url(#montagne)" opacity=".76"/>
+                <path class="montagne montagne--neige" d="M250,204 l62,-48 58,69 -30,-15 -27,25 -24,-20 -24,13z M935,202 l84,-92 78,107 -38,-22 -34,27 -33,-28 -32,18z" fill="#b8c8bf" opacity=".42"/>
+                <path class="terrain" d="M0,335 C180,290 315,355 460,330 C630,301 748,350 892,324 C1080,291 1280,342 1600,304 L1600,980 L0,980 Z" fill="url(#sol)"/>
+                <path class="riviere" d="M-80,790 C230,695 335,750 515,685 C700,618 790,655 955,582 C1130,504 1240,555 1690,388 L1690,1010 L-80,1010 Z" fill="url(#eau)" opacity=".83"/>
+                <path class="rive" d="M-30,754 C216,682 354,708 523,649 C697,588 796,614 950,548 C1154,460 1284,505 1640,370" fill="none" stroke="#88a97b" stroke-width="20" stroke-linecap="round" opacity=".24"/>
+                <path class="chemin" d="M510,790 C625,698 664,615 730,546 C801,472 895,474 998,423 C1102,371 1164,310 1248,268" fill="none" stroke="#b99a65" stroke-width="27" stroke-linecap="round" opacity=".66"/>
+                <path class="chemin-lumiere" d="M510,790 C625,698 664,615 730,546 C801,472 895,474 998,423 C1102,371 1164,310 1248,268" fill="none" stroke="#e6d09a" stroke-width="6" stroke-linecap="round" opacity=".18"/>
+
+                <g class="foret" opacity=".95">
+                    <g class="sapin" transform="translate(120 520) scale(1.2)"><path d="M0 95 L31 42 15 48 39 10 22 18 45 -32 68 18 51 10 76 48 59 42 89 95Z"/><rect x="41" y="88" width="9" height="30"/></g>
+                    <g class="sapin" transform="translate(185 575) scale(.9)"><path d="M0 95 L31 42 15 48 39 10 22 18 45 -32 68 18 51 10 76 48 59 42 89 95Z"/><rect x="41" y="88" width="9" height="30"/></g>
+                    <g class="sapin" transform="translate(1330 465) scale(1.15)"><path d="M0 95 L31 42 15 48 39 10 22 18 45 -32 68 18 51 10 76 48 59 42 89 95Z"/><rect x="41" y="88" width="9" height="30"/></g>
+                    <g class="sapin" transform="translate(1415 520) scale(.85)"><path d="M0 95 L31 42 15 48 39 10 22 18 45 -32 68 18 51 10 76 48 59 42 89 95Z"/><rect x="41" y="88" width="9" height="30"/></g>
+                    <g class="sapin" transform="translate(1135 740) scale(.8)"><path d="M0 95 L31 42 15 48 39 10 22 18 45 -32 68 18 51 10 76 48 59 42 89 95Z"/><rect x="41" y="88" width="9" height="30"/></g>
+                </g>
+
+                <g class="zone zone--champs" data-zone="champs" tabindex="0" role="button" aria-label="Les champs">
+                    <path class="halo-zone" d="M130 655 C245 600 366 608 458 678 C496 708 492 792 424 827 C312 884 170 852 119 783 C89 744 94 684 130 655Z"/>
+                    <g class="champs">
+                        <path d="M145 682 C240 634 349 643 430 699 L405 807 C301 846 192 826 132 769Z" fill="#806b33"/>
+                        <path d="M166 692 C245 655 333 660 408 707" fill="none" stroke="#d0ab55" stroke-width="7" stroke-linecap="round"/>
+                        <path d="M158 719 C242 682 329 686 414 734" fill="none" stroke="#c49a44" stroke-width="7" stroke-linecap="round"/>
+                        <path d="M153 746 C238 711 326 711 411 760" fill="none" stroke="#e0bc61" stroke-width="7" stroke-linecap="round"/>
+                        <path d="M160 774 C247 742 327 740 399 783" fill="none" stroke="#b88f3c" stroke-width="7" stroke-linecap="round"/>
+                        <g class="moulin" transform="translate(318 610)" filter="url(#ombre)">
+                            <path d="M0 145 L20 20 L72 20 L91 145Z" fill="#c9b98b"/>
+                            <path d="M12 20 L46 -8 L80 20Z" fill="#493225"/>
+                            <circle cx="46" cy="44" r="10" fill="#2b221d"/>
+                            <g class="pales" transform="translate(46 44)"><path d="M-6 -7 L-17 -86 L6 -90 L7 -7Z M7 -6 L86 -17 L90 6 L7 7Z M6 7 L17 86 L-6 90 L-7 7Z M-7 6 L-86 17 L-90 -6 L-7 -7Z" fill="#6a4c33"/></g>
+                        </g>
+                    </g>
+                    <text class="etiquette-zone" x="175" y="858">LES CHAMPS</text>
+                </g>
+
+                <g class="zone zone--rucher" data-zone="rucher" tabindex="0" role="button" aria-label="Le rucher">
+                    <ellipse class="halo-zone" cx="535" cy="605" rx="145" ry="118"/>
+                    <g filter="url(#ombre)">
+                        <g class="ruche" transform="translate(455 560)"><path d="M0 88 C0 56 12 26 44 12 C76 26 88 56 88 88Z" fill="#b98739"/><path d="M9 56 H79 M5 72 H83" stroke="#5b3b1f" stroke-width="5"/><rect x="35" y="70" width="18" height="7" rx="3" fill="#2e1d12"/></g>
+                        <g class="ruche" transform="translate(548 590) scale(.82)"><path d="M0 88 C0 56 12 26 44 12 C76 26 88 56 88 88Z" fill="#c99b49"/><path d="M9 56 H79 M5 72 H83" stroke="#5b3b1f" stroke-width="5"/><rect x="35" y="70" width="18" height="7" rx="3" fill="#2e1d12"/></g>
+                    </g>
+                    <g class="abeilles" fill="#e1b445"><circle cx="510" cy="538" r="4"/><circle cx="555" cy="550" r="3"/><circle cx="593" cy="526" r="4"/></g>
+                    <text class="etiquette-zone" x="452" y="728">LE RUCHER</text>
+                </g>
+
+                <g class="zone zone--brasserie" data-zone="brasserie" tabindex="0" role="button" aria-label="La brasserie">
+                    <ellipse class="halo-zone" cx="815" cy="520" rx="218" ry="175"/>
+                    <g class="brasserie" filter="url(#ombre)">
+                        <path d="M664 550 L664 404 Q664 376 694 376 H915 Q945 376 945 404 V550Z" fill="url(#bois)"/>
+                        <path d="M630 403 L708 324 H901 L976 403 L937 420 L876 363 H728 L671 420Z" fill="url(#toit)"/>
+                        <path d="M769 550 V458 Q769 425 806 425 Q843 425 843 458 V550Z" fill="#2c1a15"/>
+                        <rect x="700" y="427" width="43" height="42" rx="5" fill="url(#lueurFenetre)"/>
+                        <rect x="873" y="427" width="43" height="42" rx="5" fill="url(#lueurFenetre)"/>
+                        <path d="M887 329 V275 H919 V344Z" fill="#3d2a24"/>
+                        <g class="fumee"><circle cx="908" cy="255" r="15"/><circle cx="924" cy="230" r="20"/><circle cx="908" cy="202" r="25"/></g>
+                        <g class="cuves" transform="translate(735 494)"><ellipse cx="0" cy="0" rx="21" ry="9" fill="#e9a568"/><rect x="-21" y="0" width="42" height="50" fill="url(#cuivre)"/><ellipse cx="0" cy="50" rx="21" ry="9" fill="#85462a"/><ellipse cx="135" cy="0" rx="21" ry="9" fill="#e9a568"/><rect x="114" y="0" width="42" height="50" fill="url(#cuivre)"/><ellipse cx="135" cy="50" rx="21" ry="9" fill="#85462a"/></g>
+                    </g>
+                    <text class="etiquette-zone etiquette-zone--forte" x="708" y="590">LA BRASSERIE</text>
+                </g>
+
+                <g class="zone zone--laboratoire" data-zone="laboratoire" tabindex="0" role="button" aria-label="Le laboratoire">
+                    <ellipse class="halo-zone" cx="1070" cy="495" rx="145" ry="120"/>
+                    <g class="laboratoire" filter="url(#ombre)">
+                        <path d="M1000 545 V420 Q1000 396 1023 396 H1120 Q1143 396 1143 420 V545Z" fill="#4e4b42"/>
+                        <path d="M982 405 L1035 355 H1106 L1162 405 L1139 416 L1091 378 H1050 L1005 418Z" fill="#292824"/>
+                        <path d="M1060 545 V474 Q1060 452 1080 452 Q1100 452 1100 474 V545Z" fill="#25221f"/>
+                        <circle cx="1028" cy="452" r="15" fill="#5c9f91" opacity=".75"/><circle cx="1117" cy="442" r="12" fill="#b18bce" opacity=".65"/>
+                        <circle class="rune-lueur" cx="1073" cy="404" r="22" fill="none" stroke="#d5b15d" stroke-width="3"/>
+                        <text x="1062" y="413" fill="#f0ce7a" font-size="26">ᚨ</text>
+                    </g>
+                    <text class="etiquette-zone" x="1008" y="587">LE LABORATOIRE</text>
+                </g>
+
+                <g class="zone zone--taverne" data-zone="taverne" tabindex="0" role="button" aria-label="La taverne">
+                    <ellipse class="halo-zone" cx="1290" cy="410" rx="160" ry="125"/>
+                    <g class="taverne" filter="url(#ombre)">
+                        <path d="M1198 470 V350 Q1198 329 1220 329 H1366 Q1388 329 1388 350 V470Z" fill="#74442b"/>
+                        <path d="M1177 342 L1236 292 H1354 L1412 342 L1387 357 L1335 318 H1253 L1200 358Z" fill="#30211c"/>
+                        <rect x="1225" y="376" width="38" height="37" rx="4" fill="url(#lueurFenetre)"/><rect x="1321" y="376" width="38" height="37" rx="4" fill="url(#lueurFenetre)"/>
+                        <path d="M1268 470 V404 Q1268 386 1293 386 Q1318 386 1318 404 V470Z" fill="#241916"/>
+                        <path d="M1388 365 Q1445 365 1445 422" fill="none" stroke="#5c3b27" stroke-width="12" stroke-linecap="round"/><circle cx="1446" cy="432" r="23" fill="#59432c"/><text x="1436" y="441" fill="#e5c06d" font-size="25">ᚦ</text>
+                    </g>
+                    <text class="etiquette-zone" x="1234" y="512">LA TAVERNE</text>
+                </g>
+
+                <g class="zone zone--reserve" data-zone="reserve" tabindex="0" role="button" aria-label="Les réserves">
+                    <ellipse class="halo-zone" cx="930" cy="735" rx="150" ry="108"/>
+                    <g class="reserve" filter="url(#ombre)">
+                        <path d="M855 788 V675 Q855 654 876 654 H1001 Q1022 654 1022 675 V788Z" fill="#5c4934"/>
+                        <path d="M836 665 L885 620 H990 L1041 665 L1018 676 L976 642 H901 L858 677Z" fill="#31251e"/>
+                        <g transform="translate(876 720)"><circle cx="0" cy="35" r="29" fill="#664326"/><circle cx="55" cy="35" r="29" fill="#73492a"/><circle cx="110" cy="35" r="29" fill="#5f3c24"/><path d="M-25 35H25 M30 35H80 M85 35H135" stroke="#b58a4e" stroke-width="5"/></g>
+                    </g>
+                    <text class="etiquette-zone" x="876" y="828">LES RÉSERVES</text>
+                </g>
+
+                <g class="zone zone--commandes" data-zone="commandes" tabindex="0" role="button" aria-label="Le panneau des commandes">
+                    <ellipse class="halo-zone" cx="690" cy="735" rx="118" ry="93"/>
+                    <g class="commandes" filter="url(#ombre)">
+                        <rect x="622" y="661" width="136" height="117" rx="10" fill="#513a27"/>
+                        <rect x="635" y="675" width="110" height="81" rx="5" fill="#c7a76f"/>
+                        <path d="M660 697 H720 M660 716 H709 M660 735 H728" stroke="#6f5333" stroke-width="5" stroke-linecap="round"/>
+                        <circle cx="744" cy="666" r="17" fill="#bd5b4e"/><text x="739" y="672" fill="#fff" font-size="15">3</text>
+                    </g>
+                    <text class="etiquette-zone" x="621" y="818">COMMANDES</text>
+                </g>
+
+                <g class="lucioles" aria-hidden="true"><circle cx="600" cy="510" r="3"/><circle cx="1130" cy="610" r="3"/><circle cx="745" cy="640" r="2"/><circle cx="1270" cy="570" r="2"/><circle cx="430" cy="540" r="2"/></g>
+            </svg>
+
+            <div class="brume brume--1"></div>
+            <div class="brume brume--2"></div>
+        </div>
+
+        <div class="intro" id="intro">
+            <div class="intro__ligne"><span></span><small>Ton domaine</small><span></span></div>
+            <h1>Mjödheim s'éveille.</h1>
+            <p>Une vallée froide, des cuves chaudes, du miel, des céréales et une réputation à bâtir. Chaque bâtiment est une partie de ton histoire.</p>
+            <button class="bouton-principal" type="button" data-zone="brasserie">Entrer dans la brasserie <span>→</span></button>
+        </div>
+
+        <aside class="panneau-lieu" id="panneauLieu" aria-live="polite">
+            <button class="fermer-panneau" id="fermerPanneau" type="button" aria-label="Fermer">×</button>
+            <div class="panneau-lieu__icone" id="iconeLieu">ᛗ</div>
+            <small id="surtitreLieu">Domaine</small>
+            <h2 id="titreLieu">Le domaine</h2>
+            <p id="descriptionLieu">Ton domaine prend vie autour de la brasserie. Explore les lieux, lance tes productions et développe ta renommée.</p>
+            <div class="etat-lieu" id="etatLieu"></div>
+            <div class="actions-lieu" id="actionsLieu"></div>
+        </aside>
+
+        <div class="notification" id="notification" role="status"></div>
+    </main>
+
+    <nav class="boussole" aria-label="Navigation dans le domaine">
+        <button class="boussole__centre est-actif" type="button" data-zone="domaine"><span>ᛗ</span><small>Domaine</small></button>
+        <button type="button" data-zone="champs"><span>🌾</span><small>Champs</small></button>
+        <button type="button" data-zone="rucher"><span>⬡</span><small>Rucher</small></button>
+        <button type="button" data-zone="laboratoire"><span>⚗</span><small>Laboratoire</small></button>
+        <button type="button" data-zone="brasserie"><span>♨</span><small>Brasserie</small></button>
+        <button type="button" data-zone="reserve"><span>▤</span><small>Réserves</small></button>
+        <button type="button" data-zone="commandes"><span>✉</span><small>Commandes</small><i>3</i></button>
+        <button type="button" data-zone="taverne"><span>ᚦ</span><small>Taverne</small></button>
+    </nav>
+
+    <div class="astuce">Clique sur un lieu du domaine pour t'en approcher</div>
+</div>
+<script th:src="@{/js/brewstead-world.js}" src="/js/brewstead-world.js"></script>
+</body>
+</html>

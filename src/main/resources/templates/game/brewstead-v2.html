@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0d1714">
+    <title>Mjödheim · Domaine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/game-v2.css}" href="/css/game-v2.css">
+</head>
+<body>
+<div class="jeu" data-piece="domaine">
+    <div class="brume-generale" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="barre-haute">
+        <button class="marque" type="button" data-aller="domaine" aria-label="Retour au domaine">
+            <span class="sceau">ᛗ</span>
+            <span class="marque-texte"><strong>Mjödheim</strong><small>Domaine brassicole</small></span>
+        </button>
+
+        <div class="profil">
+            <span class="portrait">ᛉ</span>
+            <span class="identite"><small>Maître brasseur</small><strong th:text="${playerName != null ? playerName : 'Eirik'}">Eirik</strong></span>
+            <span class="ressource"><i>✦</i><small>Niveau</small><strong th:text="${level != null ? level : 7}">7</strong></span>
+            <span class="ressource"><i>●</i><small>Pièces</small><strong th:text="${coins != null ? coins : 1280}">1 280</strong></span>
+            <span class="ressource"><i>◆</i><small>Renommée</small><strong th:text="${reputation != null ? reputation : 84}">84</strong></span>
+        </div>
+
+        <div class="actions-haut">
+            <button id="son" class="bouton-rond" type="button" aria-pressed="false" title="Activer l'ambiance sonore"><span class="son-off">♪̸</span><span class="son-on">♫</span></button>
+            <button id="pleinEcran" class="bouton-rond" type="button" title="Plein écran">⛶</button>
+        </div>
+    </header>
+
+    <main class="monde">
+        <section class="piece piece-domaine active" data-piece="domaine" data-index="0">
+            <div class="paysage paysage-domaine" aria-hidden="true">
+                <svg class="illustration" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+                    <defs>
+                        <linearGradient id="ciel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10262a"/><stop offset=".58" stop-color="#17322d"/><stop offset="1" stop-color="#0d1714"/></linearGradient>
+                        <linearGradient id="montagne1" x1="0" x2="1"><stop stop-color="#17342f"/><stop offset="1" stop-color="#24493c"/></linearGradient>
+                        <linearGradient id="montagne2" x1="0" x2="1"><stop stop-color="#1f4037"/><stop offset="1" stop-color="#315543"/></linearGradient>
+                        <linearGradient id="toit" x1="0" x2="1"><stop stop-color="#3a241c"/><stop offset=".5" stop-color="#6d3824"/><stop offset="1" stop-color="#2f1f19"/></linearGradient>
+                        <linearGradient id="bois" x1="0" x2="1"><stop stop-color="#593322"/><stop offset=".5" stop-color="#7a4930"/><stop offset="1" stop-color="#3d281f"/></linearGradient>
+                        <radialGradient id="lune"><stop offset="0" stop-color="#fff3cf"/><stop offset=".72" stop-color="#d8ceb2"/><stop offset="1" stop-color="#b9b197"/></radialGradient>
+                        <filter id="flou"><feGaussianBlur stdDeviation="18"/></filter>
+                        <filter id="ombre"><feDropShadow dx="0" dy="18" stdDeviation="16" flood-color="#000" flood-opacity=".38"/></filter>
+                    </defs>
+                    <rect width="1600" height="900" fill="url(#ciel)"/>
+                    <circle cx="1275" cy="210" r="56" fill="url(#lune)" opacity=".88"/>
+                    <path d="M0 420 Q180 270 350 365 Q510 210 705 375 Q870 235 1060 372 Q1280 200 1600 410 L1600 900 L0 900Z" fill="url(#montagne1)" opacity=".82"/>
+                    <path d="M0 530 Q230 345 490 500 Q720 325 950 515 Q1210 340 1600 525 L1600 900 L0 900Z" fill="url(#montagne2)"/>
+                    <path d="M0 680 Q220 605 430 675 T840 670 T1240 650 T1600 675 L1600 900 L0 900Z" fill="#203a2f"/>
+                    <path d="M620 900 C720 785 790 742 910 690 C1020 645 1100 630 1180 605" fill="none" stroke="#6f6349" stroke-width="55" stroke-linecap="round" opacity=".5"/>
+                    <path d="M620 900 C720 785 790 742 910 690 C1020 645 1100 630 1180 605" fill="none" stroke="#8e7a57" stroke-width="9" stroke-linecap="round" opacity=".35"/>
+                    <g opacity=".72" stroke="#c3a564" stroke-width="5" stroke-linecap="round">
+                        <path d="M118 700 C170 610 225 575 280 530"/><path d="M135 718 C205 650 265 628 335 595"/><path d="M160 735 C225 693 290 680 362 664"/>
+                        <path d="M195 755 C258 728 325 720 390 715"/><path d="M230 775 C290 760 350 758 420 760"/>
+                    </g>
+                    <g filter="url(#ombre)">
+                        <path d="M1040 570 Q1175 458 1310 570 L1286 614 L1061 614Z" fill="url(#toit)"/>
+                        <rect x="1080" y="603" width="205" height="125" rx="15" fill="url(#bois)"/>
+                        <path d="M1163 728 V657 Q1182 628 1202 657 V728Z" fill="#2c1d18"/>
+                        <rect x="1107" y="626" width="38" height="34" rx="5" fill="#f2c566" opacity=".88"/>
+                        <rect x="1230" y="626" width="38" height="34" rx="5" fill="#f2c566" opacity=".78"/>
+                        <rect x="1254" y="519" width="19" height="63" rx="5" fill="#4a3025"/>
+                    </g>
+                    <g fill="#10251f">
+                        <path d="M1430 720 l36-86 38 86h-18l33 73h-82l30-73z"/><path d="M950 710 l31-74 32 74h-15l28 63h-71l26-63z"/>
+                        <path d="M360 650 l28-70 29 70h-14l25 58h-64l24-58z"/><path d="M470 690 l24-62 26 62h-13l22 50h-57l22-50z"/>
+                    </g>
+                    <g opacity=".35" filter="url(#flou)" fill="#d8d5bd"><ellipse cx="790" cy="775" rx="560" ry="45"/><ellipse cx="1220" cy="710" rx="330" ry="32"/></g>
+                </svg>
+            </div>
+
+            <div class="hero">
+                <div class="sur-titre"><span></span>Ton domaine<span></span></div>
+                <h1>La vallée s'éveille.</h1>
+                <p>Fais pousser tes céréales, élève tes abeilles, invente tes propres recettes et bâtis la brasserie la plus réputée du Nord.</p>
+                <div class="actions-hero">
+                    <button class="bouton-principal" type="button" data-aller="brasserie">Entrer dans la brasserie <span>→</span></button>
+                    <button class="bouton-secondaire" type="button" data-aller="commandes">Voir les commandes <b>3</b></button>
+                </div>
+            </div>
+
+            <div class="lieux">
+                <button class="lieu lieu-champs" type="button" data-aller="champs"><span class="icone-lieu">♈</span><strong>Les champs</strong><small>Orge prête dans 03:42</small></button>
+                <button class="lieu lieu-rucher" type="button" data-aller="rucher"><span class="icone-lieu">⬡</span><strong>Le rucher</strong><small>Deux ruches actives</small></button>
+                <button class="lieu lieu-laboratoire" type="button" data-aller="laboratoire"><span class="icone-lieu">⚗</span><strong>Le laboratoire</strong><small>Créer une nouvelle recette</small></button>
+                <button class="lieu lieu-taverne" type="button" data-aller="taverne"><span class="icone-lieu">ᚦ</span><strong>La taverne</strong><small>Quatre voyageurs présents</small></button>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-champs" data-piece="champs" data-index="1">
+            <div class="fond-piece fond-champs"></div>
+            <div class="panneau-organique">
+                <span class="etiquette">Terres du domaine</span><h2>Les champs</h2><p class="intro">La brise descend des collines. Les sillons suivent la pente et les céréales mûrissent doucement.</p>
+                <div class="cartes-jeu">
+                    <article><span class="pastille">Ⅰ</span><div><small>Parcelle</small><h3>Orge dorée</h3><p>Récolte estimée : 3 kg</p></div><div class="jauge"><i style="width:72%"></i></div><strong>03:42</strong></article>
+                    <article><span class="pastille">Ⅱ</span><div><small>Parcelle</small><h3>Seigle</h3><p>Prêt à récolter</p></div><button type="button" data-message="Récolte à connecter au service agricole">Récolter</button></article>
+                    <article><span class="pastille">Ⅲ</span><div><small>Parcelle libre</small><h3>Terre fraîche</h3><p>Choisis une culture</p></div><button type="button" data-message="Plantation à connecter au service agricole">Planter</button></article>
+                </div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-rucher" data-piece="rucher" data-index="2">
+            <div class="fond-piece fond-rucher"></div>
+            <div class="panneau-organique panneau-etroit"><span class="etiquette">Miel et cire</span><h2>Le rucher</h2><p class="intro">Le bourdonnement emplit le verger. Chaque ruche développe son propre caractère.</p>
+                <div class="liste-jeu"><article><span class="grosse-icone">⬡</span><div><small>Ruche du vieux chêne</small><h3>Miel de fleurs</h3><div class="jauge"><i style="width:61%"></i></div></div><strong>08:15</strong></article><article><span class="grosse-icone">⬢</span><div><small>Ruche de la rivière</small><h3>Miel sauvage</h3><div class="jauge"><i style="width:88%"></i></div></div><strong>01:46</strong></article></div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-laboratoire" data-piece="laboratoire" data-index="3">
+            <div class="fond-piece fond-laboratoire"></div>
+            <div class="panneau-organique panneau-etroit"><span class="etiquette">Expérimentation</span><h2>Le laboratoire</h2><p class="intro">Ici naissent les recettes que personne d'autre ne connaît encore.</p>
+                <div class="parchemin"><small>Dernière découverte</small><h3>Hydromel des brumes</h3><p>Miel sauvage · eau de source · herbes · levure nordique</p><button type="button" data-message="Éditeur de recette à connecter au service des recettes">Nouvelle expérience</button></div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-brasserie" data-piece="brasserie" data-index="4">
+            <div class="fond-piece fond-brasserie"></div>
+            <div class="panneau-organique"><span class="etiquette">Cuivre et fermentation</span><h2>La brasserie</h2><p class="intro">La chaleur des cuves, le souffle de la vapeur et l'odeur du malt : le cœur du domaine.</p>
+                <div class="cartes-jeu"><article><span class="pastille">♨</span><div><small>Cuve I</small><h3>Hydromel du novice</h3><p>Fermentation · 10 L</p></div><div class="jauge"><i style="width:47%"></i></div><strong>31:08</strong></article><article><span class="pastille">♨</span><div><small>Cuve II</small><h3>Bière du Skalde</h3><p>Conditionnement · 20 L</p></div><div class="jauge"><i style="width:83%"></i></div><strong>06:40</strong></article><article><span class="pastille">＋</span><div><small>Cuve libre</small><h3>Nouveau brassin</h3><p>Choisir une recette</p></div><button type="button" data-message="Nouveau brassin à connecter au service de brassage">Lancer</button></article></div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-reserves" data-piece="reserves" data-index="5">
+            <div class="fond-piece fond-reserves"></div>
+            <div class="panneau-organique"><span class="etiquette">Réserves</span><h2>L'inventaire</h2><p class="intro">Tes matières premières, rangées dans la fraîcheur du cellier.</p>
+                <div class="inventaire"><article><span>≋</span><div><small>Céréale</small><h3>Orge</h3></div><strong>12,5 kg</strong></article><article><span>⬡</span><div><small>Rucher</small><h3>Miel</h3></div><strong>3 kg</strong></article><article><span>✤</span><div><small>Aromatique</small><h3>Houblon</h3></div><strong>250 g</strong></article><article><span>◌</span><div><small>Source</small><h3>Eau</h3></div><strong>28 L</strong></article></div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-commandes" data-piece="commandes" data-index="6">
+            <div class="fond-piece fond-commandes"></div>
+            <div class="panneau-organique"><span class="etiquette">Tableau des contrats</span><h2>Les commandes</h2><p class="intro">Les voyageurs, clans et marchands font parvenir leurs demandes au domaine.</p>
+                <div class="commandes"><article><div><small>Caravane de l'Est</small><h3>6 hydromels des brumes</h3><p>Qualité minimale : 70</p></div><strong>+ 180 pièces</strong><button type="button" data-message="Commande à connecter au service des commandes">Préparer</button></article><article><div><small>Maison du Jarl</small><h3>4 bières du Skalde</h3><p>Expire dans 01:18:42</p></div><strong>+ 35 renommée</strong><button type="button" data-message="Commande à connecter au service des commandes">Préparer</button></article></div>
+            </div>
+        </section>
+
+        <section class="piece piece-simple piece-taverne" data-piece="taverne" data-index="7">
+            <div class="fond-piece fond-taverne"></div>
+            <div class="panneau-organique panneau-etroit"><span class="etiquette">Lieu communautaire</span><h2>La taverne</h2><p class="intro">Un feu, des histoires et bientôt d'autres brasseurs. La partie sociale du monde prendra vie ici.</p>
+                <div class="voyageurs"><span>ᚱ</span><span>ᚲ</span><span>ᛏ</span><span>ᛃ</span></div><button class="grand-bouton" type="button" data-message="Fonctions communautaires à venir">Rejoindre la salle commune</button>
+            </div>
+        </section>
+    </main>
+
+    <nav class="navigation" aria-label="Navigation du domaine">
+        <button class="actif" type="button" data-aller="domaine"><span>ᛟ</span><small>Domaine</small></button>
+        <button type="button" data-aller="champs"><span>≋</span><small>Champs</small></button>
+        <button type="button" data-aller="rucher"><span>⬡</span><small>Rucher</small></button>
+        <button type="button" data-aller="laboratoire"><span>⚗</span><small>Laboratoire</small></button>
+        <button type="button" data-aller="brasserie"><span>♨</span><small>Brasserie</small></button>
+        <button type="button" data-aller="reserves"><span>▦</span><small>Réserves</small></button>
+        <button type="button" data-aller="commandes"><span>✉</span><small>Commandes</small><b>3</b></button>
+        <button type="button" data-aller="taverne"><span>ᚦ</span><small>Taverne</small></button>
+    </nav>
+
+    <div class="notification" id="notification" role="status" aria-live="polite"></div>
+</div>
+<script th:src="@{/js/game-v2.js}" src="/js/game-v2.js"></script>
+</body>
+</html>

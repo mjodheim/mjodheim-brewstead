@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#101a18">
+    <title>Mjödheim · Brewstead</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/game.css}" href="/css/game.css">
+</head>
+<body>
+<div class="game-shell" data-current-room="hearth">
+    <div class="aurora" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="particles" aria-hidden="true"></div>
+
+    <header class="hud">
+        <div class="brand" aria-label="Mjödheim Brewstead">
+            <span class="brand__sigil">ᛗ</span>
+            <span class="brand__copy">
+                <strong>Mjödheim</strong>
+                <small>Brewstead</small>
+            </span>
+        </div>
+
+        <div class="hud__center">
+            <div class="player-chip">
+                <span class="player-chip__avatar">ᛉ</span>
+                <span>
+                    <small>Maître brasseur</small>
+                    <strong th:text="${playerName != null ? playerName : 'Eirik'}">Eirik</strong>
+                </span>
+            </div>
+            <div class="resource-strip" aria-label="Ressources du joueur">
+                <div class="resource-pill" title="Niveau">
+                    <span class="resource-pill__icon">✦</span>
+                    <span><small>Niv.</small><strong th:text="${level != null ? level : 7}">7</strong></span>
+                </div>
+                <div class="resource-pill" title="Pièces">
+                    <span class="resource-pill__icon coin">●</span>
+                    <strong th:text="${coins != null ? coins : 1280}">1 280</strong>
+                </div>
+                <div class="resource-pill" title="Réputation">
+                    <span class="resource-pill__icon reputation">◆</span>
+                    <strong th:text="${reputation != null ? reputation : 84}">84</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="hud__actions">
+            <button class="icon-button" id="musicToggle" type="button" aria-pressed="false" title="Ambiance sonore (muette par défaut)">
+                <span class="icon-button__on">♫</span>
+                <span class="icon-button__off">♪̸</span>
+                <span class="sr-only">Activer ou couper l'ambiance sonore</span>
+            </button>
+            <button class="icon-button" id="fullscreenToggle" type="button" title="Plein écran">
+                <span>⛶</span>
+                <span class="sr-only">Plein écran</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="room-stage" id="roomStage">
+        <section class="room room--hearth is-active" data-room="hearth" data-index="0" aria-label="Cour du domaine">
+            <div class="scene scene--hearth" aria-hidden="true">
+                <div class="mountains"></div>
+                <div class="moon"></div>
+                <div class="longhouse">
+                    <span class="longhouse__roof"></span>
+                    <span class="longhouse__window longhouse__window--one"></span>
+                    <span class="longhouse__window longhouse__window--two"></span>
+                    <span class="longhouse__door"></span>
+                    <span class="chimney-smoke chimney-smoke--one"></span>
+                    <span class="chimney-smoke chimney-smoke--two"></span>
+                </div>
+                <div class="pine pine--one"></div>
+                <div class="pine pine--two"></div>
+                <div class="pine pine--three"></div>
+                <div class="ground-fog"></div>
+            </div>
+
+            <div class="room__content room__content--hero">
+                <div class="eyebrow"><span></span> Ton domaine <span></span></div>
+                <h1>La Brewstead s'éveille.</h1>
+                <p>Fais pousser tes céréales, élève tes abeilles, invente des recettes et fais de ta brasserie une légende du Nord.</p>
+                <div class="hero-actions">
+                    <button class="primary-button" type="button" data-go-room="brewery">Entrer dans la brasserie <span>→</span></button>
+                    <button class="secondary-button" type="button" data-go-room="orders">Voir les commandes <span class="badge">3</span></button>
+                </div>
+            </div>
+
+            <div class="hotspot-grid" aria-label="Lieux du domaine">
+                <button class="hotspot hotspot--fields" type="button" data-go-room="fields">
+                    <span class="hotspot__icon">╱╲</span><strong>Les champs</strong><small>Orge prête dans 03:42</small>
+                </button>
+                <button class="hotspot hotspot--apiary" type="button" data-go-room="apiary">
+                    <span class="hotspot__icon">⬡</span><strong>Le rucher</strong><small>2 ruches actives</small>
+                </button>
+                <button class="hotspot hotspot--lab" type="button" data-go-room="lab">
+                    <span class="hotspot__icon">⚗</span><strong>Le laboratoire</strong><small>Créer une recette</small>
+                </button>
+                <button class="hotspot hotspot--tavern" type="button" data-go-room="tavern">
+                    <span class="hotspot__icon">ᚦ</span><strong>La taverne</strong><small>4 voyageurs présents</small>
+                </button>
+            </div>
+        </section>
+
+        <section class="room room--fields" data-room="fields" data-index="1" aria-label="Les champs">
+            <div class="scene scene--fields" aria-hidden="true">
+                <div class="sun-glow"></div>
+                <div class="field-hill field-hill--back"></div>
+                <div class="field-hill field-hill--front"></div>
+                <div class="crop-lines"></div>
+                <div class="windmill"><span></span><i></i><b></b></div>
+                <div class="field-mist"></div>
+            </div>
+            <div class="room__panel">
+                <div class="room-heading">
+                    <div><span class="kicker">Terres de la Brewstead</span><h2>Les champs</h2></div>
+                    <span class="status-chip status-chip--good">Vent doux · +5% croissance</span>
+                </div>
+                <div class="plot-grid">
+                    <article class="plot-card is-growing">
+                        <div class="plot-card__visual barley"><span></span><span></span><span></span><span></span></div>
+                        <div><small>Parcelle I</small><h3>Orge</h3><p>Récolte estimée : 3 kg</p></div>
+                        <div class="progress"><span style="width:72%"></span></div>
+                        <strong class="timer" data-timer="222">03:42</strong>
+                    </article>
+                    <article class="plot-card is-ready">
+                        <div class="plot-card__visual rye"><span></span><span></span><span></span><span></span></div>
+                        <div><small>Parcelle II</small><h3>Seigle</h3><p>Prêt à récolter</p></div>
+                        <button class="compact-button" type="button" data-demo-action="Récolte simulée">Récolter</button>
+                    </article>
+                    <article class="plot-card is-empty">
+                        <div class="plot-card__visual empty-plot">+</div>
+                        <div><small>Parcelle III</small><h3>Terre libre</h3><p>Choisis une culture</p></div>
+                        <button class="compact-button ghost" type="button" data-demo-action="Sélecteur de culture à connecter au backend">Planter</button>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--apiary" data-room="apiary" data-index="2" aria-label="Le rucher">
+            <div class="scene scene--apiary" aria-hidden="true">
+                <div class="apiary-light"></div>
+                <div class="wildflowers"></div>
+                <div class="hive hive--one"><i></i><i></i><i></i></div>
+                <div class="hive hive--two"><i></i><i></i><i></i></div>
+                <span class="bee bee--one">•</span><span class="bee bee--two">•</span><span class="bee bee--three">•</span>
+            </div>
+            <div class="room__panel room__panel--narrow">
+                <div class="room-heading">
+                    <div><span class="kicker">Miel & cire</span><h2>Le rucher</h2></div>
+                    <span class="status-chip">Niveau 2</span>
+                </div>
+                <div class="hive-list">
+                    <article class="hive-card"><span class="hex-icon">⬡</span><div><small>Ruche du vieux chêne</small><h3>Miel de fleurs</h3><div class="progress"><span style="width:61%"></span></div></div><strong class="timer">08:15</strong></article>
+                    <article class="hive-card"><span class="hex-icon">⬢</span><div><small>Ruche de la rivière</small><h3>Miel sauvage</h3><div class="progress"><span style="width:88%"></span></div></div><strong class="timer">01:46</strong></article>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--lab" data-room="lab" data-index="3" aria-label="Le laboratoire">
+            <div class="scene scene--lab" aria-hidden="true">
+                <div class="stone-wall"></div>
+                <div class="rune-circle"><span>ᚨ</span><span>ᛒ</span><span>ᛖ</span><span>ᛗ</span></div>
+                <div class="alchemy-table">
+                    <div class="flask flask--gold"></div><div class="flask flask--blue"></div><div class="flask flask--red"></div>
+                </div>
+                <div class="candle candle--one"><i></i></div><div class="candle candle--two"><i></i></div>
+            </div>
+            <div class="room__panel room__panel--lab">
+                <div class="room-heading">
+                    <div><span class="kicker">Expérimentation</span><h2>Le laboratoire</h2></div>
+                    <span class="status-chip status-chip--accent">Carnet : 6 recettes</span>
+                </div>
+                <div class="lab-workbench">
+                    <div class="recipe-scroll">
+                        <small>Dernière découverte</small>
+                        <h3>Hydromel de brume</h3>
+                        <p>Miel sauvage · eau de source · herbes · levure nordique</p>
+                        <div class="taste-bars"><span><i style="width:68%"></i></span><span><i style="width:42%"></i></span><span><i style="width:81%"></i></span></div>
+                    </div>
+                    <button class="ritual-button" type="button" data-demo-action="Éditeur de recette à connecter au RecipeService"><span>⚗</span>Nouvelle expérience</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--brewery" data-room="brewery" data-index="4" aria-label="La brasserie">
+            <div class="scene scene--brewery" aria-hidden="true">
+                <div class="brewery-wall"></div>
+                <div class="copper-tank copper-tank--one"><i></i><b></b></div>
+                <div class="copper-tank copper-tank--two"><i></i><b></b></div>
+                <div class="barrel-stack"><span></span><span></span><span></span></div>
+                <div class="steam steam--one"></div><div class="steam steam--two"></div>
+                <div class="fire-glow"></div>
+            </div>
+            <div class="room__panel">
+                <div class="room-heading">
+                    <div><span class="kicker">Cuivre & fermentation</span><h2>La brasserie</h2></div>
+                    <span class="status-chip status-chip--warm">2 brassins actifs</span>
+                </div>
+                <div class="batch-grid">
+                    <article class="batch-card"><div class="batch-card__top"><span class="batch-icon">♨</span><div><small>Cuve I</small><h3>Beginner Mead</h3></div><strong>10 L</strong></div><p>Fermentation</p><div class="progress progress--amber"><span style="width:47%"></span></div><footer><span>Qualité estimée · 72</span><strong>31:08</strong></footer></article>
+                    <article class="batch-card"><div class="batch-card__top"><span class="batch-icon">♨</span><div><small>Cuve II</small><h3>Skald's Ale</h3></div><strong>20 L</strong></div><p>Conditionnement</p><div class="progress progress--amber"><span style="width:83%"></span></div><footer><span>Qualité estimée · 88</span><strong>06:40</strong></footer></article>
+                    <button class="new-batch" type="button" data-demo-action="Nouveau brassin à connecter au BreweryService"><span>+</span><strong>Lancer un brassin</strong><small>Choisir une recette</small></button>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--inventory" data-room="inventory" data-index="5" aria-label="L'inventaire">
+            <div class="scene scene--inventory" aria-hidden="true">
+                <div class="store-wall"></div><div class="store-shelf store-shelf--one"></div><div class="store-shelf store-shelf--two"></div>
+                <div class="sack sack--one"></div><div class="sack sack--two"></div><div class="barrel barrel--one"></div><div class="barrel barrel--two"></div>
+            </div>
+            <div class="room__panel">
+                <div class="room-heading"><div><span class="kicker">Réserves</span><h2>L'inventaire</h2></div><span class="status-chip">12 / 40 emplacements</span></div>
+                <div class="inventory-grid">
+                    <article class="item-card"><span class="item-card__art item-card__art--grain">≋</span><div><h3>Orge</h3><small>Céréale</small></div><strong>12.5 kg</strong></article>
+                    <article class="item-card"><span class="item-card__art item-card__art--honey">⬡</span><div><h3>Miel</h3><small>Rucher</small></div><strong>3 kg</strong></article>
+                    <article class="item-card"><span class="item-card__art item-card__art--hop">✤</span><div><h3>Houblon</h3><small>Aromatique</small></div><strong>250 g</strong></article>
+                    <article class="item-card"><span class="item-card__art item-card__art--water">◒</span><div><h3>Eau de source</h3><small>Liquide</small></div><strong>42 L</strong></article>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--orders" data-room="orders" data-index="6" aria-label="Les commandes">
+            <div class="scene scene--orders" aria-hidden="true"><div class="notice-board"></div><div class="lantern lantern--one"></div><div class="lantern lantern--two"></div></div>
+            <div class="room__panel">
+                <div class="room-heading"><div><span class="kicker">Marché & voyageurs</span><h2>Les commandes</h2></div><span class="status-chip status-chip--urgent">3 demandes</span></div>
+                <div class="order-grid">
+                    <article class="order-card"><span class="order-seal">ᚱ</span><small>La bande de Ragnar</small><h3>“De quoi tenir jusqu'à l'aube.”</h3><p>4 × Skald's Ale · Qualité ≥ 70</p><footer><span>420 ● · +8 ◆</span><strong>28:14</strong></footer></article>
+                    <article class="order-card"><span class="order-seal">ᚠ</span><small>Marchande de passage</small><h3>“Un hydromel digne d'un jarl.”</h3><p>2 × Beginner Mead · Qualité ≥ 65</p><footer><span>260 ● · +5 ◆</span><strong>1h 12</strong></footer></article>
+                    <article class="order-card order-card--player"><span class="order-seal">ᛗ</span><small>Commande joueur</small><h3>Haldor cherche du miel</h3><p>5 kg de miel · livraison directe</p><footer><span>310 ●</span><strong>3h 44</strong></footer></article>
+                </div>
+            </div>
+        </section>
+
+        <section class="room room--tavern" data-room="tavern" data-index="7" aria-label="La taverne communautaire">
+            <div class="scene scene--tavern" aria-hidden="true">
+                <div class="tavern-wall"></div><div class="fireplace"><span></span></div><div class="tavern-table"></div>
+                <div class="patron patron--one"></div><div class="patron patron--two"></div><div class="patron patron--three"></div>
+                <div class="fire-particles"></div>
+            </div>
+            <div class="room__panel room__panel--tavern">
+                <div class="room-heading"><div><span class="kicker">Lieu communautaire</span><h2>La taverne</h2></div><span class="status-chip status-chip--warm">4 voyageurs en ligne</span></div>
+                <div class="tavern-feed">
+                    <article><span class="portrait">ᚺ</span><div><strong>Haldor</strong><p>“Quelqu'un échange du miel sauvage ?”</p></div><time>à l'instant</time></article>
+                    <article><span class="portrait">ᛋ</span><div><strong>Sigrid</strong><p>vient de découvrir <em>Brume d'été</em>.</p></div><time>2 min</time></article>
+                    <article><span class="portrait">ᚱ</span><div><strong>Runa</strong><p>a terminé un brassin qualité 92.</p></div><time>8 min</time></article>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <nav class="room-dock" aria-label="Navigation du domaine">
+        <button class="dock-item is-active" type="button" data-target-room="hearth"><span>ᛟ</span><small>Domaine</small></button>
+        <button class="dock-item" type="button" data-target-room="fields"><span>≋</span><small>Champs</small></button>
+        <button class="dock-item" type="button" data-target-room="apiary"><span>⬡</span><small>Rucher</small></button>
+        <button class="dock-item" type="button" data-target-room="lab"><span>⚗</span><small>Labo</small></button>
+        <button class="dock-item" type="button" data-target-room="brewery"><span>♨</span><small>Brasserie</small></button>
+        <button class="dock-item" type="button" data-target-room="inventory"><span>▦</span><small>Réserves</small></button>
+        <button class="dock-item" type="button" data-target-room="orders"><span>✉</span><small>Commandes</small><i class="dock-badge">3</i></button>
+        <button class="dock-item" type="button" data-target-room="tavern"><span>ᚦ</span><small>Taverne</small></button>
+    </nav>
+
+    <div class="camera-transition" aria-hidden="true"><span class="camera-transition__rune">ᛗ</span></div>
+    <div class="toast" id="gameToast" role="status" aria-live="polite"></div>
+</div>
+<script th:src="@{/js/game.js}" src="/js/game.js" defer></script>
+</body>
+</html>

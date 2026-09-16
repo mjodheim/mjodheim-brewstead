@@ -3,9 +3,9 @@ spring:
     name: mjodheim-brewstead
 
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: "${DB_URL:jdbc:postgresql://${BREWSTEAD_DB_PGHOST_UNPOOLED}:${BREWSTEAD_DB_PGPORT:5432}/${BREWSTEAD_DB_PGDATABASE}?sslmode=require}"
+    username: "${DB_USERNAME:${BREWSTEAD_DB_PGUSER}}"
+    password: "${DB_PASSWORD:${BREWSTEAD_DB_PGPASSWORD}}"
 
   jpa:
     hibernate:

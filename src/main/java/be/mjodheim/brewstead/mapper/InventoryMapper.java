@@ -7,7 +7,7 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 
-@Mapper
+@Mapper(componentModel = "spring")
 public interface InventoryMapper {
 
     @Mapping(source = "ingredient.name", target = "ingredientName")
@@ -15,5 +15,5 @@ public interface InventoryMapper {
     @Mapping(source = "ingredient.unit", target = "unit")
     PlayerInventoryResponse toPlayerInventoryResponse(PlayerInventory playerInventory);
 
-    List<PlayerInventoryResponse> toResponseList (List<PlayerInventory> playerInventoryList);
+    List<PlayerInventoryResponse> toResponseList(List<PlayerInventory> playerInventoryList);
 }

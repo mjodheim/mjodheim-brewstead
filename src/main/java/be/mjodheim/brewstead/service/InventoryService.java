@@ -8,7 +8,9 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.exception.IngredientNotInInventoryException;
 import be.mjodheim.brewstead.exception.InsufficientStockException;
 import be.mjodheim.brewstead.mapper.InventoryMapper;
+import be.mjodheim.brewstead.repository.IngredientRepository;
 import be.mjodheim.brewstead.repository.PlayerInventoryRepository;
+import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,8 @@ import java.util.List;
 public class InventoryService {
 
     private final PlayerInventoryRepository playerInventoryRepository;
+    private final PlayerProfileRepository playerProfileRepository;
+    private final IngredientRepository ingredientRepository;
     private final InventoryMapper inventoryMapper;
 
     public List<PlayerInventoryResponse> getPlayerInventory(Long id) {
@@ -33,16 +37,18 @@ public class InventoryService {
     @Transactional
     public PlayerInventoryResponse addIngredient(IngredientRequest request) {
 
-        if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than zero");
-        }
+        validateQuantity(request.quantity());
+
+        PlayerProfile player = getPlayer(request.playerId());
+
+        Ingredient ingredient = getIngredient(request.ingredientId());
 
         PlayerInventory playerInventory = playerInventoryRepository
-                .findByPlayerAndIngredient(request.player(),request.ingredient())
+                .findByPlayerAndIngredient(player,ingredient)
                 .orElseGet(
                         () -> PlayerInventory.builder()
-                                .player(request.player())
-                                .ingredient(request.ingredient())
+                                .player(player)
+                                .ingredient(ingredient)
                                 .quantity(BigDecimal.ZERO)
                                 .build());
 
@@ -58,12 +64,14 @@ public class InventoryService {
     @Transactional
     public PlayerInventoryResponse removeIngredient(IngredientRequest request) {
 
-        if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than zero");
-        }
+        validateQuantity(request.quantity());
+
+        PlayerProfile player = getPlayer(request.playerId());
+
+        Ingredient ingredient = getIngredient(request.ingredientId());
 
         PlayerInventory playerInventory = playerInventoryRepository
-                .findByPlayerAndIngredient(request.player(), request.ingredient())
+                .findByPlayerAndIngredient(player, ingredient)
                 .orElseThrow(
                         () -> new IngredientNotInInventoryException("Ingredient not found")
                 );
@@ -79,5 +87,27 @@ public class InventoryService {
         PlayerInventory inventory = playerInventoryRepository.save(playerInventory);
 
         return inventoryMapper.toPlayerInventoryResponse(inventory);
+    }
+
+    private void validateQuantity(BigDecimal quantity) {
+        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "Quantity must be greater than zero"
+            );
+        }
+    }
+
+    private PlayerProfile getPlayer(Long playerId) {
+        return playerProfileRepository.findById(playerId)
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Player not found")
+                );
+    }
+
+    private Ingredient getIngredient(Long ingredientId) {
+        return ingredientRepository.findById(ingredientId)
+                .orElseThrow(
+                        () -> new IllegalArgumentException("Ingredient not found")
+                );
     }
 }

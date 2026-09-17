@@ -6,8 +6,8 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import java.math.BigDecimal;
 
 public record IngredientRequest(
-        PlayerProfile player,
-        Ingredient ingredient,
+        Long playerId,
+        Long ingredientId,
         BigDecimal quantity
 ) {
 }

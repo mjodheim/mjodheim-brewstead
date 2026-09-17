@@ -13,7 +13,7 @@ erDiagram
         Long user_id FK
         int level
         int experience
-        int coins
+        int coin
         int reputation
     }
 
@@ -88,6 +88,7 @@ erDiagram
     NPC_ORDER {
         Long id PK
         Long player_id FK
+        String customer_name
         datetime created_at
         datetime expires_at
         String status
@@ -106,12 +107,18 @@ erDiagram
     PLAYER_ORDER {
         Long id PK
         Long creator_id FK
-        Long ingredient_id FK
-        decimal quantity
-        int reward_coins
+        Long fulfilled_by_id FK
         datetime created_at
         datetime expires_at
         String status
+        int reward_coins
+    }
+
+    PLAYER_ORDER_LINE {
+        Long id PK
+        Long player_order_id FK
+        Long ingredient_id FK
+        decimal quantity
     }
 
     USER ||--|| PLAYER_PROFILE : has
@@ -137,7 +144,9 @@ erDiagram
     RECIPE ||--o{ NPC_ORDER_LINE : requested_as
 
     PLAYER_PROFILE ||--o{ PLAYER_ORDER : creates
-    INGREDIENT ||--o{ PLAYER_ORDER : requested_as
+    PLAYER_PROFILE ||--o{ PLAYER_ORDER : fulfils
+    PLAYER_ORDER ||--|{ PLAYER_ORDER_LINE : contains
+    INGREDIENT ||--o{ PLAYER_ORDER_LINE : requested_as
 ```
 
 ## Remarques
@@ -145,5 +154,8 @@ erDiagram
 - `RECIPE.owner_id` peut être nul pour les recettes officielles du jeu.
 - `PLAYER_INVENTORY` représente une relation joueur–ingrédient avec quantité.
 - `RECIPE_INGREDIENT` est une table de liaison enrichie par la quantité.
-- Les temps de production et d'expiration sont gérés avec `ready_at` et `expires_at`.
-- Les statuts seront modélisés en Java avec des enums.
+- `PLAYER_ORDER_LINE` porte les ressources demandées par une commande entre joueurs.
+- `PLAYER_ORDER.fulfilled_by_id` reste nul tant que la commande n'a pas été satisfaite.
+- Les temps de production, de fermentation et d'expiration utilisent des timestamps (`LocalDateTime` côté Java).
+- Les statuts sont modélisés en Java avec des enums.
+- Dans le MVP fonctionnel, le volume restant d'un `BATCH` en statut `READY` sert de stock de boisson finie pour les commandes PNJ.

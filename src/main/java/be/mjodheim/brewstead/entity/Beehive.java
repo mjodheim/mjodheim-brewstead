@@ -4,7 +4,7 @@ import be.mjodheim.brewstead.enums.BehiveStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "beehives")
@@ -19,17 +19,17 @@ public class Beehive {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY,  optional = false)
-    @JoinColumn(name = "player_id",  nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "player_id", nullable = false)
     private PlayerProfile player;
 
     @Column(nullable = false)
     @Builder.Default
     private int level = 1;
 
-    private LocalDate startedAt;
+    private LocalDateTime startedAt;
 
-    private LocalDate readyAt;
+    private LocalDateTime readyAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

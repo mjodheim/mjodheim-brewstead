@@ -27,87 +27,63 @@ public class InventoryService {
     private final IngredientRepository ingredientRepository;
     private final InventoryMapper inventoryMapper;
 
+    @Transactional
     public List<PlayerInventoryResponse> getPlayerInventory(Long id) {
-
         List<PlayerInventory> playerInventory = playerInventoryRepository.findAllByPlayerId(id);
-
         return inventoryMapper.toResponseList(playerInventory);
     }
 
     @Transactional
     public PlayerInventoryResponse addIngredient(IngredientRequest request) {
-
         validateQuantity(request.quantity());
-
         PlayerProfile player = getPlayer(request.playerId());
-
         Ingredient ingredient = getIngredient(request.ingredientId());
 
         PlayerInventory playerInventory = playerInventoryRepository
-                .findByPlayerAndIngredient(player,ingredient)
-                .orElseGet(
-                        () -> PlayerInventory.builder()
-                                .player(player)
-                                .ingredient(ingredient)
-                                .quantity(BigDecimal.ZERO)
-                                .build());
+                .findByPlayerAndIngredient(player, ingredient)
+                .orElseGet(() -> PlayerInventory.builder()
+                        .player(player)
+                        .ingredient(ingredient)
+                        .quantity(BigDecimal.ZERO)
+                        .build());
 
-        playerInventory.setQuantity(
-                playerInventory.getQuantity().add(request.quantity())
-        );
-
+        playerInventory.setQuantity(playerInventory.getQuantity().add(request.quantity()));
         PlayerInventory inventory = playerInventoryRepository.save(playerInventory);
-
         return inventoryMapper.toPlayerInventoryResponse(inventory);
     }
 
     @Transactional
     public PlayerInventoryResponse removeIngredient(IngredientRequest request) {
-
         validateQuantity(request.quantity());
-
         PlayerProfile player = getPlayer(request.playerId());
-
         Ingredient ingredient = getIngredient(request.ingredientId());
 
         PlayerInventory playerInventory = playerInventoryRepository
                 .findByPlayerAndIngredient(player, ingredient)
-                .orElseThrow(
-                        () -> new IngredientNotInInventoryException("Ingredient not found")
-                );
+                .orElseThrow(() -> new IngredientNotInInventoryException("Ingredient not found"));
 
         if (playerInventory.getQuantity().subtract(request.quantity()).compareTo(BigDecimal.ZERO) < 0) {
             throw new InsufficientStockException("Not enough ingredients");
         }
 
-        playerInventory.setQuantity(
-                playerInventory.getQuantity().subtract(request.quantity())
-        );
-
+        playerInventory.setQuantity(playerInventory.getQuantity().subtract(request.quantity()));
         PlayerInventory inventory = playerInventoryRepository.save(playerInventory);
-
         return inventoryMapper.toPlayerInventoryResponse(inventory);
     }
 
     private void validateQuantity(BigDecimal quantity) {
-        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException(
-                    "Quantity must be greater than zero"
-            );
+        if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Quantity must be greater than zero");
         }
     }
 
     private PlayerProfile getPlayer(Long playerId) {
         return playerProfileRepository.findById(playerId)
-                .orElseThrow(
-                        () -> new IllegalArgumentException("Player not found")
-                );
+                .orElseThrow(() -> new IllegalArgumentException("Player not found"));
     }
 
     private Ingredient getIngredient(Long ingredientId) {
         return ingredientRepository.findById(ingredientId)
-                .orElseThrow(
-                        () -> new IllegalArgumentException("Ingredient not found")
-                );
+                .orElseThrow(() -> new IllegalArgumentException("Ingredient not found"));
     }
 }

@@ -20,8 +20,12 @@ public class PlayerOrder {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "creator_id")
+    @JoinColumn(name = "creator_id", nullable = false)
     private PlayerProfile creator;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fulfilled_by_id")
+    private PlayerProfile fulfilledBy;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

@@ -1,0 +1,94 @@
+/* Passe performance : préserver l'ambiance sans maintenir un moteur d'animation permanent. */
+
+html.brewstead-perf .jeu::before {
+    display: none;
+}
+
+html.brewstead-perf .camera {
+    filter: none !important;
+    will-change: auto;
+}
+
+html.brewstead-perf .carte {
+    transform: none !important;
+    transition: none !important;
+    will-change: auto;
+}
+
+html.brewstead-perf .etoiles,
+html.brewstead-perf .montagne,
+html.brewstead-perf .riviere,
+html.brewstead-perf .brume,
+html.brewstead-perf .zone--brasserie .brasserie rect[fill="url(#lueurFenetre)"],
+html.brewstead-perf .zone--laboratoire .rune-lueur {
+    animation: none !important;
+}
+
+html.brewstead-perf .aurore {
+    filter: blur(18px) !important;
+    animation-duration: 28s !important;
+}
+
+html.brewstead-perf .terrain,
+html.brewstead-perf .montagne--fond,
+html.brewstead-perf .montagne--neige,
+html.brewstead-perf .rive,
+html.brewstead-perf .chemin,
+html.brewstead-perf .chemin-lumiere {
+    filter: none !important;
+}
+
+html.brewstead-perf .zone--brasserie .brasserie,
+html.brewstead-perf .zone--brasserie .cuves {
+    filter: none !important;
+}
+
+html.brewstead-perf .interface-haute,
+html.brewstead-perf .panneau-lieu,
+html.brewstead-perf .boussole,
+html.brewstead-perf .bulle-villageois,
+html.brewstead-perf .badge-batiment,
+html.brewstead-perf .point-interieur {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+html.brewstead-perf .couche-vivante--legere .charrette,
+html.brewstead-perf .couche-vivante--legere .villageois--voyageur {
+    display: none !important;
+}
+
+html.brewstead-perf .couche-vivante--legere .oiseaux .oiseau:nth-child(n+3),
+html.brewstead-perf .couche-vivante--legere .etincelles-foyer i:nth-child(n+3) {
+    display: none !important;
+}
+
+/* Les éléments non visibles ne doivent rien coûter. */
+html.page-cachee *,
+html.page-cachee *::before,
+html.page-cachee *::after {
+    animation-play-state: paused !important;
+}
+
+/* Les intérieurs sont désormais créés à la demande. Tant qu'ils sont fermés,
+   ils ne doivent pas déclencher de peinture/composition. */
+.interieur-cinematique:not(.est-ouvert) {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+@media (max-width: 900px), (prefers-reduced-motion: reduce) {
+    html.brewstead-perf .aurore,
+    html.brewstead-perf .pales,
+    html.brewstead-perf .abeilles circle,
+    html.brewstead-perf .fumee,
+    html.brewstead-perf .lucioles circle,
+    html.brewstead-perf .couche-vivante * {
+        animation: none !important;
+    }
+
+    html.brewstead-perf .couche-vivante .oiseaux,
+    html.brewstead-perf .couche-vivante .etincelles-foyer {
+        display: none !important;
+    }
+}

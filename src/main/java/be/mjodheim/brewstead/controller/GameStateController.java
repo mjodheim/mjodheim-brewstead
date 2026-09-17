@@ -1,0 +1,22 @@
+package be.mjodheim.brewstead.controller;
+
+import be.mjodheim.brewstead.dto.game.GameStateResponse;
+import be.mjodheim.brewstead.service.GameStateService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/players")
+@RequiredArgsConstructor
+public class GameStateController {
+
+    private final GameStateService gameStateService;
+
+    @GetMapping("/{playerId}/state")
+    public GameStateResponse getState(@PathVariable Long playerId) {
+        return gameStateService.getState(playerId);
+    }
+}

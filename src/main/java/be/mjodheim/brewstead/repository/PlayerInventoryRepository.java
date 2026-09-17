@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface PlayerInventoryRepository extends JpaRepository<PlayerInventory, Long> {
 
-    List<PlayerInventoryRepository> findAllByPlayer(PlayerProfile player);
+    List<PlayerInventory> findAllByPlayer(PlayerProfile player);
 
     Optional<PlayerInventory> findByPlayerAndIngredient(PlayerProfile player, Ingredient ingredient);
 }

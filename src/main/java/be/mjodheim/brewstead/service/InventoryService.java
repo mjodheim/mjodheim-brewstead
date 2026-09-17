@@ -3,6 +3,8 @@ package be.mjodheim.brewstead.service;
 import be.mjodheim.brewstead.entity.Ingredient;
 import be.mjodheim.brewstead.entity.PlayerInventory;
 import be.mjodheim.brewstead.entity.PlayerProfile;
+import be.mjodheim.brewstead.exception.IngredientNotInInventoryException;
+import be.mjodheim.brewstead.exception.InsufficientStockException;
 import be.mjodheim.brewstead.repository.PlayerInventoryRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +19,7 @@ public class InventoryService {
 
     private final PlayerInventoryRepository playerInventoryRepository;
 
-    public List<PlayerInventoryRepository> getPlayerInventory(PlayerProfile player) {
+    public List<PlayerInventory> getPlayerInventory(PlayerProfile player) {
         return playerInventoryRepository.findAllByPlayer(player);
     }
 
@@ -54,11 +56,11 @@ public class InventoryService {
         PlayerInventory playerInventory = playerInventoryRepository
                 .findByPlayerAndIngredient(player, ingredient)
                 .orElseThrow(
-                        () -> new IllegalArgumentException("Ingredient not found")
+                        () -> new IngredientNotInInventoryException("Ingredient not found")
                 );
 
         if (playerInventory.getQuantity().subtract(quantity).compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Not enough ingredients");
+            throw new InsufficientStockException("Not enough ingredients");
         }
 
         playerInventory.setQuantity(

@@ -4,7 +4,7 @@ import be.mjodheim.brewstead.enums.FieldStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "player_fields")
@@ -28,9 +28,9 @@ public class PlayerField {
     @JoinColumn(name = "crop_id")
     private Crop crop;
 
-    private LocalDate plantedAt;
+    private LocalDateTime plantedAt;
 
-    private LocalDate readyAt;
+    private LocalDateTime readyAt;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default

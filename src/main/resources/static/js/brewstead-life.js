@@ -212,4 +212,12 @@
 
     const observateur = new MutationObserver(adapterVieAlaPhase);
     observateur.observe(jeu, { attributes: true, attributeFilter: ['data-phase'] });
+
+    if (!document.querySelector('script[data-brewstead-seasons]')) {
+        const script = document.createElement('script');
+        script.src = '/js/brewstead-seasons.js';
+        script.defer = true;
+        script.dataset.brewsteadSeasons = 'true';
+        document.body.appendChild(script);
+    }
 })();

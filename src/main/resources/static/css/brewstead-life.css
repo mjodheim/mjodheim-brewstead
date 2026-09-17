@@ -1,0 +1,328 @@
+/* Monde vivant et intérieurs cinématiques — couche visuelle indépendante du backend */
+.couche-vivante,
+.meteo-vivante {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.couche-vivante { z-index: 4; }
+.meteo-vivante { z-index: 7; mix-blend-mode: screen; }
+
+/* Vie du domaine */
+.villageois {
+    position: absolute;
+    width: 13px;
+    height: 29px;
+    filter: drop-shadow(0 8px 7px rgba(0,0,0,.42));
+    opacity: .86;
+    transform-origin: 50% 100%;
+}
+.villageois::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #d5b487;
+}
+.villageois::after {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: 7px;
+    width: 11px;
+    height: 20px;
+    border-radius: 55% 45% 36% 42%;
+    background: linear-gradient(90deg,#29241f,#66503d 52%,#241e1a);
+    clip-path: polygon(25% 0,75% 0,100% 100%,57% 82%,48% 100%,0 100%);
+}
+.villageois--brasseur { left: 48%; top: 55%; animation: marcheBrasseur 17s ease-in-out infinite; }
+.villageois--voyageur { left: 68%; top: 49%; animation: marcheVoyageur 22s ease-in-out infinite 2s; }
+.villageois--fermier { left: 23%; top: 72%; animation: marcheFermier 14s ease-in-out infinite 4s; }
+
+.charrette {
+    position: absolute;
+    left: 43%;
+    top: 69%;
+    width: 54px;
+    height: 24px;
+    opacity: .72;
+    animation: charrette 30s linear infinite;
+}
+.charrette::before {
+    content:"";
+    position:absolute;
+    inset: 3px 6px 7px;
+    border-radius: 7px 9px 4px 5px;
+    background: linear-gradient(180deg,#8a6038,#50351f);
+    box-shadow: inset 0 2px rgba(255,232,177,.12);
+}
+.charrette::after {
+    content:"";
+    position:absolute;
+    left:9px; right:9px; bottom:0; height:12px;
+    background:
+        radial-gradient(circle at 10px 6px,#241b15 0 5px,#7b5a38 5.5px 7px,transparent 7.5px),
+        radial-gradient(circle at calc(100% - 10px) 6px,#241b15 0 5px,#7b5a38 5.5px 7px,transparent 7.5px);
+}
+
+.oiseaux {
+    position: absolute;
+    left: 12%;
+    top: 23%;
+    width: 90px;
+    height: 40px;
+    opacity: .55;
+    animation: volOiseaux 34s linear infinite;
+}
+.oiseau {
+    position:absolute;
+    width:18px; height:7px;
+}
+.oiseau::before,.oiseau::after {
+    content:"";
+    position:absolute;
+    top:3px;
+    width:10px; height:2px;
+    border-top:2px solid rgba(226,230,217,.9);
+    border-radius:50%;
+}
+.oiseau::before { left:0; transform:rotate(20deg); }
+.oiseau::after { right:0; transform:rotate(-20deg); }
+.oiseau:nth-child(2){left:28px;top:13px;transform:scale(.75)}
+.oiseau:nth-child(3){left:53px;top:4px;transform:scale(.9)}
+
+.etincelles-foyer {
+    position:absolute;
+    left:55.4%; top:37%;
+    width:34px; height:70px;
+    opacity:.45;
+}
+.etincelles-foyer i {
+    position:absolute;
+    bottom:0;
+    width:3px; height:3px;
+    border-radius:50%;
+    background:#efbd64;
+    box-shadow:0 0 8px #e88d39;
+    animation: etincelle 4s ease-out infinite;
+}
+.etincelles-foyer i:nth-child(2){left:12px;animation-delay:1.3s}
+.etincelles-foyer i:nth-child(3){left:24px;animation-delay:2.5s}
+
+.reflets-riviere {
+    position:absolute;
+    left:13%; right:4%; bottom:10%; height:21%;
+    opacity:.12;
+    transform:rotate(-8deg);
+    background:repeating-linear-gradient(172deg,transparent 0 15px,rgba(210,243,236,.75) 16px 18px,transparent 19px 35px);
+    filter:blur(1px);
+    animation: reflets 8s ease-in-out infinite alternate;
+}
+
+/* météo très légère, uniquement décorative */
+.jeu[data-phase="aube"] .meteo-vivante,
+.jeu[data-phase="crepuscule"] .meteo-vivante {
+    background: radial-gradient(ellipse at 50% 65%,rgba(217,178,118,.08),transparent 45%);
+}
+.jeu[data-phase="nuit"] .meteo-vivante {
+    background: linear-gradient(115deg,transparent 20%,rgba(169,199,195,.035) 40%,transparent 62%);
+    animation: voileNuit 16s ease-in-out infinite alternate;
+}
+
+/* Portail vers un intérieur */
+.interieur-cinematique {
+    position: fixed;
+    z-index: 120;
+    inset: 0;
+    visibility: hidden;
+    opacity: 0;
+    background: #070b0a;
+    pointer-events: none;
+    transition: opacity .55s ease, visibility 0s linear .6s;
+}
+.interieur-cinematique.est-ouvert {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
+}
+.interieur-cinematique::before {
+    content:"";
+    position:absolute;
+    inset:-15%;
+    z-index:20;
+    pointer-events:none;
+    background:radial-gradient(circle at 50% 50%,transparent 27%,rgba(0,0,0,.52) 67%,rgba(0,0,0,.9) 100%);
+}
+.interieur-cinematique::after {
+    content:"";
+    position:absolute;
+    inset:0;
+    z-index:21;
+    pointer-events:none;
+    opacity:.055;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.porte-transition {
+    position:absolute;
+    z-index:40;
+    inset:0;
+    pointer-events:none;
+    display:flex;
+}
+.porte-transition span {
+    width:50%; height:100%;
+    background:linear-gradient(90deg,#070907,#17110c 75%,#2a1a10);
+    box-shadow:inset -20px 0 50px rgba(0,0,0,.38);
+    transform:translateX(0);
+    transition:transform 1.05s cubic-bezier(.65,0,.25,1) .1s;
+}
+.porte-transition span:last-child {
+    background:linear-gradient(-90deg,#070907,#17110c 75%,#2a1a10);
+    box-shadow:inset 20px 0 50px rgba(0,0,0,.38);
+}
+.interieur-cinematique.est-ouvert .porte-transition span:first-child { transform:translateX(-104%); }
+.interieur-cinematique.est-ouvert .porte-transition span:last-child { transform:translateX(104%); }
+
+.scene-interieure {
+    position:absolute;
+    inset:0;
+    display:none;
+    overflow:hidden;
+    perspective:1100px;
+}
+.scene-interieure.est-active { display:block; }
+.scene-interieure__fond { position:absolute; inset:0; }
+.scene-interieure__sol {
+    position:absolute;
+    left:-8%; right:-8%; bottom:-16%; height:56%;
+    transform:rotateX(63deg);
+    transform-origin:50% 100%;
+    background:repeating-linear-gradient(90deg,#2b2118 0 70px,#36281c 71px 74px,#241a13 75px 145px);
+    box-shadow:inset 0 30px 65px rgba(0,0,0,.66);
+}
+
+.scene-interieure__entete {
+    position:absolute;
+    z-index:30;
+    left:clamp(28px,5vw,80px);
+    top:clamp(110px,15vh,150px);
+    max-width:510px;
+    text-shadow:0 5px 24px rgba(0,0,0,.75);
+}
+.scene-interieure__entete small {
+    color:#d7ac5e;
+    text-transform:uppercase;
+    letter-spacing:.24em;
+    font-size:10px;
+    font-weight:800;
+}
+.scene-interieure__entete h2 {
+    margin:8px 0 13px;
+    font-family:var(--display,"Cinzel",serif);
+    font-size:clamp(37px,4.6vw,68px);
+    line-height:.96;
+    font-weight:600;
+}
+.scene-interieure__entete p {
+    max-width:470px;
+    margin:0;
+    color:#d5d0c4;
+    line-height:1.7;
+    font-size:14px;
+}
+
+.quitter-interieur {
+    position:absolute;
+    z-index:50;
+    right:clamp(22px,4vw,60px);
+    top:clamp(105px,13vh,128px);
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:10px 14px;
+    border-radius:999px;
+    border:1px solid rgba(236,215,169,.2);
+    color:#eee5d3;
+    background:rgba(6,10,9,.62);
+    backdrop-filter:blur(12px);
+    cursor:pointer;
+    transition:transform .2s ease,border-color .2s ease,background .2s ease;
+}
+.quitter-interieur:hover { transform:translateY(-2px); border-color:rgba(239,200,116,.5); background:rgba(25,30,25,.8); }
+
+/* Brasserie */
+.interieur--brasserie .scene-interieure__fond {
+    background:
+        radial-gradient(circle at 73% 60%,rgba(219,117,47,.22),transparent 30%),
+        linear-gradient(180deg,#35271e 0,#1b1713 50%,#0d0d0b 100%);
+}
+.charpente { position:absolute;inset:0;opacity:.78;background:repeating-linear-gradient(77deg,transparent 0 15%,rgba(55,34,21,.8) 15.3% 17%,transparent 17.3% 31%); }
+.cuve-interieure {
+    position:absolute;
+    bottom:15%;
+    width:145px;
+    height:285px;
+    border-radius:72px 72px 34px 34px;
+    background:linear-gradient(90deg,#66331f,#d88849 26%,#f0ad69 43%,#a45731 72%,#4e291b);
+    box-shadow:inset 14px 0 18px rgba(255,199,130,.16),inset -20px 0 30px rgba(49,18,7,.45),0 28px 70px rgba(0,0,0,.55);
+}
+.cuve-interieure::before { content:"";position:absolute;left:-5px;right:-5px;top:45px;height:13px;border-radius:50%;background:#6f3d28;box-shadow:0 115px #6f3d28; }
+.cuve-interieure::after { content:"";position:absolute;left:50%;top:-35px;width:20px;height:47px;transform:translateX(-50%);background:#7b4c35;border-radius:8px 8px 0 0; }
+.cuve-interieure--1 { right:31%; transform:scale(.98); }
+.cuve-interieure--2 { right:17%; transform:scale(.82); }
+.cuve-interieure--3 { right:5%; transform:scale(.68); opacity:.82; }
+.tuyauterie { position:absolute;right:0;top:22%;width:48%;height:42%;opacity:.65;background:linear-gradient(90deg,transparent 0 18%,#76543a 18.5% 20%,transparent 20.5% 46%,#76543a 46.5% 48%,transparent 48.5%),linear-gradient(0deg,transparent 0 57%,#76543a 57.5% 60%,transparent 60.5%); }
+.foyer-brasserie { position:absolute;right:34%;bottom:10%;width:180px;height:75px;border-radius:50%;background:radial-gradient(ellipse,#ffd36f 0 8%,#df7d32 28%,rgba(177,55,21,.42) 58%,transparent 72%);filter:blur(4px);animation:respireFeu 2s ease-in-out infinite alternate; }
+.vapeur-interieure { position:absolute;right:32%;top:22%;width:210px;height:240px;opacity:.26;background:radial-gradient(ellipse at 35% 80%,rgba(226,229,216,.62),transparent 44%),radial-gradient(ellipse at 66% 40%,rgba(226,229,216,.42),transparent 38%);filter:blur(18px);animation:vapeurInterieure 7s ease-in-out infinite; }
+
+/* Laboratoire */
+.interieur--laboratoire .scene-interieure__fond { background:radial-gradient(circle at 73% 54%,rgba(78,142,129,.2),transparent 30%),linear-gradient(180deg,#252b29,#121817 62%,#080c0b); }
+.mur-pierre { position:absolute;inset:0;opacity:.32;background:linear-gradient(90deg,transparent 0 49%,rgba(255,255,255,.04) 49.3% 50%,transparent 50.3%),repeating-linear-gradient(0deg,transparent 0 68px,rgba(255,255,255,.05) 69px 71px,transparent 72px 140px);background-size:180px 100%,100% 140px; }
+.etageres-labo { position:absolute;right:4%;top:18%;width:44%;height:58%;border:14px solid #35291e;border-top-width:18px;background:repeating-linear-gradient(0deg,rgba(26,22,18,.8) 0 104px,#5d4630 105px 112px);box-shadow:0 30px 70px rgba(0,0,0,.55),inset 0 0 70px rgba(0,0,0,.4); }
+.flacons { position:absolute;right:8%;top:24%;width:36%;height:44%;background:radial-gradient(circle at 13% 15%,#d9a949 0 8px,transparent 9px),radial-gradient(circle at 31% 32%,#5eaa9e 0 10px,transparent 11px),radial-gradient(circle at 55% 13%,#8b70aa 0 9px,transparent 10px),radial-gradient(circle at 78% 35%,#c66d50 0 12px,transparent 13px),radial-gradient(circle at 18% 66%,#5b8c67 0 11px,transparent 12px),radial-gradient(circle at 48% 61%,#dbbe64 0 9px,transparent 10px),radial-gradient(circle at 82% 69%,#688bad 0 12px,transparent 13px);filter:drop-shadow(0 0 11px rgba(147,204,184,.28)); }
+.cercle-runique-interieur { position:absolute;right:19%;bottom:12%;width:270px;height:270px;border:2px solid rgba(117,207,184,.36);border-radius:50%;box-shadow:0 0 38px rgba(75,179,157,.18),inset 0 0 34px rgba(75,179,157,.11);animation:runeTourne 28s linear infinite; }
+.cercle-runique-interieur::before,.cercle-runique-interieur::after { content:"ᚨ ᛒ ᛖ ᛗ ᚦ ᛉ";position:absolute;inset:23px;display:grid;place-items:center;border:1px dashed rgba(223,190,111,.4);border-radius:50%;color:#dec078;font-family:serif;font-size:22px;letter-spacing:12px; }
+.cercle-runique-interieur::after { inset:62px;content:"⚗";font-size:55px;letter-spacing:0;border-style:solid;color:#7ed1bf;animation:runeTourne 28s linear infinite reverse; }
+
+/* Taverne */
+.interieur--taverne .scene-interieure__fond { background:radial-gradient(circle at 70% 61%,rgba(229,111,42,.28),transparent 25%),linear-gradient(180deg,#3a281d,#21170f 62%,#0c0a08); }
+.poutres-taverne { position:absolute;inset:0;opacity:.7;background:linear-gradient(90deg,transparent 0 9%,#3f291a 9.5% 12%,transparent 12.5% 45%,#3f291a 45.5% 48%,transparent 48.5% 82%,#3f291a 82.5% 85%,transparent 85.5%),linear-gradient(0deg,transparent 0 15%,#3b271a 15.7% 19%,transparent 19.7%); }
+.cheminee-taverne { position:absolute;right:9%;bottom:12%;width:280px;height:330px;background:linear-gradient(90deg,#40352c,#77604c 50%,#3a3028);clip-path:polygon(13% 0,87% 0,100% 100%,0 100%);box-shadow:0 25px 60px rgba(0,0,0,.48); }
+.cheminee-taverne::before { content:"";position:absolute;left:21%;right:21%;bottom:0;height:47%;border-radius:50% 50% 4px 4px;background:#130c08;box-shadow:inset 0 0 35px #000; }
+.cheminee-taverne::after { content:"";position:absolute;left:31%;right:31%;bottom:8%;height:31%;border-radius:50%;background:radial-gradient(ellipse,#ffd375 0 10%,#ed8437 35%,rgba(159,50,18,.65) 57%,transparent 70%);filter:blur(3px);animation:respireFeu 1.6s ease-in-out infinite alternate; }
+.table-taverne { position:absolute;right:37%;bottom:16%;width:300px;height:110px;border-radius:50%;background:linear-gradient(180deg,#815534,#4c3020);box-shadow:0 25px 55px rgba(0,0,0,.5),inset 0 5px rgba(255,219,158,.08);transform:perspective(400px) rotateX(60deg); }
+.silhouettes-taverne { position:absolute;right:35%;bottom:24%;width:350px;height:170px;background:radial-gradient(ellipse at 12% 55%,#15100c 0 30px,transparent 31px),radial-gradient(ellipse at 46% 35%,#17110d 0 34px,transparent 35px),radial-gradient(ellipse at 79% 57%,#15100c 0 29px,transparent 30px);opacity:.8; }
+
+@keyframes marcheBrasseur { 0%,100%{transform:translate(0,0) scale(1)} 45%{transform:translate(82px,37px) scale(.92)} 50%{transform:translate(82px,37px) scale(.92) rotateY(180deg)} 95%{transform:translate(0,0) rotateY(180deg)} }
+@keyframes marcheVoyageur { 0%,100%{transform:translate(0,0)} 48%{transform:translate(-118px,68px)} 52%{transform:translate(-118px,68px) rotateY(180deg)} 96%{transform:translate(0,0) rotateY(180deg)} }
+@keyframes marcheFermier { 0%,100%{transform:translate(0,0)} 45%{transform:translate(46px,-30px)} 52%{transform:translate(46px,-30px) rotateY(180deg)} 95%{transform:translate(0,0) rotateY(180deg)} }
+@keyframes charrette { 0%{transform:translate(-280px,80px) scale(.7);opacity:0} 10%{opacity:.72} 50%{transform:translate(90px,-70px) scale(.92);opacity:.78} 90%{opacity:.65} 100%{transform:translate(470px,-220px) scale(.62);opacity:0} }
+@keyframes volOiseaux { from{transform:translateX(-180px) translateY(0)} to{transform:translateX(120vw) translateY(-70px)} }
+@keyframes etincelle { 0%{transform:translateY(0) scale(.4);opacity:0} 18%{opacity:1} 100%{transform:translate(13px,-72px) scale(0);opacity:0} }
+@keyframes reflets { from{transform:rotate(-8deg) translateX(-2%)} to{transform:rotate(-8deg) translateX(3%)} }
+@keyframes voileNuit { from{transform:translateX(-3%)} to{transform:translateX(4%)} }
+@keyframes respireFeu { from{transform:scale(.94);opacity:.72} to{transform:scale(1.08);opacity:1} }
+@keyframes vapeurInterieure { 0%,100%{transform:translate(0,15px) scale(.9);opacity:.18} 50%{transform:translate(-20px,-24px) scale(1.12);opacity:.34} }
+@keyframes runeTourne { to{transform:rotate(360deg)} }
+
+@media (max-width:900px){
+    .scene-interieure__entete{left:22px;right:22px;top:92px;max-width:62vw}
+    .scene-interieure__entete h2{font-size:40px}
+    .scene-interieure__entete p{font-size:12px}
+    .quitter-interieur{top:82px;right:16px;padding:9px 12px}
+    .cuve-interieure--1{right:20%}.cuve-interieure--2{right:4%}.cuve-interieure--3{display:none}
+    .etageres-labo{right:-8%;width:53%}.cercle-runique-interieur{right:5%;transform:scale(.75)}
+    .cheminee-taverne{right:-3%;transform:scale(.82)}.table-taverne{right:22%;transform:perspective(400px) rotateX(60deg) scale(.72)}
+    .villageois,.charrette{opacity:.45}
+}
+
+@media (prefers-reduced-motion:reduce){
+    .villageois,.charrette,.oiseaux,.etincelles-foyer i,.reflets-riviere,.vapeur-interieure,.cercle-runique-interieur{animation:none!important}
+}

@@ -359,3 +359,12 @@
         requestAnimationFrame(() => jeu.classList.add('est-charge'));
     });
 })();
+
+(() => {
+    if (document.querySelector('script[data-brewstead-life]')) return;
+    const script = document.createElement('script');
+    script.src = '/js/brewstead-life.js';
+    script.defer = true;
+    script.dataset.brewsteadLife = 'true';
+    document.body.appendChild(script);
+})();

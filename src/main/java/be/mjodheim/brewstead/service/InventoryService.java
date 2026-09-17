@@ -1,10 +1,13 @@
 package be.mjodheim.brewstead.service;
 
+import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
+import be.mjodheim.brewstead.dto.inventory.PlayerInventoryResponse;
 import be.mjodheim.brewstead.entity.Ingredient;
 import be.mjodheim.brewstead.entity.PlayerInventory;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.exception.IngredientNotInInventoryException;
 import be.mjodheim.brewstead.exception.InsufficientStockException;
+import be.mjodheim.brewstead.mapper.InventoryMapper;
 import be.mjodheim.brewstead.repository.PlayerInventoryRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -18,55 +21,63 @@ import java.util.List;
 public class InventoryService {
 
     private final PlayerInventoryRepository playerInventoryRepository;
+    private final InventoryMapper inventoryMapper;
 
-    public List<PlayerInventory> getPlayerInventory(PlayerProfile player) {
-        return playerInventoryRepository.findAllByPlayer(player);
+    public List<PlayerInventoryResponse> getPlayerInventory(Long id) {
+
+        List<PlayerInventory> playerInventory = playerInventoryRepository.findAllByPlayerId(id);
+
+        return inventoryMapper.toResponseList(playerInventory);
     }
 
     @Transactional
-    public PlayerInventory addIngredient(PlayerProfile player, Ingredient ingredient, BigDecimal quantity) {
+    public PlayerInventoryResponse addIngredient(IngredientRequest request) {
 
-        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+        if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
         PlayerInventory playerInventory = playerInventoryRepository
-                .findByPlayerAndIngredient(player,ingredient)
+                .findByPlayerAndIngredient(request.player(),request.ingredient())
                 .orElseGet(
                         () -> PlayerInventory.builder()
-                                .player(player)
-                                .ingredient(ingredient)
+                                .player(request.player())
+                                .ingredient(request.ingredient())
                                 .quantity(BigDecimal.ZERO)
                                 .build());
 
         playerInventory.setQuantity(
-                playerInventory.getQuantity().add(quantity)
+                playerInventory.getQuantity().add(request.quantity())
         );
 
-        return playerInventoryRepository.save(playerInventory);
+        PlayerInventory inventory = playerInventoryRepository.save(playerInventory);
+
+        return inventoryMapper.toPlayerInventoryResponse(inventory);
     }
 
     @Transactional
-    public PlayerInventory removeIngredient(PlayerProfile player, Ingredient ingredient, BigDecimal quantity) {
+    public PlayerInventoryResponse removeIngredient(IngredientRequest request) {
 
-        if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
+        if (request.quantity().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Quantity must be greater than zero");
         }
 
         PlayerInventory playerInventory = playerInventoryRepository
-                .findByPlayerAndIngredient(player, ingredient)
+                .findByPlayerAndIngredient(request.player(), request.ingredient())
                 .orElseThrow(
                         () -> new IngredientNotInInventoryException("Ingredient not found")
                 );
 
-        if (playerInventory.getQuantity().subtract(quantity).compareTo(BigDecimal.ZERO) < 0) {
+        if (playerInventory.getQuantity().subtract(request.quantity()).compareTo(BigDecimal.ZERO) < 0) {
             throw new InsufficientStockException("Not enough ingredients");
         }
 
         playerInventory.setQuantity(
-                playerInventory.getQuantity().subtract(quantity)
+                playerInventory.getQuantity().subtract(request.quantity())
         );
 
-        return playerInventoryRepository.save(playerInventory);
+        PlayerInventory inventory = playerInventoryRepository.save(playerInventory);
+
+        return inventoryMapper.toPlayerInventoryResponse(inventory);
     }
 }

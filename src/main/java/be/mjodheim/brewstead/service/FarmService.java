@@ -2,10 +2,11 @@ package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.farm.PlantCropRequest;
 import be.mjodheim.brewstead.dto.farm.PlayerFieldResponse;
+import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
 import be.mjodheim.brewstead.entity.Crop;
 import be.mjodheim.brewstead.entity.PlayerField;
-import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.enums.FieldStatus;
+import be.mjodheim.brewstead.mapper.FarmMapper;
 import be.mjodheim.brewstead.repository.CropRepository;
 import be.mjodheim.brewstead.repository.PlayerFieldRepository;
 import jakarta.transaction.Transactional;
@@ -22,9 +23,13 @@ public class FarmService {
     private final PlayerFieldRepository playerFieldRepository;
     private final InventoryService inventoryService;
     private final CropRepository cropRepository;
+    private final FarmMapper farmMapper;
 
-    public List<PlayerField> findAllFields(PlayerProfile playerProfile) {
-        return playerFieldRepository.findAllByPlayer(playerProfile);
+    public List<PlayerFieldResponse> findAllFields(Long id) {
+
+        List<PlayerField> fields = playerFieldRepository.findAllByPlayerId(id);
+
+        return farmMapper.toResponseList(fields);
     }
 
     // La méthode du service reçoit le DTO 'PlantCropRequest'
@@ -63,7 +68,7 @@ public class FarmService {
                 FieldStatus.GROWING
         );
 
-        return toResponse(field);
+        return farmMapper.toResponse(field);
     }
 
     @Transactional
@@ -76,7 +81,7 @@ public class FarmService {
 
         refreshFieldStatus(field);
 
-        return toResponse(field);
+        return farmMapper.toResponse(field);
     }
 
     // C'est l'heure de la récolte !
@@ -98,10 +103,13 @@ public class FarmService {
         }
 
         // Ajouter la culture dans l'inventaire du joueur
+        // ATTENTION : le service Inventory ne reçoit et ne retourne que des DTO
         inventoryService.addIngredient(
-                field.getPlayer(),
-                field.getCrop().getIngredient(),
-                field.getCrop().getYieldQuantity()
+                new IngredientRequest(
+                        field.getPlayer(),
+                        field.getCrop().getIngredient(),
+                        field.getCrop().getYieldQuantity()
+                )
         );
 
         // Mise à jour de l'état de la parcelle
@@ -112,7 +120,7 @@ public class FarmService {
         field.setPlantedAt(null);
         field.setReadyAt(null);
 
-        return toResponse(field);
+        return farmMapper.toResponse(field);
     }
 
     // Méthode pour mettre à jour le statut d'une parcelle
@@ -127,16 +135,5 @@ public class FarmService {
             // Mise à jour de l'état de la parcelle
             field.setStatus(FieldStatus.READY);
         }
-    }
-
-    // Méthode privée pour mapper les entities en DTO de sortie
-    private PlayerFieldResponse toResponse(PlayerField field) {
-        return new PlayerFieldResponse(
-                field.getId(),
-                field.getCrop() == null ? null : field.getCrop().getName(),
-                field.getPlantedAt(),
-                field.getReadyAt(),
-                field.getStatus()
-        );
     }
 }

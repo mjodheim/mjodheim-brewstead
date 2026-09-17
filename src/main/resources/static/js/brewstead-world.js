@@ -368,3 +368,12 @@
     script.dataset.brewsteadLife = 'true';
     document.body.appendChild(script);
 })();
+
+(() => {
+    if (document.querySelector('script[data-brewstead-ux]')) return;
+    const script = document.createElement('script');
+    script.src = '/js/brewstead-ux.js';
+    script.defer = true;
+    script.dataset.brewsteadUx = 'true';
+    document.body.appendChild(script);
+})();

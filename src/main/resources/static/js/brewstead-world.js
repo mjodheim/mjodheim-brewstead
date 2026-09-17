@@ -16,7 +16,10 @@
 
     if (!jeu) return;
 
+    const modeMobile = window.matchMedia?.('(max-width: 900px)').matches ?? false;
+
     document.documentElement.classList.add('brewstead-perf');
+    if (modeMobile) document.documentElement.classList.add('brewstead-mobile');
 
     if (!document.querySelector('link[data-brewstead-performance]')) {
         const lien = document.createElement('link');
@@ -24,6 +27,15 @@
         lien.href = '/css/brewstead-performance.css';
         lien.dataset.brewsteadPerformance = 'true';
         document.head.appendChild(lien);
+    }
+
+    /* Sur mobile on retire réellement les éléments purement décoratifs du DOM.
+       Les masquer en CSS évite la peinture, les supprimer évite aussi leur coût mémoire. */
+    if (modeMobile) {
+        jeu.querySelector('.ciel')?.remove();
+        jeu.querySelectorAll('.brume, .lucioles, .abeilles, .fumee, .montagne--neige, .chemin-lumiere')
+            .forEach((element) => element.remove());
+        jeu.querySelectorAll('.carte defs filter').forEach((filter) => filter.remove());
     }
 
     const lieux = {
@@ -227,7 +239,7 @@
     setInterval(() => { if (!document.hidden) definirPhase(); }, 5 * 60 * 1000);
 
     const mouvementReduit = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    if (!mouvementReduit) {
+    if (!mouvementReduit && !modeMobile) {
         document.querySelectorAll('.zone').forEach((zone) => {
             zone.addEventListener('pointerdown', () => {
                 zone.animate([
@@ -250,9 +262,20 @@
         document.body.appendChild(script);
     };
 
-    chargerScript('/js/brewstead-ux.js', 'brewstead-ux');
+    /* L'UX secondaire peut attendre le premier rendu sur mobile. */
+    const chargerUx = () => chargerScript('/js/brewstead-ux.js', 'brewstead-ux');
+    if (modeMobile) {
+        if ('requestIdleCallback' in window) requestIdleCallback(chargerUx, { timeout: 1200 });
+        else setTimeout(chargerUx, 450);
+    } else {
+        chargerUx();
+    }
 
-    const chargerVie = () => chargerScript('/js/brewstead-life.js', 'brewstead-life');
-    if ('requestIdleCallback' in window) requestIdleCallback(chargerVie, { timeout: 900 });
-    else setTimeout(chargerVie, 250);
+    /* Le monde vivant est réservé au desktop : sur mobile il doublait le travail
+       de composition sans apporter d'information de jeu. */
+    if (!modeMobile) {
+        const chargerVie = () => chargerScript('/js/brewstead-life.js', 'brewstead-life');
+        if ('requestIdleCallback' in window) requestIdleCallback(chargerVie, { timeout: 900 });
+        else setTimeout(chargerVie, 250);
+    }
 })();

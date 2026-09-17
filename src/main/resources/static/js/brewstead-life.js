@@ -3,13 +3,18 @@
     const camera = document.getElementById('camera');
     if (!jeu || !camera) return;
 
-    const ajouterFeuilleStyle = () => {
-        if (document.querySelector('link[data-brewstead-life]')) return;
-        const lien = document.createElement('link');
-        lien.rel = 'stylesheet';
-        lien.href = '/css/brewstead-life.css';
-        lien.dataset.brewsteadLife = 'true';
-        document.head.appendChild(lien);
+    const ajouterFeuillesStyle = () => {
+        [
+            ['brewstead-life', '/css/brewstead-life.css'],
+            ['brewstead-seasons-ui', '/css/brewstead-seasons.css']
+        ].forEach(([cle, href]) => {
+            if (document.querySelector(`link[data-${cle}]`)) return;
+            const lien = document.createElement('link');
+            lien.rel = 'stylesheet';
+            lien.href = href;
+            lien.dataset[cle.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = 'true';
+            document.head.appendChild(lien);
+        });
     };
 
     const creerMondeVivant = () => {
@@ -174,9 +179,9 @@
         zone.addEventListener('dblclick', () => ouvrirInterieur(zone.dataset.zone));
     });
 
-    ajouterFeuilleStyle();
+    ajouterFeuillesStyle();
     creerMondeVivant();
 
-    // La couche saisons/météo lourde n'est volontairement plus chargée ici.
-    // On évite ainsi la création de centaines de particules et d'animations permanentes.
+    // La logique saisons/météo lourde n'est volontairement plus chargée ici.
+    // On conserve ses styles d'interface, sans créer les centaines de particules animées.
 })();

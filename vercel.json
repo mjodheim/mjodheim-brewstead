@@ -1,18 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "app": {
-      "runtime": "container",
-      "root": ".",
-      "entrypoint": "Dockerfile.vercel"
-    }
-  },
+  "buildCommand": "rm -rf .vercel-static && mkdir -p .vercel-static && cp -R src/main/resources/static/. .vercel-static/ && cp src/main/resources/templates/game/brewstead-world.html .vercel-static/index.html",
+  "outputDirectory": ".vercel-static",
   "rewrites": [
     {
-      "source": "/(.*)",
-      "destination": {
-        "service": "app"
-      }
+      "source": "/",
+      "destination": "/index.html"
     }
   ]
 }

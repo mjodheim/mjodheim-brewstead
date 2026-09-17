@@ -21,3 +21,35 @@
 @media(max-width:1050px){.top-hud{grid-template-columns:190px 1fr auto;height:70px}.brand{height:56px}.brand-rune{width:48px;height:48px;font-size:23px}.brand-name strong{font-size:15px}.brand-name small{font-size:7px}.player-card{height:54px}.resources{display:none}.weather{height:54px}.side-nav{top:70px;width:145px;padding-left:5px;padding-right:5px}.side-nav button{height:53px;grid-template-columns:38px 1fr}.side-nav button strong{font-size:10px}.side-nav button span{font-size:19px}.world-stage{inset:70px 0 0 145px}.welcome{transform:scale(.86);transform-origin:top left}.world-marker{transform:scale(.78);transform-origin:center}.quest-panel{width:235px}.panneau-lieu{right:255px;width:300px}}
 @media(max-width:760px){body{overflow:hidden}.jeu{min-height:0}.painted-scene{grid-template-columns:1fr 1fr;left:-28%;right:-28%;filter:saturate(.9) brightness(.82)}.top-hud{height:61px;grid-template-columns:150px 1fr auto;padding:5px 7px;gap:5px}.brand-rune{width:42px;height:42px}.brand-name strong{font-size:12px}.brand-name small{font-size:6px}.player-card{height:49px;grid-template-columns:42px 1fr 35px;padding:3px}.avatar{width:40px;height:40px;font-size:18px}.player-name small,.level small,.xp-copy{display:none}.player-name strong{font-size:11px}.weather{width:45px;height:45px;padding:0;justify-content:center}.weather>span:last-child{display:none}.weather .sun{font-size:23px}.side-nav{left:0;right:0;top:auto;bottom:0;width:auto;height:104px;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);padding:3px;background:rgba(34,23,15,.97);border-right:0;border-top:1px solid rgba(214,161,78,.55)}.side-nav:before,.side-motto{display:none}.side-nav button,.side-nav button.est-actif{margin:0;width:100%;height:auto;min-height:47px;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:0!important;clip-path:none;border:0;border-radius:5px;text-align:center}.side-nav button span{font-size:15px}.side-nav button strong{font-size:7px}.side-nav button i{right:5px;top:3px;width:15px;height:15px;font-size:7px}.world-stage{inset:61px 0 104px 0}.welcome{left:10px;top:12px;width:280px;padding:11px 12px;border:1px solid rgba(219,170,86,.3);border-radius:9px;background:rgba(17,15,12,.68);backdrop-filter:blur(3px);transform:none;text-shadow:0 2px 7px #000}.welcome small{font-size:12px}.welcome h1{font-size:33px}.welcome p{width:auto;font-size:11px}.welcome blockquote{display:none}.world-marker{min-width:120px;min-height:38px;grid-template-columns:29px auto;grid-template-rows:18px 13px;padding:3px 7px;transform:scale(.78)}.world-marker>span{font-size:16px}.world-marker strong{font-size:9px}.world-marker small{font-size:7px}.marker-champs{left:1%;top:43%}.marker-rucher{left:14%;top:61%}.marker-brasserie{left:37%;top:35%}.marker-laboratoire{left:57%;top:50%}.marker-reserve{left:42%;top:73%}.marker-taverne{left:72%;top:64%}.quest-panel{right:8px;top:8px;width:180px;padding:9px 10px;transform:scale(.86);transform-origin:top right}.quest-panel .panel-title{margin-bottom:5px}.quest-panel .panel-title strong{font-size:10px}.quest-panel p{font-size:9px;margin-bottom:6px}.tip-panel,.utility-controls{display:none}.panneau-lieu{left:7px;right:7px;top:auto;bottom:8px;width:auto;max-height:55dvh;overflow:auto;padding:16px;transform:translateY(calc(100% + 20px));border-radius:12px;background:rgba(31,24,17,.98)}.panneau-lieu.est-visible{transform:translateY(0)}.panneau-lieu h2{font-size:20px}.notification{top:68px;width:calc(100vw - 16px);text-align:center}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01ms!important}}
+
+/* Mobile phone layout: keep the intro, objective card and map markers from overlapping or leaving the viewport. */
+@media(max-width:520px){
+  .world-stage{overflow:hidden}
+  .welcome{left:8px;right:8px;top:8px;width:auto;padding:9px 11px}
+  .welcome small{font-size:11px}
+  .welcome h1{margin:1px 0 5px;font-size:30px}
+  .welcome p{font-size:10px;line-height:1.25}
+
+  .quest-panel{left:8px;right:8px;top:108px;width:auto;padding:8px 9px;transform:none;display:grid;grid-template-columns:minmax(0,1fr) 116px;grid-template-areas:"title button" "goal button" "progress button";column-gap:10px;row-gap:4px;align-items:center}
+  .quest-panel .panel-title{grid-area:title;margin:0;gap:6px}
+  .quest-panel .panel-title span{font-size:17px}
+  .quest-panel .panel-title strong{font-size:9px}
+  .quest-panel p{grid-area:goal;margin:0;font-size:8.5px;line-height:1.15}
+  .quest-panel .progress-row{grid-area:progress;gap:6px}
+  .quest-panel .progress{height:7px}
+  .quest-panel .progress-row b{font-size:9px}
+  .quest-panel button{grid-area:button;width:100%;height:100%;min-height:52px;margin:0;padding:4px 6px;font-size:8px;line-height:1.25}
+
+  .world-marker{width:122px;min-width:0;min-height:40px;grid-template-columns:30px minmax(0,1fr);grid-template-rows:18px 14px;padding:4px 7px;transform:none}
+  .world-marker:hover,.world-marker.est-actif{transform:translateY(-2px) scale(1.01)}
+  .world-marker>span{font-size:16px}
+  .world-marker strong{font-size:9px;white-space:nowrap}
+  .world-marker small{font-size:7px;white-space:nowrap}
+
+  .marker-brasserie{left:calc(50% - 61px);top:40%}
+  .marker-champs{left:8px;top:51%}
+  .marker-laboratoire{left:auto;right:8px;top:51%}
+  .marker-rucher{left:30px;top:64%}
+  .marker-taverne{left:auto;right:8px;top:67%}
+  .marker-reserve{left:calc(50% - 61px);top:79%}
+}

@@ -102,12 +102,13 @@ public class FarmService {
             throw  new IllegalStateException("Field is not ready");
         }
 
-        // Ajouter la culture dans l'inventaire du joueur
-        // ATTENTION : le service Inventory ne reçoit et ne retourne que des DTO
+        // Ajouter la culture dans l'inventaire du joueur.
+        // InventoryService travaille avec des DTO basés sur les identifiants,
+        // pas avec les entités JPA elles-mêmes.
         inventoryService.addIngredient(
                 new IngredientRequest(
-                        field.getPlayer(),
-                        field.getCrop().getIngredient(),
+                        field.getPlayer().getId(),
+                        field.getCrop().getIngredient().getId(),
                         field.getCrop().getYieldQuantity()
                 )
         );

@@ -1,5 +1,6 @@
 package be.mjodheim.brewstead.service;
 
+import be.mjodheim.brewstead.dto.account.ChangePasswordRequest;
 import be.mjodheim.brewstead.dto.account.UpdateAccountRequest;
 import be.mjodheim.brewstead.dto.player.PlayerProfileResponse;
 import be.mjodheim.brewstead.entity.PlayerProfile;
@@ -10,6 +11,7 @@ import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.regex.Pattern;
@@ -28,6 +30,7 @@ public class AccountService {
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerService playerService;
     private final PlayerMapper playerMapper;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public PlayerProfileResponse currentAccount(String username) {
@@ -56,6 +59,28 @@ public class AccountService {
         profile.setAvatar(Avatar.fromNullable(request.avatar()));
 
         return playerMapper.toResponse(profile);
+    }
+
+    /**
+     * Change le mot de passe après vérification de l'actuel. Le nouveau doit
+     * différer de l'ancien : sinon on croit avoir tourné la clé sans l'avoir fait.
+     */
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest request) {
+        User user = requireUser(username);
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Mot de passe actuel incorrect.");
+        }
+        if (!request.newPassword().equals(request.confirmation())) {
+            throw new IllegalArgumentException("Les deux mots de passe ne correspondent pas.");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Le nouveau mot de passe est identique à l'ancien.");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepository.save(user);
     }
 
     /** Un nom vide remet simplement l'identifiant de connexion en vitrine. */

@@ -13,6 +13,7 @@ import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.RecipeRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -92,8 +93,8 @@ public class NpcOrderService {
     }
 
     @Transactional
-    public NpcOrderResponse acceptOrder(Long orderId) {
-        NpcOrder order = getOrder(orderId);
+    public NpcOrderResponse acceptOrder(Long playerId, Long orderId) {
+        NpcOrder order = getOwnedOrder(playerId, orderId);
         refreshOrderStatus(order);
 
         if (order.getStatus() != OrderStatus.OPEN) {
@@ -104,8 +105,8 @@ public class NpcOrderService {
     }
 
     @Transactional
-    public NpcOrderResponse completeOrder(Long orderId) {
-        NpcOrder order = getOrder(orderId);
+    public NpcOrderResponse completeOrder(Long playerId, Long orderId) {
+        NpcOrder order = getOwnedOrder(playerId, orderId);
         refreshOrderStatus(order);
 
         if (order.getStatus() != OrderStatus.OPEN && order.getStatus() != OrderStatus.IN_PROGRESS) {
@@ -142,6 +143,14 @@ public class NpcOrderService {
                 order,
                 npcOrderLineRepository.findAllByOrderId(order.getId())
         );
+    }
+
+    private NpcOrder getOwnedOrder(Long playerId, Long orderId) {
+        NpcOrder order = getOrder(orderId);
+        if (!order.getPlayer().getId().equals(playerId)) {
+            throw new AccessDeniedException("Cette commande ne t'est pas adressée.");
+        }
+        return order;
     }
 
     private NpcOrder getOrder(Long orderId) {

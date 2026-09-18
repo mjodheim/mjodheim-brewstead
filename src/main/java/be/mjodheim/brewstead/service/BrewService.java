@@ -18,6 +18,7 @@ import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.RecipeIngredientRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -47,13 +48,13 @@ public class BrewService {
     }
 
     @Transactional
-    public BatchResponse startBatch(StartBatchRequest request) {
+    public BatchResponse startBatch(Long playerId, StartBatchRequest request) {
         if (request.volume() == null || request.volume().compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Batch volume must be greater than zero");
         }
 
-        PlayerProfile player = getPlayer(request.playerId());
-        Recipe recipe = recipeService.getAccessibleRecipeEntity(request.playerId(), request.recipeId());
+        PlayerProfile player = getPlayer(playerId);
+        Recipe recipe = recipeService.getAccessibleRecipeEntity(playerId, request.recipeId());
         List<RecipeIngredient> ingredients = recipeIngredientRepository.findAllByRecipeId(recipe.getId());
         if (ingredients.isEmpty()) {
             throw new IllegalStateException("Recipe has no ingredients");
@@ -93,11 +94,7 @@ public class BrewService {
     /** Une gorgée : le fût baisse un peu, l'effet de la recette s'installe. */
     @Transactional
     public TastingResponse taste(Long playerId, Long batchId) {
-        Batch batch = getBatch(batchId);
-        if (!batch.getPlayer().getId().equals(playerId)) {
-            throw new IllegalStateException("Ce brassin n'est pas le tien.");
-        }
-
+        Batch batch = getOwnedBatch(playerId, batchId);
         refreshBatchStatus(batch);
         if (batch.getStatus() != BatchStatus.READY) {
             throw new IllegalStateException("Ce brassin n'est pas encore prêt à boire.");
@@ -114,8 +111,8 @@ public class BrewService {
     }
 
     @Transactional
-    public BatchResponse updateBatchStatus(Long batchId) {
-        Batch batch = getBatch(batchId);
+    public BatchResponse updateBatchStatus(Long playerId, Long batchId) {
+        Batch batch = getOwnedBatch(playerId, batchId);
         refreshBatchStatus(batch);
         return brewMapper.toResponse(batch);
     }
@@ -166,9 +163,13 @@ public class BrewService {
                 .orElseThrow(() -> new IllegalArgumentException("Player not found"));
     }
 
-    private Batch getBatch(Long batchId) {
-        return batchRepository.findById(batchId)
-                .orElseThrow(() -> new IllegalArgumentException("Batch not found"));
+    private Batch getOwnedBatch(Long playerId, Long batchId) {
+        Batch batch = batchRepository.findById(batchId)
+                .orElseThrow(() -> new IllegalArgumentException("Brassin introuvable."));
+        if (!batch.getPlayer().getId().equals(playerId)) {
+            throw new AccessDeniedException("Ce brassin n'est pas le tien.");
+        }
+        return batch;
     }
 
     private void refreshBatchStatus(Batch batch) {

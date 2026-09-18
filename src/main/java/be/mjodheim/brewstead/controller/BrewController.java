@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.security.Principal;
+import be.mjodheim.brewstead.service.CurrentPlayerService;
 
 @RestController
 @RequestMapping("/api/brewery")
@@ -16,25 +18,26 @@ import java.util.List;
 public class BrewController {
 
     private final BrewService brewService;
+    private final CurrentPlayerService currentPlayer;
     private final AccountService accountService;
 
     @GetMapping("/players/{playerId}/batches")
-    public List<BatchResponse> batches(@PathVariable Long playerId) {
-        return brewService.findPlayerBatches(playerId);
+    public List<BatchResponse> batches(Principal principal, @PathVariable Long playerId) {
+        return brewService.findPlayerBatches(currentPlayer.requireSelf(principal, playerId));
     }
 
     @PostMapping("/batches")
-    public BatchResponse start(@RequestBody StartBatchRequest request) {
-        return brewService.startBatch(request);
+    public BatchResponse start(Principal principal, @RequestBody StartBatchRequest request) {
+        return brewService.startBatch(currentPlayer.requireSelf(principal, request.playerId()), request);
     }
 
     @PostMapping("/batches/{batchId}/taste")
-    public TastingResponse taste(java.security.Principal principal, @PathVariable Long batchId) {
-        return brewService.taste(accountService.currentPlayerId(principal.getName()), batchId);
+    public TastingResponse taste(Principal principal, @PathVariable Long batchId) {
+        return brewService.taste(currentPlayer.id(principal), batchId);
     }
 
     @PostMapping("/batches/{batchId}/refresh")
-    public BatchResponse refresh(@PathVariable Long batchId) {
-        return brewService.updateBatchStatus(batchId);
+    public BatchResponse refresh(Principal principal, @PathVariable Long batchId) {
+        return brewService.updateBatchStatus(currentPlayer.id(principal), batchId);
     }
 }

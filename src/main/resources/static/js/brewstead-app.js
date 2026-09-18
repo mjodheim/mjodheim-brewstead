@@ -381,6 +381,15 @@
                         title: player.username || '—',
                         meta: 'Identifiant de connexion, il ne change pas'
                     }) +
+                    '<label class="account-field" style="margin-top:.7em">' +
+                    '<input id="pwdCurrent" type="password" autocomplete="current-password" placeholder="Mot de passe actuel"></label>' +
+                    '<label class="account-field" style="margin-top:.5em">' +
+                    '<input id="pwdNew" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (8 caractères mini)"></label>' +
+                    '<label class="account-field" style="margin-top:.5em">' +
+                    '<input id="pwdConfirm" type="password" autocomplete="new-password" placeholder="Confirmation"></label>' +
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="change-password">Changer le mot de passe</button>' +
+                    '</div>' +
                     row({
                         icon: 'i-trophy',
                         title: 'Niveau ' + player.level,
@@ -492,7 +501,7 @@
 
         if (action === 'pick-crop') {
             var fieldId = picker ? picker.fieldId : null;
-            send('/api/farm/plant', { playerId: state.player.id, fieldId: fieldId, cropId: Number(id) },
+            send('/api/farm/plant', { fieldId: fieldId, cropId: Number(id) },
                 function () { selectView('monde'); openPlace('champs'); toast('Semé. Ça pousse.'); });
             return;
         }
@@ -528,6 +537,32 @@
             renderScreen();
             return;
         }
+        if (action === 'change-password') {
+            var current = $('pwdCurrent'), fresh = $('pwdNew'), again = $('pwdConfirm');
+            if (!current || !fresh || !again) return;
+            var headers = csrfHeaders();
+            headers['Content-Type'] = 'application/json';
+            fetch('/api/account/password', {
+                method: 'PUT',
+                credentials: 'same-origin',
+                headers: headers,
+                body: JSON.stringify({
+                    currentPassword: current.value,
+                    newPassword: fresh.value,
+                    confirmation: again.value
+                })
+            }).then(function (response) {
+                if (response.ok) {
+                    current.value = fresh.value = again.value = '';
+                    toast('Mot de passe changé.');
+                    return;
+                }
+                return response.json().catch(function () { return {}; })
+                    .then(function (payload) { toast(payload.message || 'Changement refusé.'); });
+            }).catch(function () { toast('Changement impossible pour l’instant.'); });
+            return;
+        }
+
         if (action === 'save-account') {
             saveAccount();
             return;

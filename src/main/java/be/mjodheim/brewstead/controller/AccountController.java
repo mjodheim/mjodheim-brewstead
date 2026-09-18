@@ -1,5 +1,6 @@
 package be.mjodheim.brewstead.controller;
 
+import be.mjodheim.brewstead.dto.account.ChangePasswordRequest;
 import be.mjodheim.brewstead.dto.account.UpdateAccountRequest;
 import be.mjodheim.brewstead.dto.player.PlayerProfileResponse;
 import be.mjodheim.brewstead.enums.Avatar;
@@ -30,6 +31,11 @@ public class AccountController {
     @PutMapping("/me")
     public PlayerProfileResponse update(Principal principal, @Valid @RequestBody UpdateAccountRequest request) {
         return accountService.updateAccount(principal.getName(), request);
+    }
+
+    @PutMapping("/password")
+    public void changePassword(Principal principal, @Valid @RequestBody ChangePasswordRequest request) {
+        accountService.changePassword(principal.getName(), request);
     }
 
     @GetMapping("/me/effects")

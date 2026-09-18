@@ -12,6 +12,7 @@ import be.mjodheim.brewstead.repository.CropRepository;
 import be.mjodheim.brewstead.repository.PlayerFieldRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -35,12 +36,11 @@ public class FarmService {
     }
 
     @Transactional
-    public PlayerFieldResponse plant(PlantCropRequest request) {
+    public PlayerFieldResponse plant(Long playerId, PlantCropRequest request) {
         Crop crop = cropRepository.findById(request.cropId())
-                .orElseThrow(() -> new IllegalArgumentException("Crop not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Culture introuvable."));
 
-        PlayerField field = playerFieldRepository.findById(request.fieldId())
-                .orElseThrow(() -> new IllegalArgumentException("Field not found"));
+        PlayerField field = getOwnedField(playerId, request.fieldId());
 
         if (field.getStatus() != FieldStatus.EMPTY) {
             throw new IllegalStateException("Field is not empty");
@@ -59,19 +59,15 @@ public class FarmService {
     }
 
     @Transactional
-    public PlayerFieldResponse updateFieldStatus(Long fieldId) {
-        PlayerField field = playerFieldRepository.findById(fieldId)
-                .orElseThrow(() -> new IllegalArgumentException("Field not found"));
-
+    public PlayerFieldResponse updateFieldStatus(Long playerId, Long fieldId) {
+        PlayerField field = getOwnedField(playerId, fieldId);
         refreshFieldStatus(field);
         return farmMapper.toResponse(field);
     }
 
     @Transactional
-    public PlayerFieldResponse harvest(Long fieldId) {
-        PlayerField field = playerFieldRepository.findById(fieldId)
-                .orElseThrow(() -> new IllegalArgumentException("Field not found"));
-
+    public PlayerFieldResponse harvest(Long playerId, Long fieldId) {
+        PlayerField field = getOwnedField(playerId, fieldId);
         refreshFieldStatus(field);
         if (field.getStatus() != FieldStatus.READY) {
             throw new IllegalStateException("Field is not ready");
@@ -91,6 +87,15 @@ public class FarmService {
         field.setReadyAt(null);
 
         return farmMapper.toResponse(field);
+    }
+
+    private PlayerField getOwnedField(Long playerId, Long fieldId) {
+        PlayerField field = playerFieldRepository.findById(fieldId)
+                .orElseThrow(() -> new IllegalArgumentException("Parcelle introuvable."));
+        if (!field.getPlayer().getId().equals(playerId)) {
+            throw new AccessDeniedException("Cette parcelle n'est pas la tienne.");
+        }
+        return field;
     }
 
     private void refreshFieldStatus(PlayerField field) {

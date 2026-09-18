@@ -12,6 +12,7 @@ import be.mjodheim.brewstead.repository.BeehiveRepository;
 import be.mjodheim.brewstead.repository.IngredientRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -39,8 +40,8 @@ public class ApiaryService {
     }
 
     @Transactional
-    public BeehiveResponse startProduction(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse startProduction(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
 
         if (hive.getStatus() != BehiveStatus.IDLE) {
@@ -60,15 +61,15 @@ public class ApiaryService {
     }
 
     @Transactional
-    public BeehiveResponse updateHiveStatus(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse updateHiveStatus(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
         return apiaryMapper.toResponse(hive);
     }
 
     @Transactional
-    public BeehiveResponse harvest(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse harvest(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
 
         if (hive.getStatus() != BehiveStatus.READY) {
@@ -90,9 +91,13 @@ public class ApiaryService {
         return apiaryMapper.toResponse(hive);
     }
 
-    private Beehive getHive(Long hiveId) {
-        return beehiveRepository.findById(hiveId)
-                .orElseThrow(() -> new IllegalArgumentException("Beehive not found"));
+    private Beehive getOwnedHive(Long playerId, Long hiveId) {
+        Beehive hive = beehiveRepository.findById(hiveId)
+                .orElseThrow(() -> new IllegalArgumentException("Ruche introuvable."));
+        if (!hive.getPlayer().getId().equals(playerId)) {
+            throw new AccessDeniedException("Cette ruche n'est pas la tienne.");
+        }
+        return hive;
     }
 
     private void refreshHiveStatus(Beehive hive) {

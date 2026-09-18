@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ vars.VPS_CD_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 

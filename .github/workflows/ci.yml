@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -47,7 +47,17 @@ jobs:
           java-version: "26"
           cache: maven
 
+      - name: Set up Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2.1.2
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
       - name: Verify Java project
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: |
           chmod +x mvnw
           ./mvnw -B clean verify

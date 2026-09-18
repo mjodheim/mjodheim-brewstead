@@ -48,7 +48,9 @@ jobs:
           cache: maven
 
       - name: Verify Java project
-        run: ./mvnw -B clean verify
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean verify
 
       - name: Validate JSON catalogues
         run: |

@@ -1,0 +1,198 @@
+/* ==========================================================================
+   Brewstead — portail du domaine (connexion, inscription)
+   S'appuie sur les jetons et composants de brewstead.css
+   ========================================================================== */
+
+html, body {
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+}
+
+body {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+    font-size: clamp(14px, .3vw + 12px, 17px);
+}
+
+.gate-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(10, 7, 3, .72), rgba(10, 7, 3, .88));
+}
+
+/* Décor en profondeur de champ : on entre par la porte, pas par la carte. */
+.gate-bg::before {
+    content: "";
+    position: absolute;
+    inset: -4%;
+    z-index: -1;
+    background: url("../images/brewstead-domaine.webp") center / cover no-repeat;
+    filter: blur(5px) saturate(.9);
+}
+
+.gate-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(90% 70% at 50% 40%, transparent 40%, rgba(8, 5, 2, .75) 100%);
+}
+
+.gate {
+    width: min(27rem, 100%);
+    padding: 2rem 1.9rem 1.8rem;
+    animation: gate-in .5s cubic-bezier(.2, .8, .25, 1) both;
+}
+
+@keyframes gate-in {
+    from { opacity: 0; transform: translateY(1.2rem); }
+}
+
+.gate__crest {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: 1.6rem;
+    text-align: center;
+}
+
+.gate__mark {
+    display: grid;
+    place-items: center;
+    width: 3.4rem;
+    height: 3.4rem;
+    border-radius: .7rem;
+    color: #2a1a06;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    box-shadow: inset 0 -.3rem .6rem rgba(0, 0, 0, .25), 0 .4rem 1rem rgba(0, 0, 0, .5);
+}
+
+.gate__mark svg { width: 2rem; height: 2rem; stroke-width: 1.8; }
+
+.gate__crest h1 {
+    font-size: 2rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffeec2, #c9922f);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.gate__crest p {
+    margin: 0;
+    font-size: .8rem;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--cream-dim);
+}
+
+.gate h2 {
+    margin-bottom: .3rem;
+    font-size: 1.3rem;
+    color: #fbf1dc;
+}
+
+.gate__intro {
+    margin: 0 0 1.4rem;
+    font-size: .95rem;
+    line-height: 1.5;
+    color: var(--cream-dim);
+}
+
+/* Champs -------------------------------------------------------------------- */
+
+.field { display: block; margin-bottom: 1rem; }
+
+.field > span {
+    display: block;
+    margin-bottom: .4rem;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: .85rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.field input {
+    width: 100%;
+    padding: .7rem .85rem;
+    font: inherit;
+    color: var(--cream);
+    background: rgba(10, 7, 3, .55);
+    border: 1px solid var(--edge-soft);
+    border-radius: .5rem;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .6);
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.field input::placeholder { color: rgba(201, 178, 140, .5); }
+
+.field input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, .6), 0 0 0 3px rgba(233, 188, 85, .22);
+}
+
+.field small {
+    display: block;
+    margin-top: .35rem;
+    font-size: .8rem;
+    color: var(--cream-dim);
+}
+
+.gate .btn { width: 100%; margin-top: .4rem; padding: .8rem 1.3rem; font-size: 1rem; }
+
+/* Messages ------------------------------------------------------------------ */
+
+.notice {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    margin-bottom: 1.2rem;
+    padding: .7rem .9rem;
+    font-size: .92rem;
+    line-height: 1.4;
+    border-radius: .5rem;
+    border: 1px solid;
+}
+
+.notice::before {
+    content: "";
+    width: .55rem;
+    height: .55rem;
+    margin-top: .42rem;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+.notice--error { color: #f0a58f; border-color: rgba(214, 110, 80, .5); background: rgba(120, 40, 25, .28); }
+.notice--ok { color: #a6d79a; border-color: rgba(121, 196, 106, .45); background: rgba(45, 95, 40, .25); }
+
+.gate__foot {
+    margin: 1.4rem 0 0;
+    padding-top: 1.1rem;
+    border-top: 1px solid rgba(0, 0, 0, .5);
+    box-shadow: 0 -1px 0 rgba(255, 220, 160, .08);
+    font-size: .92rem;
+    text-align: center;
+    color: var(--cream-dim);
+}
+
+.gate__foot a { color: var(--gold); text-decoration: none; border-bottom: 1px solid rgba(233, 188, 85, .4); }
+.gate__foot a:hover { color: var(--gold-hi); border-bottom-color: currentColor; }
+
+.gate__seal {
+    margin: 1.6rem auto 0;
+    max-width: 30rem;
+    font-size: .85rem;
+    font-style: italic;
+    text-align: center;
+    color: rgba(201, 178, 140, .65);
+}

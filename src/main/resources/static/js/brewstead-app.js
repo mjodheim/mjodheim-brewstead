@@ -15,6 +15,7 @@
     var activePlace = null;
     var activeView = 'monde';
     var toastTimer = null;
+    var accountDraft = null;
 
     /* ----------------------------------------------------------- Utilitaires */
 
@@ -81,8 +82,14 @@
 
     var DRINK_LABELS = { BEER: 'Bière', MEAD: 'Hydromel', CIDER: 'Cidre', OTHER: 'Autre' };
 
+    var AVATAR_LABELS = {
+        CERF: 'Cerf', CORBEAU: 'Corbeau', OURS: 'Ours', LOUP: 'Loup',
+        ABEILLE: 'Abeille', ORGE: 'Orge', TONNEAU: 'Tonneau', MARTEAU: 'Marteau'
+    };
+
     var SECTIONS = {
         rucher: {
+            live: true,
             title: 'Rucher',
             render: function (s) {
                 if (!s.hives.length) return empty('Aucune ruche installée pour l’instant.');
@@ -102,6 +109,7 @@
         },
 
         champs: {
+            live: true,
             title: 'Champs',
             render: function (s) {
                 if (!s.fields.length) return empty('Aucune parcelle cultivée pour l’instant.');
@@ -135,6 +143,7 @@
         },
 
         brasserie: {
+            live: true,
             title: 'Brasserie',
             render: function (s) {
                 if (!s.batches.length) return empty('Aucun brassin en cours.');
@@ -172,6 +181,7 @@
         },
 
         commandes: {
+            live: true,
             title: 'Commandes',
             render: function (s) {
                 if (!s.npcOrders.length) return empty('Aucune commande en attente.');
@@ -206,6 +216,59 @@
                         side: chip(fmt.number(player.reputation) + ' réputation', 'gold')
                     });
                 }).join('');
+            }
+        },
+
+
+        compte: {
+            title: 'Mon compte',
+            render: function (s) {
+                var player = s.player;
+                var chosen = accountDraft.avatar || player.avatar || 'CERF';
+                var name = accountDraft.displayName !== null
+                    ? accountDraft.displayName
+                    : (player.displayName || player.username || '');
+
+                var picker = Data.AVATARS.map(function (key) {
+                    return '<button class="avatar-pick' + (key === chosen ? ' is-chosen' : '') + '"' +
+                        ' type="button" data-action="pick-avatar" data-id="' + key + '"' +
+                        ' aria-pressed="' + (key === chosen) + '" title="' + esc(AVATAR_LABELS[key] || key) + '">' +
+                        icon('av-' + key) +
+                        '<span>' + esc(AVATAR_LABELS[key] || key) + '</span>' +
+                        '</button>';
+                }).join('');
+
+                return '<p class="section-title">Emblème</p>' +
+                    '<div class="avatars">' + picker + '</div>' +
+
+                    '<p class="section-title">Nom affiché</p>' +
+                    '<label class="account-field">' +
+                    '<input id="accountName" type="text" maxlength="30" value="' + esc(name) + '"' +
+                    ' placeholder="' + esc(player.username || '') + '" autocomplete="off">' +
+                    '<small>Ce nom apparaît sur ton domaine, à la taverne et au classement. ' +
+                    'Laisse-le vide pour reprendre ton identifiant de connexion.</small>' +
+                    '</label>' +
+
+                    '<div class="account-actions">' +
+                    '<button class="btn btn--gold" type="button" data-action="save-account">' +
+                    icon('i-check') + 'Enregistrer</button>' +
+                    '</div>' +
+
+                    '<p class="section-title">Connexion</p>' +
+                    row({
+                        icon: 'i-pouch',
+                        title: player.username || '—',
+                        meta: 'Identifiant de connexion, il ne change pas'
+                    }) +
+                    row({
+                        icon: 'i-trophy',
+                        title: 'Niveau ' + player.level,
+                        meta: fmt.number(player.reputation) + ' de réputation · ' + fmt.number(player.coins) + ' pièces'
+                    }) +
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="logout">' +
+                    icon('i-logout') + 'Quitter le domaine</button>' +
+                    '</div>';
             }
         },
 
@@ -282,7 +345,56 @@
         'harvest-field': function (id) { return '/api/farm/fields/' + id + '/harvest'; }
     };
 
+    function currentNameInput() {
+        var field = $('accountName');
+        return field ? field.value : null;
+    }
+
+    function saveAccount() {
+        var payload = {
+            displayName: currentNameInput(),
+            avatar: accountDraft.avatar || state.player.avatar || 'CERF'
+        };
+        var headers = csrfHeaders();
+        headers['Content-Type'] = 'application/json';
+
+        if (state.source === 'demo') {
+            state.player.displayName = (payload.displayName || '').trim() || state.player.username;
+            state.player.avatar = payload.avatar;
+            accountDraft = { avatar: null, displayName: null };
+            render();
+            toast('Compte mis à jour.');
+            return;
+        }
+
+        Data.saveAccount(payload, headers)
+            .then(function (account) {
+                state.player = account;
+                accountDraft = { avatar: null, displayName: null };
+                render();
+                toast('Compte mis à jour.');
+            })
+            .catch(function (error) { toast(error.message); });
+    }
+
     function runAction(action, id) {
+        if (action === 'pick-avatar') {
+            accountDraft.displayName = currentNameInput();
+            accountDraft.avatar = id;
+            renderScreen();
+            return;
+        }
+        if (action === 'save-account') {
+            saveAccount();
+            return;
+        }
+        if (action === 'logout') {
+            var form = $('logoutForm');
+            if (form) form.submit();
+            return;
+        }
+
+        id = Number(id);
         if (state.source === 'demo') {
             var message = applyLocally(action, id);
             if (message) { render(); toast(message); }
@@ -300,8 +412,8 @@
 
     function renderPlayer() {
         var player = state.player;
-        dom.playerName.textContent = player.username;
-        dom.playerAvatar.textContent = (player.username || '?').charAt(0).toUpperCase();
+        dom.playerName.textContent = player.displayName || player.username || '—';
+        dom.playerAvatar.innerHTML = icon('av-' + (player.avatar || 'CERF'));
         dom.playerLevel.textContent = 'Niveau ' + player.level;
         var xp = player.experience % Data.XP_PER_LEVEL;
         dom.xpBar.style.width = (xp / Data.XP_PER_LEVEL * 100) + '%';
@@ -357,6 +469,7 @@
     }
 
     function render() {
+        if (!accountDraft) accountDraft = { avatar: null, displayName: null };
         renderPlayer();
         renderResources();
         renderQuest();
@@ -420,7 +533,9 @@
         if (!SECTIONS[view]) return;
         closePlace();
         activeView = view;
+        accountDraft = { avatar: null, displayName: null };
         renderScreen();
+        syncDock();
         dom.screen.classList.add('is-open');
         dom.screen.setAttribute('aria-hidden', 'false');
         dom.screen.focus({ preventScroll: true });
@@ -471,12 +586,12 @@
 
         dom.place.addEventListener('click', function (event) {
             var button = event.target.closest('[data-action]');
-            if (button) runAction(button.dataset.action, Number(button.dataset.id));
+            if (button) runAction(button.dataset.action, button.dataset.id);
         });
 
         dom.screenBody.addEventListener('click', function (event) {
             var button = event.target.closest('[data-action]');
-            if (button) runAction(button.dataset.action, Number(button.dataset.id));
+            if (button) runAction(button.dataset.action, button.dataset.id);
         });
 
         dom.screenClose.addEventListener('click', function () { selectView('monde'); });
@@ -495,8 +610,7 @@
         });
 
         dom.settingsBtn.addEventListener('click', function () {
-            camera.reset();
-            toast('Vue d’ensemble recentrée.');
+            openScreen('compte');
         });
 
         document.addEventListener('keydown', function (event) {
@@ -535,7 +649,11 @@
             setInterval(function () {
                 renderMarkers();
                 renderPlace();
-                if (activeView !== 'monde') renderScreen();
+                // On ne réécrit que les écrans à minuterie : ailleurs cela
+                // effacerait ce que le joueur est en train de saisir.
+                if (activeView !== 'monde' && SECTIONS[activeView] && SECTIONS[activeView].live) {
+                    renderScreen();
+                }
             }, 1000);
             setInterval(function () { renderFeed(); renderQuest(); }, 15000);
         });

@@ -5,12 +5,14 @@ import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
 import be.mjodheim.brewstead.entity.Beehive;
 import be.mjodheim.brewstead.entity.Ingredient;
 import be.mjodheim.brewstead.enums.BehiveStatus;
+import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.IngredientType;
 import be.mjodheim.brewstead.mapper.ApiaryMapper;
 import be.mjodheim.brewstead.repository.BeehiveRepository;
 import be.mjodheim.brewstead.repository.IngredientRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -28,6 +30,7 @@ public class ApiaryService {
     private final IngredientRepository ingredientRepository;
     private final InventoryService inventoryService;
     private final ApiaryMapper apiaryMapper;
+    private final EffectService effectService;
 
     @Transactional
     public List<BeehiveResponse> findAllHives(Long playerId) {
@@ -37,8 +40,8 @@ public class ApiaryService {
     }
 
     @Transactional
-    public BeehiveResponse startProduction(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse startProduction(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
 
         if (hive.getStatus() != BehiveStatus.IDLE) {
@@ -46,7 +49,9 @@ public class ApiaryService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        int durationMinutes = Math.max(2, BASE_PRODUCTION_MINUTES - (hive.getLevel() - 1));
+        double factor = effectService.durationFactor(hive.getPlayer().getId(), EffectKind.BOURDONNEMENT);
+        long durationMinutes = Math.max(1,
+                Math.round(Math.max(2, BASE_PRODUCTION_MINUTES - (hive.getLevel() - 1)) * factor));
 
         hive.setStartedAt(now);
         hive.setReadyAt(now.plusMinutes(durationMinutes));
@@ -56,15 +61,15 @@ public class ApiaryService {
     }
 
     @Transactional
-    public BeehiveResponse updateHiveStatus(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse updateHiveStatus(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
         return apiaryMapper.toResponse(hive);
     }
 
     @Transactional
-    public BeehiveResponse harvest(Long hiveId) {
-        Beehive hive = getHive(hiveId);
+    public BeehiveResponse harvest(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
         refreshHiveStatus(hive);
 
         if (hive.getStatus() != BehiveStatus.READY) {
@@ -86,9 +91,13 @@ public class ApiaryService {
         return apiaryMapper.toResponse(hive);
     }
 
-    private Beehive getHive(Long hiveId) {
-        return beehiveRepository.findById(hiveId)
-                .orElseThrow(() -> new IllegalArgumentException("Beehive not found"));
+    private Beehive getOwnedHive(Long playerId, Long hiveId) {
+        Beehive hive = beehiveRepository.findById(hiveId)
+                .orElseThrow(() -> new IllegalArgumentException("Ruche introuvable."));
+        if (!hive.getPlayer().getId().equals(playerId)) {
+            throw new AccessDeniedException("Cette ruche n'est pas la tienne.");
+        }
+        return hive;
     }
 
     private void refreshHiveStatus(Beehive hive) {

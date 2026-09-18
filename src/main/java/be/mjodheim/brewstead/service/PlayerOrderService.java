@@ -188,6 +188,46 @@ public class PlayerOrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Player not found"));
     }
 
+    /**
+     * Personne n'a répondu : un marchand de passage s'en charge. Le
+     * commanditaire reçoit sa marchandise, les pièces déjà mises de côté
+     * partent avec le marchand — c'est le prix de l'impatience.
+     */
+    @Transactional
+    public int relayStaleOrders() {
+        LocalDateTime now = LocalDateTime.now();
+        int relayed = 0;
+
+        for (PlayerOrder order : playerOrderRepository.findAllByStatusOrderByCreatedAtDesc(OrderStatus.OPEN)) {
+            refreshOrderStatus(order);
+            if (order.getStatus() != OrderStatus.OPEN || !isRelayDue(order, now)) {
+                continue;
+            }
+
+            List<PlayerOrderLine> lines = playerOrderLineRepository.findAllByOrderId(order.getId());
+            if (lines.isEmpty()) {
+                continue;
+            }
+
+            for (PlayerOrderLine line : lines) {
+                inventoryService.addIngredient(new IngredientRequest(
+                        order.getCreator().getId(), line.getIngredient().getId(), line.getQuantity()));
+            }
+
+            order.setFulfilledByNpc(true);
+            order.setStatus(OrderStatus.COMPLETED);
+            relayed++;
+        }
+        return relayed;
+    }
+
+    /** Le marchand n'intervient qu'aux deux tiers du temps imparti. */
+    private boolean isRelayDue(PlayerOrder order, LocalDateTime now) {
+        long total = java.time.Duration.between(order.getCreatedAt(), order.getExpiresAt()).toSeconds();
+        long elapsed = java.time.Duration.between(order.getCreatedAt(), now).toSeconds();
+        return total > 0 && elapsed >= total * 2 / 3;
+    }
+
     private void refreshOrderStatus(PlayerOrder order) {
         if ((order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
                 && !LocalDateTime.now().isBefore(order.getExpiresAt())) {

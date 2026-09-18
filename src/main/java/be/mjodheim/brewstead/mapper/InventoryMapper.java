@@ -13,6 +13,7 @@ public interface InventoryMapper {
     @Mapping(source = "ingredient.name", target = "ingredientName")
     @Mapping(source = "ingredient.id", target = "ingredientId")
     @Mapping(source = "ingredient.unit", target = "unit")
+    @Mapping(source = "ingredient.type", target = "type")
     PlayerInventoryResponse toPlayerInventoryResponse(PlayerInventory playerInventory);
 
     List<PlayerInventoryResponse> toResponseList(List<PlayerInventory> playerInventoryList);

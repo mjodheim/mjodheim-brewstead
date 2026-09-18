@@ -40,4 +40,11 @@ public class PlayerOrder {
 
     @Column(nullable = false)
     private int rewardCoins;
+
+    /** Colonne nullable : les commandes déjà en base restent lisibles. */
+    private Boolean fulfilledByNpc;
+
+    public boolean isFulfilledByNpc() {
+        return Boolean.TRUE.equals(fulfilledByNpc);
+    }
 }

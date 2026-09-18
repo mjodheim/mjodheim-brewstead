@@ -139,6 +139,7 @@
             </div>
 
             <div class="panel resources" id="resources" role="list"></div>
+            <div class="effects" id="effects" hidden aria-live="polite"></div>
         </div>
 
         <div class="hud__right">
@@ -214,6 +215,15 @@
                 </button>
             </header>
             <div class="screen__body" id="screenBody"></div>
+        </div>
+    </section>
+
+    <section class="fault" id="fault" aria-hidden="true" role="alertdialog" aria-labelledby="faultTitle">
+        <div class="fault__sheet panel">
+            <h2 id="faultTitle">Domaine injoignable</h2>
+            <p id="faultText"></p>
+            <button class="btn btn--gold" type="button" id="faultRetry">Réessayer</button>
+            <a class="btn btn--gold" th:href="@{/login}" href="/login" id="faultLogin" hidden>Se reconnecter</a>
         </div>
     </section>
 

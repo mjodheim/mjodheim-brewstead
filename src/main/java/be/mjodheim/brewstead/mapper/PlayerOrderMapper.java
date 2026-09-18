@@ -19,18 +19,21 @@ public interface PlayerOrderMapper {
 
     default PlayerOrderResponse toResponse(PlayerOrder order, List<PlayerOrderLine> lines) {
         Long fulfillerId = order.getFulfilledBy() == null ? null : order.getFulfilledBy().getId();
-        String fulfillerUsername = order.getFulfilledBy() == null ? null : order.getFulfilledBy().getUser().getUsername();
+        String fulfillerUsername = order.getFulfilledBy() == null
+                ? (order.isFulfilledByNpc() ? "Marchand de passage" : null)
+                : order.getFulfilledBy().getDisplayName();
 
         return new PlayerOrderResponse(
                 order.getId(),
                 order.getCreator().getId(),
-                order.getCreator().getUser().getUsername(),
+                order.getCreator().getDisplayName(),
                 fulfillerId,
                 fulfillerUsername,
                 order.getCreatedAt(),
                 order.getExpiresAt(),
                 order.getStatus(),
                 order.getRewardCoins(),
+                order.isFulfilledByNpc(),
                 lines.stream().map(this::toLineResponse).toList()
         );
     }

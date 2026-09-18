@@ -32,6 +32,13 @@ public interface RecipeMapper {
                 recipe.getDrinkType(),
                 recipe.getBaseVolume(),
                 recipe.getFermentationDurationHours(),
+                recipe.getFermentationMinutes(),
+                recipe.getRarity(),
+                recipe.getEffectKind(),
+                recipe.getEffectKind().getLabel(),
+                recipe.getEffectMagnitude(),
+                recipe.getEffectDurationMinutes(),
+                recipe.getFlavour(),
                 recipe.isPublic(),
                 ingredients
         );

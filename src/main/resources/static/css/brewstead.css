@@ -29,11 +29,15 @@
     --inset-panel: inset 0 1px 0 rgba(255, 224, 170, .22), inset 0 -1.1em 2em rgba(0, 0, 0, .45);
 
     --ui: clamp(11px, .34vw + 8.4px, 15px);
+    --ui-facteur: 1;
     --gap: 1.1em;
     --radius: .75em;
 }
 
 * { box-sizing: border-box; }
+
+/* Les composants en display: flex écrasent sinon l'attribut hidden. */
+[hidden] { display: none !important; }
 
 html, body {
     height: 100%;
@@ -232,7 +236,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
    Habillage : bois et parchemin
    -------------------------------------------------------------------------- */
 
-.hud { position: absolute; z-index: 20; font-size: var(--ui); pointer-events: none; }
+.hud { position: absolute; z-index: 20; font-size: calc(var(--ui) * var(--ui-facteur)); pointer-events: none; }
 .hud :is(button, a, input, select, .panel, .parchment) { pointer-events: auto; }
 
 .panel {
@@ -788,6 +792,243 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .section-title:first-child { margin-top: 0; }
 
 /* --------------------------------------------------------------------------
+   Réglages
+   -------------------------------------------------------------------------- */
+
+:root[data-taille="compacte"] { --ui-facteur: .88; }
+:root[data-taille="large"] { --ui-facteur: 1.15; }
+
+/* Mode sobre : plus de glissement ni de dérive, juste des apparitions nettes. */
+:root[data-mouvement="sobre"] .place,
+:root[data-mouvement="sobre"] .screen,
+:root[data-mouvement="sobre"] .screen__sheet,
+:root[data-mouvement="sobre"] .world__scene,
+:root[data-mouvement="sobre"] .marker__plate { transition-duration: .01ms; }
+
+:root[data-mouvement="sobre"] .marker[data-state="ready"] .marker__pin,
+:root[data-mouvement="sobre"] .gate { animation: none; }
+
+:root[data-ambiance="non"] .world__fx { display: none; }
+
+.choices { display: flex; flex-wrap: wrap; gap: .5em; }
+
+.choices__item {
+    padding: .55em 1.1em;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: .95em;
+    color: var(--ink-soft);
+    background: rgba(255, 252, 240, .5);
+    border: 1px solid rgba(90, 65, 32, .3);
+    border-radius: .55em;
+    transition: transform .15s ease, border-color .2s ease;
+}
+
+.choices__item:hover { transform: translateY(-2px); border-color: #b08a45; }
+
+.choices__item.is-chosen {
+    color: #4a3316;
+    background: linear-gradient(180deg, rgba(243, 206, 124, .55), rgba(214, 168, 88, .35));
+    border-color: #96702f;
+    box-shadow: inset 0 0 0 1px rgba(255, 246, 220, .6);
+}
+
+.switch {
+    display: flex;
+    align-items: flex-start;
+    gap: .8em;
+    width: 100%;
+    padding: .7em .8em;
+    margin-bottom: .5em;
+    text-align: left;
+    background: rgba(255, 252, 240, .5);
+    border: 1px solid rgba(90, 65, 32, .3);
+    border-radius: .55em;
+}
+
+.switch:hover { border-color: #b08a45; }
+
+.switch__track {
+    position: relative;
+    width: 2.6em;
+    height: 1.4em;
+    border-radius: 99px;
+    background: rgba(90, 65, 32, .25);
+    border: 1px solid rgba(90, 65, 32, .35);
+    flex: none;
+    margin-top: .15em;
+    transition: background .2s ease;
+}
+
+.switch__track i {
+    position: absolute;
+    top: .15em;
+    left: .15em;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: #f4ead0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+    transition: transform .2s ease;
+}
+
+.switch.is-on .switch__track { background: linear-gradient(180deg, #f3ce7c, #b07f2c); }
+.switch.is-on .switch__track i { transform: translateX(1.2em); }
+
+.switch__body { display: flex; flex-direction: column; }
+.switch__label { font-family: "Cinzel", serif; color: #34240f; }
+.switch__body small { font-size: .88em; line-height: 1.4; color: var(--ink-soft); margin-top: .15em; }
+
+.hint { margin: .5em 0 0; font-size: .9em; line-height: 1.45; color: var(--ink-soft); }
+
+/* --------------------------------------------------------------------------
+   Taverne : la salle et le comptoir
+   -------------------------------------------------------------------------- */
+
+.tabs {
+    display: flex;
+    gap: .4em;
+    margin-bottom: 1em;
+    border-bottom: 1px solid rgba(90, 65, 32, .3);
+}
+
+.tabs__tab {
+    padding: .5em 1.1em;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: .95em;
+    color: var(--ink-soft);
+    border-radius: .5em .5em 0 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.tabs__tab:hover { color: #4a3316; background: rgba(150, 112, 47, .1); }
+.tabs__tab.is-active { color: #34240f; border-bottom-color: #96702f; background: rgba(150, 112, 47, .14); }
+
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: .6em;
+    max-height: 22em;
+    overflow-y: auto;
+    padding: .3em .1em;
+}
+
+.chat__line { display: flex; align-items: flex-start; gap: .6em; }
+
+.chat__avatar {
+    display: grid;
+    place-items: center;
+    width: 2.1em;
+    height: 2.1em;
+    border-radius: 50%;
+    color: #4a3316;
+    background: linear-gradient(180deg, rgba(243, 206, 124, .75), rgba(214, 168, 88, .55));
+    border: 1px solid rgba(90, 65, 32, .35);
+    flex: none;
+}
+
+.chat__avatar svg { width: 1.3em; height: 1.3em; stroke-width: 1.6; }
+.chat__body { display: flex; flex-direction: column; min-width: 0; }
+.chat__who { font-family: "Cinzel", serif; font-size: .85em; color: var(--ink-soft); }
+.chat__text { color: var(--ink); line-height: 1.45; overflow-wrap: anywhere; }
+.chat__line--mine .chat__who { color: #8a6417; }
+
+.chat__compose { display: flex; gap: .5em; margin-top: 1em; }
+
+.chat__compose input {
+    flex: 1;
+    padding: .65em .8em;
+    font: inherit;
+    color: var(--ink);
+    background: rgba(255, 252, 240, .75);
+    border: 1px solid rgba(90, 65, 32, .4);
+    border-radius: .5em;
+}
+
+.chat__compose input:focus {
+    outline: none;
+    border-color: #96702f;
+    box-shadow: 0 0 0 3px rgba(150, 112, 47, .2);
+}
+
+.account-field input[type="number"] { width: 100%; }
+
+/* --------------------------------------------------------------------------
+   Effets en cours
+   -------------------------------------------------------------------------- */
+
+.effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    width: 100%;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.effect {
+    display: inline-flex;
+    align-items: center;
+    gap: .45em;
+    padding: .3em .75em;
+    font-size: .85em;
+    color: var(--cream);
+    background: linear-gradient(180deg, rgba(64, 44, 25, .95), rgba(26, 17, 9, .95));
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
+    box-shadow: 0 .3em .8em rgba(0, 0, 0, .5);
+}
+
+.effect i {
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    background: var(--tone, var(--gold));
+    box-shadow: 0 0 .5em var(--tone, var(--gold));
+    flex: none;
+}
+
+.effect small { color: var(--cream-dim); font-size: .85em; }
+.effect--ok { --tone: var(--ok); }
+.effect--warn { --tone: var(--warn); }
+.effect--info { --tone: var(--info); }
+
+/* Choix d'une culture ou d'une recette ------------------------------------- */
+
+.row--pick {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .15s ease, border-color .2s ease, background .2s ease;
+}
+
+.row--pick:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: #b08a45;
+    background: rgba(255, 252, 240, .85);
+}
+
+.row--pick:disabled { opacity: .5; cursor: not-allowed; }
+.row--pick .row__body { display: flex; flex-direction: column; }
+.row__flavour { font-style: italic; opacity: .85; margin-top: .2em; }
+
+.screen input[type="search"] {
+    width: 100%;
+    padding: .65em .8em;
+    font: inherit;
+    color: var(--ink);
+    background: rgba(255, 252, 240, .75);
+    border: 1px solid rgba(90, 65, 32, .4);
+    border-radius: .5em;
+}
+
+.screen input[type="search"]:focus {
+    outline: none;
+    border-color: #96702f;
+    box-shadow: 0 0 0 3px rgba(150, 112, 47, .2);
+}
+
+/* --------------------------------------------------------------------------
    Mon compte
    -------------------------------------------------------------------------- */
 
@@ -852,6 +1093,37 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     border-color: rgba(90, 65, 32, .45);
     box-shadow: none;
 }
+
+/* --------------------------------------------------------------------------
+   Domaine injoignable
+   -------------------------------------------------------------------------- */
+
+.fault {
+    position: absolute;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 1.2em;
+    font-size: var(--ui);
+    background: rgba(8, 5, 2, .78);
+    backdrop-filter: blur(7px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .3s ease, visibility .3s;
+}
+
+.fault.is-open { opacity: 1; visibility: visible; }
+
+.fault__sheet {
+    width: min(26em, 100%);
+    padding: 1.7em 1.6em 1.5em;
+    text-align: center;
+}
+
+.fault__sheet h2 { font-size: 1.45em; color: #fbf1dc; }
+.fault__sheet p { margin: .7em 0 1.3em; font-size: .98em; line-height: 1.55; color: #d9c9a8; }
+.fault__sheet .btn { width: 100%; text-decoration: none; }
 
 /* --------------------------------------------------------------------------
    Notification

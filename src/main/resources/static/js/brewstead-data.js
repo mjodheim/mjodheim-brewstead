@@ -1,7 +1,7 @@
 /* ==========================================================================
    Brewstead — modèle de données du client
-   Lit l'état du jeu via l'API ; bascule sur un domaine de démonstration
-   lorsque l'API n'est pas joignable (session non authentifiée, hors ligne).
+   Lit l'état du jeu via l'API. En cas d'échec, l'erreur remonte telle quelle :
+   mieux vaut un message franc qu'un domaine inventé.
    ========================================================================== */
 
 (function (global) {
@@ -59,29 +59,25 @@
 
     /* ------------------------------------------------------------ Ressources */
 
-    function nameMatches(item, words) {
-        var name = (item.ingredientName || '').toLowerCase();
-        return words.some(function (w) { return name.indexOf(w) !== -1; });
+    function sumOfType(inventory, type) {
+        return inventory.reduce(function (total, item) {
+            return item.type === type ? total + Number(item.quantity || 0) : total;
+        }, 0);
     }
 
-    function sumWhere(inventory, words) {
-        return inventory.reduce(function (total, item) {
-            return nameMatches(item, words) ? total + Number(item.quantity || 0) : total;
+    /** Litres de breuvage terminés, tous fûts confondus. */
+    function cellarVolume(batches) {
+        return batches.reduce(function (total, batch) {
+            return batch.status === 'READY' ? total + Number(batch.volume || 0) : total;
         }, 0);
     }
 
     var RESOURCES = [
         { key: 'coins', label: 'Pièces', icon: 'i-coin', read: function (s) { return s.player.coins; } },
-        { key: 'wood', label: 'Bois', icon: 'i-wood', read: function (s) { return sumWhere(s.inventory, ['bois', 'wood', 'chêne', 'bûche']); } },
-        { key: 'grain', label: 'Céréales', icon: 'i-grain', read: function (s) { return sumWhere(s.inventory, ['orge', 'barley', 'céréale', 'cereal', 'blé', 'wheat', 'malt', 'seigle']); } },
-        { key: 'honey', label: 'Miel', icon: 'i-honey', read: function (s) { return sumWhere(s.inventory, ['miel', 'honey']); } },
-        {
-            key: 'brew', label: 'Bières', icon: 'i-barrel', read: function (s) {
-                var stored = sumWhere(s.inventory, ['bière', 'biere', 'hydromel', 'cervoise', 'cidre']);
-                var ready = s.batches.filter(function (b) { return b.status === 'READY'; }).length;
-                return stored + ready;
-            }
-        }
+        { key: 'grain', label: 'Céréales', icon: 'i-grain', read: function (s) { return sumOfType(s.inventory, 'CEREAL'); } },
+        { key: 'honey', label: 'Miel', icon: 'i-honey', read: function (s) { return sumOfType(s.inventory, 'HONEY'); } },
+        { key: 'hop', label: 'Houblon', icon: 'i-wood', read: function (s) { return sumOfType(s.inventory, 'HOP'); } },
+        { key: 'cellar', label: 'En cave', icon: 'i-barrel', read: function (s) { return cellarVolume(s.batches); } }
     ];
 
     /* ------------------------------------------------------------- Formatage */
@@ -122,123 +118,45 @@
         return isNaN(end) ? false : end <= Date.now();
     }
 
-    /* ------------------------------------------------ Domaine de démonstration */
-
-    function minutesFromNow(minutes) {
-        return new Date(Date.now() + minutes * 60000).toISOString();
-    }
-
-    function demoState() {
-        return {
-            source: 'demo',
-            player: {
-                id: 0, username: 'Eirik', displayName: 'Eirik', avatar: 'CERF',
-                level: 12, experience: 320, coins: 1240, reputation: 86
-            },
-            inventory: [
-                { id: 1, ingredientName: 'Bois de chêne', unit: 'KILOGRAM', quantity: 328 },
-                { id: 2, ingredientName: 'Orge maltée', unit: 'KILOGRAM', quantity: 96 },
-                { id: 3, ingredientName: 'Miel de bruyère', unit: 'KILOGRAM', quantity: 12 },
-                { id: 4, ingredientName: 'Hydromel doré', unit: 'UNIT', quantity: 7 },
-                { id: 5, ingredientName: 'Houblon du fjord', unit: 'GRAM', quantity: 1450 },
-                { id: 6, ingredientName: 'Eau de source', unit: 'LITER', quantity: 240 },
-                { id: 7, ingredientName: 'Baies de genièvre', unit: 'GRAM', quantity: 320 },
-                { id: 8, ingredientName: 'Levure de Mjödheim', unit: 'GRAM', quantity: 90 }
-            ],
-            fields: [
-                { id: 1, cropName: 'Orge de printemps', plantedAt: minutesFromNow(-48), readyAt: minutesFromNow(12), status: 'GROWING' },
-                { id: 2, cropName: 'Houblon du fjord', plantedAt: minutesFromNow(-20), readyAt: minutesFromNow(38), status: 'GROWING' },
-                { id: 3, cropName: 'Seigle noir', plantedAt: minutesFromNow(-180), readyAt: minutesFromNow(-4), status: 'READY' },
-                { id: 4, cropName: null, plantedAt: null, readyAt: null, status: 'EMPTY' }
-            ],
-            hives: [
-                { id: 1, level: 3, startedAt: minutesFromNow(-240), readyAt: minutesFromNow(-15), status: 'READY' },
-                { id: 2, level: 2, startedAt: minutesFromNow(-30), readyAt: minutesFromNow(25), status: 'PRODUCING' },
-                { id: 3, level: 1, startedAt: null, readyAt: null, status: 'IDLE' }
-            ],
-            recipes: [
-                {
-                    id: 1, name: 'Hydromel doré', drinkType: 'MEAD', baseVolume: 20, fermentationDurationHours: 72,
-                    isPublic: true, ownerUsername: 'Eirik',
-                    ingredients: [
-                        { ingredientName: 'Miel de bruyère', unit: 'KILOGRAM', quantity: 6 },
-                        { ingredientName: 'Eau de source', unit: 'LITER', quantity: 18 },
-                        { ingredientName: 'Levure de Mjödheim', unit: 'GRAM', quantity: 12 }
-                    ]
-                },
-                {
-                    id: 2, name: 'Cervoise du fjord', drinkType: 'BEER', baseVolume: 35, fermentationDurationHours: 96,
-                    isPublic: true, ownerUsername: 'Eirik',
-                    ingredients: [
-                        { ingredientName: 'Orge maltée', unit: 'KILOGRAM', quantity: 9 },
-                        { ingredientName: 'Houblon du fjord', unit: 'GRAM', quantity: 180 },
-                        { ingredientName: 'Eau de source', unit: 'LITER', quantity: 32 }
-                    ]
-                },
-                {
-                    id: 3, name: 'Brune de Mjödheim', drinkType: 'BEER', baseVolume: 25, fermentationDurationHours: 120,
-                    isPublic: false, ownerUsername: 'Eirik',
-                    ingredients: [
-                        { ingredientName: 'Orge maltée', unit: 'KILOGRAM', quantity: 12 },
-                        { ingredientName: 'Miel de bruyère', unit: 'KILOGRAM', quantity: 2 }
-                    ]
-                },
-                {
-                    id: 4, name: 'Cidre des vergers', drinkType: 'CIDER', baseVolume: 18, fermentationDurationHours: 60,
-                    isPublic: false, ownerUsername: 'Eirik',
-                    ingredients: [{ ingredientName: 'Baies de genièvre', unit: 'GRAM', quantity: 120 }]
-                }
-            ],
-            batches: [
-                { id: 1, recipeId: 1, recipeName: 'Hydromel doré', volume: 20, startedAt: minutesFromNow(-90), readyAt: minutesFromNow(45), status: 'FERMENTING', quality: null },
-                { id: 2, recipeId: 2, recipeName: 'Cervoise du fjord', volume: 35, startedAt: minutesFromNow(-600), readyAt: minutesFromNow(180), status: 'CONDITIONING', quality: null },
-                { id: 3, recipeId: 3, recipeName: 'Brune de Mjödheim', volume: 25, startedAt: minutesFromNow(-900), readyAt: minutesFromNow(-30), status: 'READY', quality: 87 }
-            ],
-            npcOrders: [
-                {
-                    id: 1, customerName: 'Guilde des marchands', status: 'OPEN',
-                    createdAt: minutesFromNow(-120), expiresAt: minutesFromNow(240),
-                    rewardCoins: 320, rewardReputation: 12,
-                    lines: [{ recipeName: 'Hydromel doré', quantity: 3, minQuality: 70 }]
-                },
-                {
-                    id: 2, customerName: 'Taverne du Corbeau', status: 'IN_PROGRESS',
-                    createdAt: minutesFromNow(-300), expiresAt: minutesFromNow(600),
-                    rewardCoins: 180, rewardReputation: 6,
-                    lines: [{ recipeName: 'Cervoise du fjord', quantity: 5, minQuality: 55 }]
-                },
-                {
-                    id: 3, customerName: 'Jarl Sigrun', status: 'OPEN',
-                    createdAt: minutesFromNow(-30), expiresAt: minutesFromNow(1440),
-                    rewardCoins: 540, rewardReputation: 25,
-                    lines: [
-                        { recipeName: 'Brune de Mjödheim', quantity: 2, minQuality: 80 },
-                        { recipeName: 'Hydromel doré', quantity: 2, minQuality: 75 }
-                    ]
-                }
-            ],
-            tavern: {
-                openPlayerOrders: 4,
-                notablePlayers: [
-                    { playerId: 7, username: 'Astrid', level: 18, reputation: 214 },
-                    { playerId: 3, username: 'Bjorn', level: 15, reputation: 168 },
-                    { playerId: 0, username: 'Eirik', level: 12, reputation: 86 },
-                    { playerId: 11, username: 'Ingrid', level: 11, reputation: 74 },
-                    { playerId: 5, username: 'Torvald', level: 9, reputation: 52 }
-                ]
-            }
-        };
-    }
-
     /* ------------------------------------------------------------------- API */
+
+    function sessionLost() {
+        var error = new Error('Ta session a expiré.');
+        error.sessionExpired = true;
+        return error;
+    }
 
     function getJson(url) {
         return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then(function (response) {
+                // Spring renvoie le portail : la session n'est plus valable.
+                if (response.redirected && response.url.indexOf('/login') !== -1) throw sessionLost();
+                if (response.status === 401 || response.status === 403) throw sessionLost();
+
                 var type = response.headers.get('content-type') || '';
-                if (!response.ok || type.indexOf('json') === -1) throw new Error('Réponse inattendue : ' + response.status);
+                if (!response.ok || type.indexOf('json') === -1) {
+                    throw new Error('Le domaine n’a pas répondu (' + response.status + ').');
+                }
                 return response.json();
             });
+    }
+
+    function postJson(url, body, headers) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: headers,
+            body: body === undefined ? undefined : JSON.stringify(body)
+        }).then(function (response) {
+            if (response.redirected && response.url.indexOf('/login') !== -1) throw sessionLost();
+            if (!response.ok) {
+                return response.json()
+                    .catch(function () { return {}; })
+                    .then(function (payload) { throw new Error(payload.message || 'Action refusée.'); });
+            }
+            var type = response.headers.get('content-type') || '';
+            return type.indexOf('json') === -1 ? null : response.json();
+        });
     }
 
     function normalise(state, tavern) {
@@ -246,6 +164,11 @@
             source: 'api',
             player: state.player,
             playerId: state.player ? state.player.id : null,
+            crops: [],
+            effects: [],
+            ingredients: [],
+            market: [],
+            myOrders: [],
             inventory: state.inventory || [],
             fields: state.fields || [],
             hives: state.hives || [],
@@ -262,14 +185,21 @@
             .then(function (account) {
                 return Promise.all([
                     getJson('/api/players/' + account.id + '/state'),
-                    getJson('/api/tavern').catch(function () { return null; })
+                    getJson('/api/tavern').catch(function () { return null; }),
+                    getJson('/api/catalog/crops').catch(function () { return []; }),
+                    getJson('/api/account/me/effects').catch(function () { return []; }),
+                    getJson('/api/catalog/ingredients').catch(function () { return []; }),
+                    getJson('/api/player-orders/market').catch(function () { return []; }),
+                    getJson('/api/player-orders/players/' + account.id).catch(function () { return []; })
                 ]).then(function (results) {
-                    return normalise(results[0], results[1]);
+                    var state = normalise(results[0], results[1]);
+                    state.crops = results[2] || [];
+                    state.effects = results[3] || [];
+                    state.ingredients = results[4] || [];
+                    state.market = results[5] || [];
+                    state.myOrders = results[6] || [];
+                    return state;
                 });
-            })
-            .catch(function (error) {
-                if (global.console) console.info('Brewstead : état local utilisé (' + error.message + ').');
-                return demoState();
             });
     }
 
@@ -357,9 +287,10 @@
         RESOURCES: RESOURCES,
         AVATARS: AVATARS,
         saveAccount: saveAccount,
+        postJson: postJson,
+        get: getJson,
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
-        demoState: demoState,
         feed: feed,
         goal: goal,
         placeState: placeState,

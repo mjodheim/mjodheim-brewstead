@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: brewstead_test
+          POSTGRES_USER: brewstead
+          POSTGRES_PASSWORD: brewstead
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brewstead -d brewstead_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/brewstead_test
+      DB_USERNAME: brewstead
+      DB_PASSWORD: brewstead
+      JPA_SHOW_SQL: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 26
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: maven
+
+      - name: Verify Java project
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean verify
+
+      - name: Validate JSON catalogues
+        run: |
+          python -m json.tool src/main/resources/data/ingredients.json >/dev/null
+          python -m json.tool src/main/resources/data/crops.json >/dev/null
+          python -m json.tool src/main/resources/data/recipes.json >/dev/null
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/main/resources/static/js/brewstead-data.js
+          node --check src/main/resources/static/js/brewstead-world.js
+          node --check src/main/resources/static/js/brewstead-app.js

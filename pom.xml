@@ -29,6 +29,7 @@
     <properties>
         <java.version>26</java.version>
         <mapstruct.version>1.7.0.Beta2</mapstruct.version>
+        <selenium.version>4.49.0</selenium.version>
     </properties>
     <dependencies>
         <dependency>
@@ -99,6 +100,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.seleniumhq.selenium</groupId>
+            <artifactId>selenium-java</artifactId>
+            <version>${selenium.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

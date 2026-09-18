@@ -14,7 +14,7 @@ services:
     environment:
       PORT: "8080"
       TZ: Europe/Brussels
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0 -Djava.net.preferIPv4Stack=true"
 
     restart: unless-stopped
 

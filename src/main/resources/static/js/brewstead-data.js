@@ -59,29 +59,25 @@
 
     /* ------------------------------------------------------------ Ressources */
 
-    function nameMatches(item, words) {
-        var name = (item.ingredientName || '').toLowerCase();
-        return words.some(function (w) { return name.indexOf(w) !== -1; });
+    function sumOfType(inventory, type) {
+        return inventory.reduce(function (total, item) {
+            return item.type === type ? total + Number(item.quantity || 0) : total;
+        }, 0);
     }
 
-    function sumWhere(inventory, words) {
-        return inventory.reduce(function (total, item) {
-            return nameMatches(item, words) ? total + Number(item.quantity || 0) : total;
+    /** Litres de breuvage terminés, tous fûts confondus. */
+    function cellarVolume(batches) {
+        return batches.reduce(function (total, batch) {
+            return batch.status === 'READY' ? total + Number(batch.volume || 0) : total;
         }, 0);
     }
 
     var RESOURCES = [
         { key: 'coins', label: 'Pièces', icon: 'i-coin', read: function (s) { return s.player.coins; } },
-        { key: 'wood', label: 'Bois', icon: 'i-wood', read: function (s) { return sumWhere(s.inventory, ['bois', 'wood', 'chêne', 'bûche']); } },
-        { key: 'grain', label: 'Céréales', icon: 'i-grain', read: function (s) { return sumWhere(s.inventory, ['orge', 'barley', 'céréale', 'cereal', 'blé', 'wheat', 'malt', 'seigle']); } },
-        { key: 'honey', label: 'Miel', icon: 'i-honey', read: function (s) { return sumWhere(s.inventory, ['miel', 'honey']); } },
-        {
-            key: 'brew', label: 'Bières', icon: 'i-barrel', read: function (s) {
-                var stored = sumWhere(s.inventory, ['bière', 'biere', 'hydromel', 'cervoise', 'cidre']);
-                var ready = s.batches.filter(function (b) { return b.status === 'READY'; }).length;
-                return stored + ready;
-            }
-        }
+        { key: 'grain', label: 'Céréales', icon: 'i-grain', read: function (s) { return sumOfType(s.inventory, 'CEREAL'); } },
+        { key: 'honey', label: 'Miel', icon: 'i-honey', read: function (s) { return sumOfType(s.inventory, 'HONEY'); } },
+        { key: 'hop', label: 'Houblon', icon: 'i-wood', read: function (s) { return sumOfType(s.inventory, 'HOP'); } },
+        { key: 'cellar', label: 'En cave', icon: 'i-barrel', read: function (s) { return cellarVolume(s.batches); } }
     ];
 
     /* ------------------------------------------------------------- Formatage */
@@ -145,11 +141,31 @@
             });
     }
 
+    function postJson(url, body, headers) {
+        return fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: headers,
+            body: body === undefined ? undefined : JSON.stringify(body)
+        }).then(function (response) {
+            if (response.redirected && response.url.indexOf('/login') !== -1) throw sessionLost();
+            if (!response.ok) {
+                return response.json()
+                    .catch(function () { return {}; })
+                    .then(function (payload) { throw new Error(payload.message || 'Action refusée.'); });
+            }
+            var type = response.headers.get('content-type') || '';
+            return type.indexOf('json') === -1 ? null : response.json();
+        });
+    }
+
     function normalise(state, tavern) {
         return {
             source: 'api',
             player: state.player,
             playerId: state.player ? state.player.id : null,
+            crops: [],
+            effects: [],
             inventory: state.inventory || [],
             fields: state.fields || [],
             hives: state.hives || [],
@@ -166,9 +182,14 @@
             .then(function (account) {
                 return Promise.all([
                     getJson('/api/players/' + account.id + '/state'),
-                    getJson('/api/tavern').catch(function () { return null; })
+                    getJson('/api/tavern').catch(function () { return null; }),
+                    getJson('/api/catalog/crops').catch(function () { return []; }),
+                    getJson('/api/account/me/effects').catch(function () { return []; })
                 ]).then(function (results) {
-                    return normalise(results[0], results[1]);
+                    var state = normalise(results[0], results[1]);
+                    state.crops = results[2] || [];
+                    state.effects = results[3] || [];
+                    return state;
                 });
             });
     }
@@ -257,6 +278,7 @@
         RESOURCES: RESOURCES,
         AVATARS: AVATARS,
         saveAccount: saveAccount,
+        postJson: postJson,
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
         feed: feed,

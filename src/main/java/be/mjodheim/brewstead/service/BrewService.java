@@ -1,6 +1,8 @@
 package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.brew.BatchResponse;
+import be.mjodheim.brewstead.dto.brew.TastingResponse;
+import be.mjodheim.brewstead.dto.effect.PlayerEffectResponse;
 import be.mjodheim.brewstead.dto.brew.StartBatchRequest;
 import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
 import be.mjodheim.brewstead.entity.Batch;
@@ -8,6 +10,7 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.RecipeIngredient;
 import be.mjodheim.brewstead.enums.BatchStatus;
+import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.exception.InsufficientStockException;
 import be.mjodheim.brewstead.mapper.BrewMapper;
 import be.mjodheim.brewstead.repository.BatchRepository;
@@ -33,6 +36,7 @@ public class BrewService {
     private final RecipeService recipeService;
     private final InventoryService inventoryService;
     private final BrewMapper brewMapper;
+    private final EffectService effectService;
 
     @Transactional
     public List<BatchResponse> findPlayerBatches(Long playerId) {
@@ -67,19 +71,46 @@ public class BrewService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        double factor = effectService.durationFactor(player.getId(), EffectKind.FEU_SOUS_LA_CUVE);
+        long fermentationMinutes = Math.max(1,
+                Math.round(recipe.getFermentationMinutes() * factor));
+
         Batch batch = batchRepository.save(
                 Batch.builder()
                         .player(player)
                         .recipe(recipe)
                         .volume(request.volume())
                         .startedAt(now)
-                        .readyAt(now.plusHours(recipe.getFermentationDurationHours()))
+                        .readyAt(now.plusMinutes(fermentationMinutes))
                         .status(BatchStatus.BREWING)
                         .quality(null)
                         .build()
         );
 
         return brewMapper.toResponse(batch);
+    }
+
+    /** Une gorgée : le fût baisse un peu, l'effet de la recette s'installe. */
+    @Transactional
+    public TastingResponse taste(Long playerId, Long batchId) {
+        Batch batch = getBatch(batchId);
+        if (!batch.getPlayer().getId().equals(playerId)) {
+            throw new IllegalStateException("Ce brassin n'est pas le tien.");
+        }
+
+        refreshBatchStatus(batch);
+        if (batch.getStatus() != BatchStatus.READY) {
+            throw new IllegalStateException("Ce brassin n'est pas encore prêt à boire.");
+        }
+
+        BigDecimal sip = new BigDecimal("0.50").min(batch.getVolume());
+        batch.setVolume(batch.getVolume().subtract(sip));
+        if (batch.getVolume().compareTo(BigDecimal.ZERO) <= 0) {
+            batch.setStatus(BatchStatus.SOLD_OUT);
+        }
+
+        PlayerEffectResponse effect = effectService.grant(playerId, batch.getRecipe());
+        return new TastingResponse(batch.getRecipe().getName(), batch.getRecipe().getFlavour(), effect);
     }
 
     @Transactional
@@ -171,7 +202,8 @@ public class BrewService {
         int ingredientVariety = recipeIngredientRepository.findAllByRecipeId(batch.getRecipe().getId()).size();
         int quality = 55
                 + Math.min(25, batch.getPlayer().getLevel() * 2)
-                + Math.min(20, ingredientVariety * 4);
-        return Math.min(100, quality);
+                + Math.min(20, ingredientVariety * 4)
+                + effectService.qualityShift(batch.getPlayer().getId());
+        return Math.max(1, Math.min(100, quality));
     }
 }

@@ -37,6 +37,15 @@ public class AccountService {
                 .orElseGet(() -> playerService.initializePlayer(user.getId()));
     }
 
+    /** Identifiant du domaine de la session en cours, créé au besoin. */
+    @Transactional
+    public Long currentPlayerId(String username) {
+        User user = requireUser(username);
+        return playerProfileRepository.findByUserId(user.getId())
+                .map(PlayerProfile::getId)
+                .orElseGet(() -> playerService.initializePlayer(user.getId()).id());
+    }
+
     @Transactional
     public PlayerProfileResponse updateAccount(String username, UpdateAccountRequest request) {
         User user = requireUser(username);

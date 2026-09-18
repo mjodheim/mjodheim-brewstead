@@ -27,6 +27,7 @@ public class PlayerService {
     private final IngredientRepository ingredientRepository;
     private final InventoryService inventoryService;
     private final PlayerMapper playerMapper;
+    private final EffectService effectService;
 
     @Transactional
     public PlayerProfileResponse getPlayer(Long playerId) {
@@ -65,8 +66,8 @@ public class PlayerService {
         }
 
         PlayerProfile player = getPlayerEntity(playerId);
-        player.setCoin(player.getCoin() + coins);
-        player.setReputation(player.getReputation() + reputation);
+        player.setCoin(player.getCoin() + effectService.boostCoins(playerId, coins));
+        player.setReputation(player.getReputation() + effectService.boostReputation(playerId, reputation));
         player.setExperience(player.getExperience() + experience);
         player.setLevel(Math.max(player.getLevel(), 1 + player.getExperience() / 100));
 
@@ -101,9 +102,17 @@ public class PlayerService {
                 newStarterHive(player)
         ));
 
-        addStarterIngredient(player, IngredientType.WATER, new BigDecimal("20.000"));
-        addStarterIngredient(player, IngredientType.HONEY, new BigDecimal("3.000"));
-        addStarterIngredient(player, IngredientType.CEREAL, new BigDecimal("5.000"));
+        // De quoi lancer immédiatement un hydromel ET une cervoise : sans levure
+        // ni houblon, un nouveau brasseur resterait devant une cuve vide.
+        addStarterIngredient(player, "Eau de source", IngredientType.WATER, new BigDecimal("40.000"));
+        addStarterIngredient(player, "Miel de trèfle", IngredientType.HONEY, new BigDecimal("9.000"));
+        addStarterIngredient(player, "Orge maltée", IngredientType.CEREAL, new BigDecimal("14.000"));
+        addStarterIngredient(player, "Houblon du fjord", IngredientType.HOP, new BigDecimal("400.000"));
+        addStarterIngredient(player, "Levure de Mjödheim", IngredientType.YEAST, new BigDecimal("60.000"));
+        addStarterIngredient(player, "Levure sauvage", IngredientType.YEAST, new BigDecimal("50.000"));
+        addStarterIngredient(player, "Levure de cave", IngredientType.YEAST, new BigDecimal("40.000"));
+        addStarterIngredient(player, "Pomme à cidre", IngredientType.FRUIT, new BigDecimal("16.000"));
+        addStarterIngredient(player, "Bruyère commune", IngredientType.HERB, new BigDecimal("400.000"));
 
         return playerMapper.toResponse(player);
     }
@@ -122,9 +131,11 @@ public class PlayerService {
                 .build();
     }
 
-    private void addStarterIngredient(PlayerProfile player, IngredientType type, BigDecimal quantity) {
-        Ingredient ingredient = ingredientRepository.findFirstByType(type)
-                .orElseThrow(() -> new IllegalStateException("Starter ingredient not configured: " + type));
+    /** On vise un ingrédient précis, avec repli sur sa famille si le nom bouge. */
+    private void addStarterIngredient(PlayerProfile player, String name, IngredientType type, BigDecimal quantity) {
+        Ingredient ingredient = ingredientRepository.findByNameIgnoreCase(name)
+                .or(() -> ingredientRepository.findFirstByType(type))
+                .orElseThrow(() -> new IllegalStateException("Ingrédient de départ absent du catalogue : " + name));
 
         inventoryService.addIngredient(
                 new IngredientRequest(player.getId(), ingredient.getId(), quantity)

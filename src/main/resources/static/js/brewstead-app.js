@@ -16,6 +16,7 @@
     var activeView = 'monde';
     var toastTimer = null;
     var accountDraft = null;
+    var picker = null;          // { kind, fieldId, query }
 
     /* ----------------------------------------------------------- Utilitaires */
 
@@ -104,6 +105,33 @@
         ABEILLE: 'Abeille', ORGE: 'Orge', TONNEAU: 'Tonneau', MARTEAU: 'Marteau'
     };
 
+
+    var RARITY_LABELS = { COMMUNE: 'commune', CURIEUSE: 'curieuse', RARE: 'rare', LEGENDAIRE: 'légendaire' };
+
+    /** Ce que le joueur a en réserve, par nom d'ingrédient. */
+    function stockOf(s, name) {
+        var line = s.inventory.find(function (item) { return item.ingredientName === name; });
+        return line ? Number(line.quantity) : 0;
+    }
+
+    /** Peut-on lancer cette recette avec ce qu'il y a dans l'entrepôt ? */
+    function brewability(s, recipe) {
+        var missing = (recipe.ingredients || []).filter(function (line) {
+            return stockOf(s, line.ingredientName) < Number(line.quantity);
+        });
+        return { ok: missing.length === 0, missing: missing };
+    }
+
+    function matches(text, query) {
+        return !query || String(text).toLowerCase().indexOf(query.toLowerCase()) !== -1;
+    }
+
+    function searchField(placeholder, value) {
+        return '<label class="account-field" style="margin-bottom:.9em">' +
+            '<input id="pickerSearch" type="search" placeholder="' + esc(placeholder) + '"' +
+            ' value="' + esc(value || '') + '" autocomplete="off"></label>';
+    }
+
     var SECTIONS = {
         rucher: {
             live: true,
@@ -119,7 +147,9 @@
                         progress: hive.status === 'PRODUCING' && hive.readyAt ? progress(hive.startedAt, hive.readyAt) : '',
                         side: ready
                             ? actionButton('harvest-hive', 'Récolter', hive.id)
-                            : chip(hive.status === 'PRODUCING' ? 'en production' : 'au repos', hive.status === 'PRODUCING' ? 'warn' : null)
+                            : (hive.status === 'PRODUCING'
+                                ? chip('en production', 'warn')
+                                : actionButton('start-hive', 'Lancer', hive.id))
                     });
                 }).join('');
             }
@@ -139,9 +169,78 @@
                         progress: !ready && field.readyAt ? progress(field.plantedAt, field.readyAt) : '',
                         side: ready
                             ? actionButton('harvest-field', 'Récolter', field.id)
-                            : chip(field.status === 'EMPTY' ? 'en jachère' : 'en croissance', field.status === 'EMPTY' ? null : 'warn')
+                            : (field.status === 'EMPTY'
+                                ? actionButton('sow-field', 'Semer', field.id)
+                                : chip('en croissance', 'warn'))
                     });
                 }).join('');
+            }
+        },
+
+
+        semer: {
+            title: 'Choisir une culture',
+            render: function (s) {
+                var query = picker ? picker.query : '';
+                var list = s.crops.filter(function (crop) {
+                    return matches(crop.name, query) || matches(crop.ingredientName, query);
+                });
+
+                if (!s.crops.length) return empty('Le catalogue des cultures n’est pas encore chargé.');
+
+                return searchField('Chercher une culture…', query) +
+                    (list.length ? '<div class="grid">' + list.slice(0, 60).map(function (crop) {
+                        return '<button class="row row--pick" type="button" data-action="pick-crop" data-id="' + crop.id + '">' +
+                            icon('i-grain', 'row__icon') +
+                            '<span class="row__body"><span class="row__title">' + esc(crop.ingredientName) + '</span>' +
+                            '<small class="row__meta">' + esc(crop.name) + ' · ' +
+                            crop.growDurationMinutes + ' min · rend ' +
+                            esc(fmt.number(crop.yieldQuantity)) + '</small></span></button>';
+                    }).join('') + '</div>' : empty('Aucune culture ne correspond.'));
+            }
+        },
+
+        brasser: {
+            title: 'Choisir une recette',
+            render: function (s) {
+                var query = picker ? picker.query : '';
+                var list = s.recipes.filter(function (recipe) {
+                    return matches(recipe.name, query)
+                        || matches(RARITY_LABELS[recipe.rarity] || '', query)
+                        || matches(recipe.effectLabel || '', query);
+                });
+
+                if (!s.recipes.length) return empty('Aucune recette au grimoire.');
+
+                var ready = list.filter(function (r) { return brewability(s, r).ok; });
+                var rest = list.filter(function (r) { return !brewability(s, r).ok; });
+
+                function card(recipe) {
+                    var can = brewability(s, recipe);
+                    var lack = can.missing.slice(0, 2).map(function (l) { return l.ingredientName; }).join(', ');
+                    return '<button class="row row--pick" type="button"' +
+                        (can.ok ? '' : ' disabled') +
+                        ' data-action="pick-recipe" data-id="' + recipe.id + '">' +
+                        icon('i-barrel', 'row__icon') +
+                        '<span class="row__body">' +
+                        '<span class="row__title">' + esc(recipe.name) + '</span>' +
+                        '<small class="row__meta">' + esc(DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
+                        ' · ' + esc(RARITY_LABELS[recipe.rarity] || recipe.rarity) +
+                        ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
+                        (recipe.effectKind && recipe.effectKind !== 'AUCUN'
+                            ? ' — ' + esc(recipe.effectLabel) : '') +
+                        (can.ok ? '' : ' · il te manque ' + esc(lack)) +
+                        '</small>' +
+                        (recipe.flavour ? '<small class="row__meta row__flavour">' + esc(recipe.flavour) + '</small>' : '') +
+                        '</span></button>';
+                }
+
+                return searchField('Chercher parmi ' + s.recipes.length + ' recettes…', query) +
+                    (ready.length ? '<p class="section-title">Brassables tout de suite</p>' +
+                        '<div class="grid">' + ready.slice(0, 40).map(card).join('') + '</div>' : '') +
+                    (rest.length ? '<p class="section-title">Il te manque de quoi</p>' +
+                        '<div class="grid">' + rest.slice(0, 40).map(card).join('') + '</div>' : '') +
+                    (list.length ? '' : empty('Aucune recette ne correspond.'));
             }
         },
 
@@ -163,15 +262,20 @@
             live: true,
             title: 'Brasserie',
             render: function (s) {
-                if (!s.batches.length) return empty('Aucun brassin en cours.');
-                return s.batches.map(function (batch) {
+                var head = '<div class="account-actions" style="margin:0 0 .8em">' +
+                    '<button class="btn btn--gold" type="button" data-action="open-brew">' +
+                    icon('i-plus') + 'Lancer un brassin</button></div>';
+                if (!s.batches.length) return head + empty('Aucun brassin en cours.');
+                return head + s.batches.map(function (batch) {
                     var ready = batch.status === 'READY';
                     return row({
                         icon: 'i-barrel',
                         title: batch.recipeName,
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
                         progress: !ready && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
-                        side: chip(BATCH_LABELS[batch.status] || batch.status, ready ? 'ok' : 'warn')
+                        side: ready
+                            ? actionButton('taste-batch', 'Goûter', batch.id) + chip('prêt', 'ok')
+                            : chip(BATCH_LABELS[batch.status] || batch.status, 'warn')
                     });
                 }).join('');
             }
@@ -358,7 +462,66 @@
             });
     }
 
+    function openPicker(kind, fieldId) {
+        picker = { kind: kind, fieldId: fieldId, query: '' };
+        openScreen(kind === 'crop' ? 'semer' : 'brasser');
+        focusSearch();
+    }
+
+    function focusSearch() {
+        var field = $('pickerSearch');
+        if (!field) return;
+        field.focus();
+        field.setSelectionRange(field.value.length, field.value.length);
+    }
+
+    function send(url, body, onDone) {
+        var headers = csrfHeaders();
+        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        return Data.postJson(url, body, headers)
+            .then(function (payload) { return refresh().then(function () { onDone(payload); }); })
+            .catch(function (error) {
+                if (error.sessionExpired) showFault(error);
+                else toast(error.message);
+            });
+    }
+
     function runAction(action, id) {
+        if (action === 'open-brew') { openPicker('recipe'); return; }
+        if (action === 'sow-field') { openPicker('crop', Number(id)); return; }
+
+        if (action === 'pick-crop') {
+            var fieldId = picker ? picker.fieldId : null;
+            send('/api/farm/plant', { playerId: state.player.id, fieldId: fieldId, cropId: Number(id) },
+                function () { selectView('monde'); openPlace('champs'); toast('Semé. Ça pousse.'); });
+            return;
+        }
+
+        if (action === 'pick-recipe') {
+            var recipe = state.recipes.find(function (r) { return r.id === Number(id); });
+            if (!recipe) return;
+            send('/api/brewery/batches', { playerId: state.player.id, recipeId: recipe.id, volume: recipe.baseVolume },
+                function () { selectView('monde'); openPlace('brasserie'); toast('Brassin lancé : ' + recipe.name); });
+            return;
+        }
+
+        if (action === 'start-hive') {
+            send('/api/apiary/hives/' + Number(id) + '/start', undefined,
+                function () { toast('La ruche se remet au travail.'); });
+            return;
+        }
+
+        if (action === 'taste-batch') {
+            send('/api/brewery/batches/' + Number(id) + '/taste', undefined, function (result) {
+                if (!result) return;
+                var effect = result.effect;
+                toast(effect
+                    ? result.recipeName + ' — ' + effect.label + ' (' + effect.magnitude + '%)'
+                    : result.recipeName + ' — ' + (result.flavour || 'rien de particulier.'));
+            });
+            return;
+        }
+
         if (action === 'pick-avatar') {
             accountDraft.displayName = currentNameInput();
             accountDraft.avatar = id;
@@ -406,6 +569,20 @@
         }).join('');
     }
 
+    function renderEffects() {
+        var effects = (state.effects || []).filter(function (e) {
+            return new Date(e.expiresAt).getTime() > Date.now();
+        });
+        dom.effects.innerHTML = effects.map(function (effect) {
+            var tone = effect.cosmetic ? 'info' : (effect.beneficial ? 'ok' : 'warn');
+            return '<span class="effect effect--' + tone + '" title="' + esc(effect.source || '') + '">' +
+                '<i></i>' + esc(effect.label) +
+                (effect.magnitude ? ' ' + effect.magnitude + '%' : '') +
+                '<small>' + esc(fmt.countdown(effect.expiresAt)) + '</small></span>';
+        }).join('');
+        dom.effects.hidden = effects.length === 0;
+    }
+
     function renderQuest() {
         var goal = Data.goal(state);
         dom.questText.textContent = goal.text;
@@ -446,6 +623,7 @@
         if (!accountDraft) accountDraft = { avatar: null, displayName: null };
         renderPlayer();
         renderResources();
+        renderEffects();
         renderQuest();
         renderFeed();
         renderMarkers();
@@ -563,6 +741,13 @@
             if (button) runAction(button.dataset.action, button.dataset.id);
         });
 
+        dom.screenBody.addEventListener('input', function (event) {
+            if (event.target.id !== 'pickerSearch' || !picker) return;
+            picker.query = event.target.value;
+            renderScreen();
+            focusSearch();
+        });
+
         dom.screenBody.addEventListener('click', function (event) {
             var button = event.target.closest('[data-action]');
             if (button) runAction(button.dataset.action, button.dataset.id);
@@ -621,7 +806,7 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin'].forEach(function (id) { dom[id] = $(id); });
+            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects'].forEach(function (id) { dom[id] = $(id); });
 
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();
@@ -639,7 +824,7 @@
                     renderScreen();
                 }
             }, 1000);
-            setInterval(function () { if (state) { renderFeed(); renderQuest(); } }, 15000);
+            setInterval(function () { if (state) { renderFeed(); renderQuest(); renderEffects(); } }, 15000);
         });
 
         setTimeout(hideHint, 6000);

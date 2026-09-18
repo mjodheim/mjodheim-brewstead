@@ -5,6 +5,7 @@ import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
 import be.mjodheim.brewstead.entity.Beehive;
 import be.mjodheim.brewstead.entity.Ingredient;
 import be.mjodheim.brewstead.enums.BehiveStatus;
+import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.IngredientType;
 import be.mjodheim.brewstead.mapper.ApiaryMapper;
 import be.mjodheim.brewstead.repository.BeehiveRepository;
@@ -28,6 +29,7 @@ public class ApiaryService {
     private final IngredientRepository ingredientRepository;
     private final InventoryService inventoryService;
     private final ApiaryMapper apiaryMapper;
+    private final EffectService effectService;
 
     @Transactional
     public List<BeehiveResponse> findAllHives(Long playerId) {
@@ -46,7 +48,9 @@ public class ApiaryService {
         }
 
         LocalDateTime now = LocalDateTime.now();
-        int durationMinutes = Math.max(2, BASE_PRODUCTION_MINUTES - (hive.getLevel() - 1));
+        double factor = effectService.durationFactor(hive.getPlayer().getId(), EffectKind.BOURDONNEMENT);
+        long durationMinutes = Math.max(1,
+                Math.round(Math.max(2, BASE_PRODUCTION_MINUTES - (hive.getLevel() - 1)) * factor));
 
         hive.setStartedAt(now);
         hive.setReadyAt(now.plusMinutes(durationMinutes));

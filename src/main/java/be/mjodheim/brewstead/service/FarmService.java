@@ -5,6 +5,7 @@ import be.mjodheim.brewstead.dto.farm.PlayerFieldResponse;
 import be.mjodheim.brewstead.dto.inventory.IngredientRequest;
 import be.mjodheim.brewstead.entity.Crop;
 import be.mjodheim.brewstead.entity.PlayerField;
+import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.FieldStatus;
 import be.mjodheim.brewstead.mapper.FarmMapper;
 import be.mjodheim.brewstead.repository.CropRepository;
@@ -24,6 +25,7 @@ public class FarmService {
     private final InventoryService inventoryService;
     private final CropRepository cropRepository;
     private final FarmMapper farmMapper;
+    private final EffectService effectService;
 
     @Transactional
     public List<PlayerFieldResponse> findAllFields(Long id) {
@@ -45,9 +47,12 @@ public class FarmService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        double factor = effectService.durationFactor(field.getPlayer().getId(), EffectKind.MAIN_VERTE);
+        long minutes = Math.max(1, Math.round(crop.getGrowDurationMinutes() * factor));
+
         field.setCrop(crop);
         field.setPlantedAt(now);
-        field.setReadyAt(now.plusMinutes(crop.getGrowDurationMinutes()));
+        field.setReadyAt(now.plusMinutes(minutes));
         field.setStatus(FieldStatus.GROWING);
 
         return farmMapper.toResponse(field);

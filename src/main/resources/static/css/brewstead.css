@@ -791,6 +791,81 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .section-title:first-child { margin-top: 0; }
 
 /* --------------------------------------------------------------------------
+   Effets en cours
+   -------------------------------------------------------------------------- */
+
+.effects {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    width: 100%;
+    justify-content: center;
+    pointer-events: auto;
+}
+
+.effect {
+    display: inline-flex;
+    align-items: center;
+    gap: .45em;
+    padding: .3em .75em;
+    font-size: .85em;
+    color: var(--cream);
+    background: linear-gradient(180deg, rgba(64, 44, 25, .95), rgba(26, 17, 9, .95));
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
+    box-shadow: 0 .3em .8em rgba(0, 0, 0, .5);
+}
+
+.effect i {
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    background: var(--tone, var(--gold));
+    box-shadow: 0 0 .5em var(--tone, var(--gold));
+    flex: none;
+}
+
+.effect small { color: var(--cream-dim); font-size: .85em; }
+.effect--ok { --tone: var(--ok); }
+.effect--warn { --tone: var(--warn); }
+.effect--info { --tone: var(--info); }
+
+/* Choix d'une culture ou d'une recette ------------------------------------- */
+
+.row--pick {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: transform .15s ease, border-color .2s ease, background .2s ease;
+}
+
+.row--pick:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: #b08a45;
+    background: rgba(255, 252, 240, .85);
+}
+
+.row--pick:disabled { opacity: .5; cursor: not-allowed; }
+.row--pick .row__body { display: flex; flex-direction: column; }
+.row__flavour { font-style: italic; opacity: .85; margin-top: .2em; }
+
+.screen input[type="search"] {
+    width: 100%;
+    padding: .65em .8em;
+    font: inherit;
+    color: var(--ink);
+    background: rgba(255, 252, 240, .75);
+    border: 1px solid rgba(90, 65, 32, .4);
+    border-radius: .5em;
+}
+
+.screen input[type="search"]:focus {
+    outline: none;
+    border-color: #96702f;
+    box-shadow: 0 0 0 3px rgba(150, 112, 47, .2);
+}
+
+/* --------------------------------------------------------------------------
    Mon compte
    -------------------------------------------------------------------------- */
 

@@ -23,6 +23,7 @@ services:
 
     networks:
       - web
+      - mira_internal
 
     labels:
       - "traefik.enable=true"
@@ -44,3 +45,7 @@ services:
 networks:
   web:
     external: true
+
+  mira_internal:
+    external: true
+    name: mira_internal

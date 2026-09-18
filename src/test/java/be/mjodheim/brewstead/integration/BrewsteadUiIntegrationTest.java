@@ -50,6 +50,15 @@ class BrewsteadUiIntegrationTest {
                 "--disable-gpu",
                 "--window-size=1440,1000"
         );
+        String chromeBinary = System.getenv("CHROME_BIN");
+        if (chromeBinary != null && !chromeBinary.isBlank()) {
+            options.setBinary(chromeBinary);
+        }
+        String chromeDriver = System.getenv("CHROMEDRIVER_PATH");
+        if (chromeDriver != null && !chromeDriver.isBlank()) {
+            System.setProperty("webdriver.chrome.driver", chromeDriver);
+        }
+
         LoggingPreferences logging = new LoggingPreferences();
         logging.enable(LogType.BROWSER, Level.ALL);
         options.setCapability("goog:loggingPrefs", logging);

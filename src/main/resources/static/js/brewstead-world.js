@@ -1,164 +1,152 @@
 (() => {
   const jeu = document.getElementById('jeu');
-  const intro = document.getElementById('intro');
+  const image = document.getElementById('sceneImage');
   const panneau = document.getElementById('panneauLieu');
-  const fermerPanneau = document.getElementById('fermerPanneau');
-  const iconeLieu = document.getElementById('iconeLieu');
-  const surtitreLieu = document.getElementById('surtitreLieu');
-  const titreLieu = document.getElementById('titreLieu');
-  const descriptionLieu = document.getElementById('descriptionLieu');
-  const etatLieu = document.getElementById('etatLieu');
-  const actionsLieu = document.getElementById('actionsLieu');
+  const fermer = document.getElementById('fermerPanneau');
+  const titre = document.getElementById('titreLieu');
+  const surtitre = document.getElementById('surtitreLieu');
+  const description = document.getElementById('descriptionLieu');
+  const action = document.getElementById('actionLieu');
   const notification = document.getElementById('notification');
-  const boutonSon = document.getElementById('boutonSon');
-  const boutonPleinEcran = document.getElementById('boutonPleinEcran');
-  const heureJeu = document.getElementById('heureJeu');
   if (!jeu) return;
 
   const lieux = {
-    domaine: {
-      icone:'ᛗ', surtitre:'Ta vallée', titre:'Le domaine de Mjödheim',
-      description:'Ton Brewstead s’étend entre les montagnes et le fjord. Chaque lieu nourrit une même boucle : récolter, expérimenter, brasser, vendre et faire grandir ta renommée.',
-      etats:[['Saison','Fin d’été'],['Météo','Lumière dorée'],['Activité','Le domaine est éveillé']], actions:[]
+    rucher: {
+      surtitre: 'Miel & cire',
+      titre: 'Rucher',
+      description: 'Inspecte les ruches, surveille leur production et récolte le miel destiné aux hydromels.',
+      action: 'Entrer dans le rucher'
     },
     champs: {
-      icone:'🌾', surtitre:'Terres de la vallée', titre:'Les champs',
-      description:'Cultive les céréales et plantes nécessaires à tes recettes. Les parcelles suivent leur propre cycle jusqu’à la récolte.',
-      etats:[['Parcelle I','Orge · 03:42'],['Parcelle II','Seigle · prêt'],['Parcelle III','Libre']],
-      actions:[['Récolter le seigle','Récolte disponible côté backend.',true],['Planter une culture','Le choix de culture sera relié à FarmService.',false]]
-    },
-    rucher: {
-      icone:'⬡', surtitre:'Miel & cire', titre:'Le rucher',
-      description:'Les ruches transforment le temps en miel. Cette ressource précieuse devient la base de tes hydromels.',
-      etats:[['Ruche du vieux chêne','61 %'],['Ruche de la rivière','88 %'],['Production','2 ruches actives']],
-      actions:[['Inspecter les ruches','Le rucher est prêt à être relié à ApiaryService.',true],['Récolter le miel','Action disponible lorsqu’une ruche est READY.',false]]
-    },
-    laboratoire: {
-      icone:'⚗', surtitre:'Expérimentation', titre:'Le laboratoire',
-      description:'Ici naissent les recettes qui rendent ton domaine unique. Combine ingrédients, volume et fermentation pour créer tes propres signatures.',
-      etats:[['Recettes connues','6'],['Dernière découverte','Hydromel de brume'],['Qualité record','88']],
-      actions:[['Créer une recette','Le moteur de recettes est prêt côté backend.',true],['Ouvrir le carnet','Le carnet sera alimenté par RecipeService.',false]]
-    },
-    brasserie: {
-      icone:'♨', surtitre:'Cuivre & fermentation', titre:'La brasserie',
-      description:'Le cœur chaud du Brewstead. Les ingrédients quittent les réserves, entrent dans les cuves et deviennent des brassins qui évoluent avec le temps.',
-      etats:[['Cuve I','Hydromel · 47 %'],['Cuve II','Bière du Skalde · 83 %'],['Brassins actifs','2']],
-      actions:[['Lancer un brassin','BrewService est prêt à recevoir cette action.',true],['Voir les fermentations','Les états de production sont disponibles côté backend.',false]]
+      surtitre: 'Cultures du domaine',
+      titre: 'Champs',
+      description: 'Cultive céréales, aromates et plantes utiles à tes recettes et à la vie du domaine.',
+      action: 'Gérer les cultures'
     },
     reserve: {
-      icone:'▤', surtitre:'Stocks du domaine', titre:'Les réserves',
-      description:'Tout ce que tu cultives, récoltes ou achètes finit ici avant de repartir vers une recette, une commande ou une production.',
-      etats:[['Orge','12,5 kg'],['Miel','3 kg'],['Houblon','250 g']],
-      actions:[['Ouvrir l’inventaire','InventoryService est prêt côté backend.',true]]
+      surtitre: 'Stocks & matières',
+      titre: 'Entrepôt',
+      description: 'Retrouve ici les récoltes, ingrédients, matières premières et produits prêts à être utilisés.',
+      action: 'Voir les stocks'
     },
-    commandes: {
-      icone:'✉', surtitre:'Clients & voyageurs', titre:'Les commandes',
-      description:'PNJ et joueurs déposent leurs besoins. Satisfaire une commande transforme tes stocks en pièces et en renommée.',
-      etats:[['Ouvertes','3'],['Meilleure récompense','420 pièces'],['Urgence','1 expire bientôt']],
-      actions:[['Consulter les commandes','Les services de commandes PNJ et joueurs sont prêts.',true],['Préparer une livraison','La livraison sera branchée après la sécurité.',false]]
+    brasserie: {
+      surtitre: 'Le cœur de Brewstead',
+      titre: 'Brasserie',
+      description: 'Prépare tes recettes, lance les brassins et suis fermentation, maturation et mise en fût.',
+      action: 'Entrer dans la brasserie'
+    },
+    laboratoire: {
+      surtitre: 'Recherche & recettes',
+      titre: 'Laboratoire',
+      description: 'Expérimente de nouvelles associations et développe les recettes qui feront la réputation de Mjödheim.',
+      action: 'Ouvrir le laboratoire'
     },
     taverne: {
-      icone:'ᚦ', surtitre:'Le cœur social', titre:'La taverne',
-      description:'Le lieu où le monde de Mjödheim se rencontre. Voyageurs, boissons, commandes et renommée y convergent.',
-      etats:[['Voyageurs','4'],['Ambiance','Chaleureuse'],['Fût du soir','Hydromel de brume']],
-      actions:[['Entrer dans la taverne','TavernService est prêt pour le raccordement.',true]]
+      surtitre: 'Voyageurs & réputation',
+      titre: 'Taverne',
+      description: 'Sers tes productions, accueille les voyageurs et fais vivre la réputation de ton domaine.',
+      action: 'Entrer dans la taverne'
+    },
+    commandes: {
+      surtitre: 'Commerce',
+      titre: 'Commandes',
+      description: 'Consulte les demandes en cours, prépare les livraisons et transforme tes productions en revenus.',
+      action: 'Voir les commandes'
     }
   };
 
+  let zoneActive = null;
   let notificationTimer;
-  let audioContext;
-  let gain;
-  let ambienceTimer;
+  let fallbackStarted = false;
+  let objectUrl = null;
 
-  const zones = [...document.querySelectorAll('[data-zone]')];
-
-  function notifier(message){
-    if(!notification) return;
+  function notifier(message) {
+    if (!notification) return;
     clearTimeout(notificationTimer);
     notification.textContent = message;
-    notification.classList.add('est-visible');
-    notificationTimer = setTimeout(()=>notification.classList.remove('est-visible'),2600);
+    notification.classList.add('is-visible');
+    notificationTimer = setTimeout(() => notification.classList.remove('is-visible'), 2200);
   }
 
-  function remplirPanneau(zone){
+  function fermerPanneau() {
+    zoneActive = null;
+    jeu.dataset.zoneActive = 'domaine';
+    panneau?.classList.remove('is-open');
+    panneau?.setAttribute('aria-hidden', 'true');
+    document.querySelectorAll('.hotspot.is-active').forEach(el => el.classList.remove('is-active'));
+  }
+
+  function ouvrirPanneau(zone, source) {
     const lieu = lieux[zone];
-    if(!lieu) return;
-    iconeLieu.textContent = lieu.icone;
-    surtitreLieu.textContent = lieu.surtitre;
-    titreLieu.textContent = lieu.titre;
-    descriptionLieu.textContent = lieu.description;
-    etatLieu.innerHTML = lieu.etats.map(([label,value]) => `<div class="ligne-etat"><span>${label}</span><strong>${value}</strong></div>`).join('');
-    actionsLieu.innerHTML = lieu.actions.map(([label,msg,strong]) => `<button type="button" class="action-lieu${strong?' action-lieu--forte':''}" data-message="${msg.replace(/"/g,'&quot;')}">${label}</button>`).join('');
-  }
-
-  function activerZone(zone){
-    if(!lieux[zone]) return;
+    if (!lieu || !panneau) return;
+    zoneActive = zone;
     jeu.dataset.zoneActive = zone;
-    zones.forEach(el=>el.classList.toggle('est-actif',el.dataset.zone===zone));
-    remplirPanneau(zone);
-    if(zone==='domaine'){
-      intro?.classList.remove('est-cachee');
-      panneau?.classList.remove('est-visible');
-    } else {
-      intro?.classList.add('est-cachee');
-      panneau?.classList.add('est-visible');
+    surtitre.textContent = lieu.surtitre;
+    titre.textContent = lieu.titre;
+    description.textContent = lieu.description;
+    action.textContent = lieu.action;
+    panneau.classList.add('is-open');
+    panneau.setAttribute('aria-hidden', 'false');
+    document.querySelectorAll('.hotspot.is-active').forEach(el => el.classList.remove('is-active'));
+    source?.classList.add('is-active');
+  }
+
+  document.addEventListener('click', event => {
+    const hotspot = event.target.closest?.('.hotspot[data-zone]');
+    if (hotspot) {
+      ouvrirPanneau(hotspot.dataset.zone, hotspot);
+      return;
+    }
+    if (event.target === action && zoneActive) {
+      notifier(`${lieux[zoneActive].titre} sélectionné.`);
+    }
+  });
+
+  fermer?.addEventListener('click', fermerPanneau);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') fermerPanneau();
+  });
+
+  window.setBrewsteadWeather = weather => {
+    const allowed = new Set(['clear', 'rain', 'snow']);
+    jeu.dataset.weather = allowed.has(weather) ? weather : 'clear';
+  };
+
+  const requestedWeather = new URLSearchParams(location.search).get('weather');
+  if (requestedWeather) window.setBrewsteadWeather(requestedWeather);
+
+  async function chargerImageDepuisSegments() {
+    if (!image || fallbackStarted) return;
+    fallbackStarted = true;
+    try {
+      const urls = Array.from({ length: 16 }, (_, i) =>
+        `/images/brewstead-reference.webp.b64.part${String(i).padStart(2, '0')}`
+      );
+      const parts = await Promise.all(urls.map(async url => {
+        const response = await fetch(url, { cache: 'force-cache' });
+        if (!response.ok) throw new Error(`Segment absent: ${url}`);
+        return response.text();
+      }));
+      const encoded = parts.join('').replace(/\s+/g, '');
+      const raw = atob(encoded);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
+      image.src = objectUrl;
+      image.addEventListener('load', () => jeu.classList.remove('scene-missing'), { once: true });
+      image.addEventListener('error', () => jeu.classList.add('scene-missing'), { once: true });
+    } catch (error) {
+      console.error('Impossible de reconstruire le décor Brewstead.', error);
+      jeu.classList.add('scene-missing');
     }
   }
 
-  document.addEventListener('click',event=>{
-    const action = event.target.closest?.('.action-lieu[data-message]');
-    if(action){notifier(action.dataset.message);return;}
-    const cible = event.target.closest?.('[data-zone]');
-    if(cible) activerZone(cible.dataset.zone);
-  });
-
-  document.addEventListener('keydown',event=>{
-    const cible = event.target.closest?.('[data-zone]');
-    if(cible && (event.key==='Enter' || event.key===' ')){
-      event.preventDefault();activerZone(cible.dataset.zone);return;
-    }
-    if(event.key==='Escape') activerZone('domaine');
-  });
-
-  fermerPanneau?.addEventListener('click',()=>activerZone('domaine'));
-
-  boutonPleinEcran?.addEventListener('click',async()=>{
-    try{
-      if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      else await document.exitFullscreen();
-    }catch{notifier('Le plein écran n’est pas disponible ici.');}
-  });
-
-  function note(freq,duration=2.8,volume=.012){
-    if(!audioContext || !gain) return;
-    const osc=audioContext.createOscillator();
-    const env=audioContext.createGain();
-    osc.type='sine';osc.frequency.value=freq;
-    env.gain.setValueAtTime(.0001,audioContext.currentTime);
-    env.gain.exponentialRampToValueAtTime(volume,audioContext.currentTime+.45);
-    env.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+duration);
-    osc.connect(env);env.connect(gain);osc.start();osc.stop(audioContext.currentTime+duration+.1);
+  if (image) {
+    image.addEventListener('error', chargerImageDepuisSegments, { once: true });
+    if (image.complete && image.naturalWidth === 0) chargerImageDepuisSegments();
   }
 
-  async function startAmbience(){
-    const AC=window.AudioContext||window.webkitAudioContext;
-    if(!AC){notifier('Ambiance sonore indisponible.');return;}
-    if(!audioContext){audioContext=new AC();gain=audioContext.createGain();gain.gain.value=.55;gain.connect(audioContext.destination);}
-    await audioContext.resume();
-    note(110,4,.01);note(164.81,5,.007);
-    clearInterval(ambienceTimer);
-    ambienceTimer=setInterval(()=>{if(!document.hidden){const n=[98,110,123.47,146.83,164.81];note(n[Math.floor(Math.random()*n.length)],4+Math.random()*2,.006+Math.random()*.006);}},4300);
-  }
-
-  boutonSon?.addEventListener('click',async()=>{
-    const actif=boutonSon.getAttribute('aria-pressed')==='true';
-    if(actif){clearInterval(ambienceTimer);audioContext?.suspend();boutonSon.setAttribute('aria-pressed','false');boutonSon.textContent='♪';notifier('Ambiance coupée.');}
-    else{await startAmbience();boutonSon.setAttribute('aria-pressed','true');boutonSon.textContent='♫';notifier('Ambiance activée.');}
-  });
-
-  function updateClock(){if(heureJeu) heureJeu.textContent=new Date().toLocaleTimeString('fr-BE',{hour:'2-digit',minute:'2-digit'});}
-  updateClock();setInterval(()=>{if(!document.hidden)updateClock();},60000);
-
-  remplirPanneau('domaine');
-  requestAnimationFrame(()=>jeu.classList.add('est-charge'));
+  window.addEventListener('beforeunload', () => {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }, { once: true });
 })();

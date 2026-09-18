@@ -1,152 +1,242 @@
-(() => {
-  const jeu = document.getElementById('jeu');
-  const image = document.getElementById('sceneImage');
-  const panneau = document.getElementById('panneauLieu');
-  const fermer = document.getElementById('fermerPanneau');
-  const titre = document.getElementById('titreLieu');
-  const surtitre = document.getElementById('surtitreLieu');
-  const description = document.getElementById('descriptionLieu');
-  const action = document.getElementById('actionLieu');
-  const notification = document.getElementById('notification');
-  if (!jeu) return;
+/* ==========================================================================
+   Brewstead — caméra du monde
+   Déplacement à la souris ou au doigt, zoom molette et pincement,
+   recentrage animé sur un lieu.
+   ========================================================================== */
 
-  const lieux = {
-    rucher: {
-      surtitre: 'Miel & cire',
-      titre: 'Rucher',
-      description: 'Inspecte les ruches, surveille leur production et récolte le miel destiné aux hydromels.',
-      action: 'Entrer dans le rucher'
-    },
-    champs: {
-      surtitre: 'Cultures du domaine',
-      titre: 'Champs',
-      description: 'Cultive céréales, aromates et plantes utiles à tes recettes et à la vie du domaine.',
-      action: 'Gérer les cultures'
-    },
-    reserve: {
-      surtitre: 'Stocks & matières',
-      titre: 'Entrepôt',
-      description: 'Retrouve ici les récoltes, ingrédients, matières premières et produits prêts à être utilisés.',
-      action: 'Voir les stocks'
-    },
-    brasserie: {
-      surtitre: 'Le cœur de Brewstead',
-      titre: 'Brasserie',
-      description: 'Prépare tes recettes, lance les brassins et suis fermentation, maturation et mise en fût.',
-      action: 'Entrer dans la brasserie'
-    },
-    laboratoire: {
-      surtitre: 'Recherche & recettes',
-      titre: 'Laboratoire',
-      description: 'Expérimente de nouvelles associations et développe les recettes qui feront la réputation de Mjödheim.',
-      action: 'Ouvrir le laboratoire'
-    },
-    taverne: {
-      surtitre: 'Voyageurs & réputation',
-      titre: 'Taverne',
-      description: 'Sers tes productions, accueille les voyageurs et fais vivre la réputation de ton domaine.',
-      action: 'Entrer dans la taverne'
-    },
-    commandes: {
-      surtitre: 'Commerce',
-      titre: 'Commandes',
-      description: 'Consulte les demandes en cours, prépare les livraisons et transforme tes productions en revenus.',
-      action: 'Voir les commandes'
+(function (global) {
+    'use strict';
+
+    var SCENE_WIDTH = 1536;
+    var SCENE_HEIGHT = 742;
+    var MAX_ZOOM_FACTOR = 2.4;
+    var TAP_TOLERANCE = 6;
+    var FRICTION = 0.92;
+
+    function clamp(value, min, max) {
+        return value < min ? min : (value > max ? max : value);
     }
-  };
 
-  let zoneActive = null;
-  let notificationTimer;
-  let fallbackStarted = false;
-  let objectUrl = null;
+    function World(options) {
+        this.world = options.world;
+        this.scene = options.scene;
+        this.onMove = options.onMove || function () {};
 
-  function notifier(message) {
-    if (!notification) return;
-    clearTimeout(notificationTimer);
-    notification.textContent = message;
-    notification.classList.add('is-visible');
-    notificationTimer = setTimeout(() => notification.classList.remove('is-visible'), 2200);
-  }
+        this.scale = 1;
+        this.x = 0;
+        this.y = 0;
+        this.fit = 1;
 
-  function fermerPanneau() {
-    zoneActive = null;
-    jeu.dataset.zoneActive = 'domaine';
-    panneau?.classList.remove('is-open');
-    panneau?.setAttribute('aria-hidden', 'true');
-    document.querySelectorAll('.hotspot.is-active').forEach(el => el.classList.remove('is-active'));
-  }
+        this.pointers = new Map();
+        this.dragged = 0;
+        this.velocityX = 0;
+        this.velocityY = 0;
+        this.lastMoveTime = 0;
+        this.momentumId = null;
+        this.pinchDistance = 0;
+        this.captured = false;
 
-  function ouvrirPanneau(zone, source) {
-    const lieu = lieux[zone];
-    if (!lieu || !panneau) return;
-    zoneActive = zone;
-    jeu.dataset.zoneActive = zone;
-    surtitre.textContent = lieu.surtitre;
-    titre.textContent = lieu.titre;
-    description.textContent = lieu.description;
-    action.textContent = lieu.action;
-    panneau.classList.add('is-open');
-    panneau.setAttribute('aria-hidden', 'false');
-    document.querySelectorAll('.hotspot.is-active').forEach(el => el.classList.remove('is-active'));
-    source?.classList.add('is-active');
-  }
-
-  document.addEventListener('click', event => {
-    const hotspot = event.target.closest?.('.hotspot[data-zone]');
-    if (hotspot) {
-      ouvrirPanneau(hotspot.dataset.zone, hotspot);
-      return;
+        this.bind();
+        this.measure();
     }
-    if (event.target === action && zoneActive) {
-      notifier(`${lieux[zoneActive].titre} sélectionné.`);
-    }
-  });
 
-  fermer?.addEventListener('click', fermerPanneau);
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape') fermerPanneau();
-  });
+    World.prototype.measure = function () {
+        var box = this.world.getBoundingClientRect();
+        this.viewWidth = box.width;
+        this.viewHeight = box.height;
+        // Cadrage de repos : tout le domaine visible tant que les marges
+        // restent raisonnables, sinon on remplit davantage la fenêtre.
+        var contain = Math.min(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
+        var cover = Math.max(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
+        this.fit = Math.max(contain, cover * 0.85);
+        this.scale = Math.max(this.scale, this.fit);
+        this.apply(false);
+    };
 
-  window.setBrewsteadWeather = weather => {
-    const allowed = new Set(['clear', 'rain', 'snow']);
-    jeu.dataset.weather = allowed.has(weather) ? weather : 'clear';
-  };
+    World.prototype.limits = function (scale) {
+        var width = SCENE_WIDTH * scale;
+        var height = SCENE_HEIGHT * scale;
+        // Plus petite que la fenêtre : la scène reste centrée au lieu de flotter.
+        var restX = width < this.viewWidth ? (this.viewWidth - width) / 2 : null;
+        var restY = height < this.viewHeight ? (this.viewHeight - height) / 2 : null;
+        return {
+            minX: restX !== null ? restX : this.viewWidth - width,
+            maxX: restX !== null ? restX : 0,
+            minY: restY !== null ? restY : this.viewHeight - height,
+            maxY: restY !== null ? restY : 0
+        };
+    };
 
-  const requestedWeather = new URLSearchParams(location.search).get('weather');
-  if (requestedWeather) window.setBrewsteadWeather(requestedWeather);
+    World.prototype.apply = function (animated) {
+        var bounds = this.limits(this.scale);
+        this.x = clamp(this.x, bounds.minX, bounds.maxX);
+        this.y = clamp(this.y, bounds.minY, bounds.maxY);
+        this.scene.classList.toggle('is-animated', !!animated);
+        this.scene.style.transform = 'translate3d(' + this.x + 'px,' + this.y + 'px,0) scale(' + this.scale + ')';
+        this.onMove(this);
+    };
 
-  async function chargerImageDepuisSegments() {
-    if (!image || fallbackStarted) return;
-    fallbackStarted = true;
-    try {
-      const urls = Array.from({ length: 16 }, (_, i) =>
-        `/images/brewstead-reference.webp.b64.part${String(i).padStart(2, '0')}`
-      );
-      const parts = await Promise.all(urls.map(async url => {
-        const response = await fetch(url, { cache: 'force-cache' });
-        if (!response.ok) throw new Error(`Segment absent: ${url}`);
-        return response.text();
-      }));
-      const encoded = parts.join('').replace(/\s+/g, '');
-      const raw = atob(encoded);
-      const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-      objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }));
-      image.src = objectUrl;
-      image.addEventListener('load', () => jeu.classList.remove('scene-missing'), { once: true });
-      image.addEventListener('error', () => jeu.classList.add('scene-missing'), { once: true });
-    } catch (error) {
-      console.error('Impossible de reconstruire le décor Brewstead.', error);
-      jeu.classList.add('scene-missing');
-    }
-  }
+    World.prototype.zoomAt = function (scale, pointX, pointY, animated) {
+        var next = clamp(scale, this.fit, Math.max(this.fit * MAX_ZOOM_FACTOR, 1.8));
+        if (next === this.scale) return;
+        var sceneX = (pointX - this.x) / this.scale;
+        var sceneY = (pointY - this.y) / this.scale;
+        this.scale = next;
+        this.x = pointX - sceneX * next;
+        this.y = pointY - sceneY * next;
+        this.apply(animated);
+    };
 
-  if (image) {
-    image.addEventListener('error', chargerImageDepuisSegments, { once: true });
-    if (image.complete && image.naturalWidth === 0) chargerImageDepuisSegments();
-  }
+    /** Amène le point (x, y) de la scène au centre de la zone utile. */
+    World.prototype.focus = function (x, y, opts) {
+        opts = opts || {};
+        this.stopMomentum();
+        if (opts.scale) this.scale = clamp(opts.scale, this.fit, this.fit * MAX_ZOOM_FACTOR);
+        this.x = this.viewWidth / 2 + (opts.offsetX || 0) - x * this.scale;
+        this.y = this.viewHeight / 2 + (opts.offsetY || 0) - y * this.scale;
+        this.apply(true);
+    };
 
-  window.addEventListener('beforeunload', () => {
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
-  }, { once: true });
-})();
+    World.prototype.reset = function () {
+        this.stopMomentum();
+        this.scale = this.fit;
+        this.x = (this.viewWidth - SCENE_WIDTH * this.scale) / 2;
+        this.y = (this.viewHeight - SCENE_HEIGHT * this.scale) / 2;
+        this.apply(true);
+    };
+
+    World.prototype.stopMomentum = function () {
+        if (this.momentumId) cancelAnimationFrame(this.momentumId);
+        this.momentumId = null;
+        this.velocityX = 0;
+        this.velocityY = 0;
+    };
+
+    World.prototype.runMomentum = function () {
+        var self = this;
+        function step() {
+            self.velocityX *= FRICTION;
+            self.velocityY *= FRICTION;
+            if (Math.abs(self.velocityX) < 0.15 && Math.abs(self.velocityY) < 0.15) {
+                self.momentumId = null;
+                return;
+            }
+            self.x += self.velocityX;
+            self.y += self.velocityY;
+            self.apply(false);
+            self.momentumId = requestAnimationFrame(step);
+        }
+        this.momentumId = requestAnimationFrame(step);
+    };
+
+    World.prototype.pinchSpread = function () {
+        var points = Array.from(this.pointers.values());
+        var dx = points[0].x - points[1].x;
+        var dy = points[0].y - points[1].y;
+        return {
+            distance: Math.hypot(dx, dy),
+            centerX: (points[0].x + points[1].x) / 2,
+            centerY: (points[0].y + points[1].y) / 2
+        };
+    };
+
+    World.prototype.bind = function () {
+        var self = this;
+        var world = this.world;
+
+        world.addEventListener('pointerdown', function (event) {
+            if (event.button !== undefined && event.button > 0) return;
+            self.stopMomentum();
+            self.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            self.dragged = 0;
+            self.lastMoveTime = event.timeStamp;
+            if (self.pointers.size === 2) self.pinchDistance = self.pinchSpread().distance;
+        });
+
+        world.addEventListener('pointermove', function (event) {
+            var previous = self.pointers.get(event.pointerId);
+            if (!previous) return;
+            var dx = event.clientX - previous.x;
+            var dy = event.clientY - previous.y;
+            self.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+            if (self.pointers.size === 2) {
+                var spread = self.pinchSpread();
+                if (self.pinchDistance > 0) {
+                    var box = world.getBoundingClientRect();
+                    self.zoomAt(self.scale * (spread.distance / self.pinchDistance),
+                        spread.centerX - box.left, spread.centerY - box.top, false);
+                }
+                self.pinchDistance = spread.distance;
+                self.dragged += Math.abs(dx) + Math.abs(dy);
+                return;
+            }
+
+            self.dragged += Math.abs(dx) + Math.abs(dy);
+            if (self.dragged > TAP_TOLERANCE && !self.captured) {
+                // La capture n'est prise qu'une fois le glissement engagé : sinon
+                // le clic serait redirigé vers le monde au lieu de l'écriteau visé.
+                world.setPointerCapture(event.pointerId);
+                self.captured = true;
+                world.classList.add('is-dragging');
+            }
+
+            var elapsed = Math.max(1, event.timeStamp - self.lastMoveTime);
+            self.velocityX = dx / elapsed * 16;
+            self.velocityY = dy / elapsed * 16;
+            self.lastMoveTime = event.timeStamp;
+
+            self.x += dx;
+            self.y += dy;
+            self.apply(false);
+        });
+
+        function release(event) {
+            if (!self.pointers.has(event.pointerId)) return;
+            self.pointers.delete(event.pointerId);
+            if (self.pointers.size < 2) self.pinchDistance = 0;
+            if (self.captured && world.hasPointerCapture(event.pointerId)) {
+                world.releasePointerCapture(event.pointerId);
+            }
+            if (self.pointers.size === 0) {
+                self.captured = false;
+                world.classList.remove('is-dragging');
+                if (self.dragged > TAP_TOLERANCE) self.runMomentum();
+            }
+        }
+
+        world.addEventListener('pointerup', release);
+        world.addEventListener('pointercancel', release);
+
+        // un glissement ne doit pas déclencher le clic d'un écriteau
+        world.addEventListener('click', function (event) {
+            if (self.dragged > TAP_TOLERANCE) {
+                event.preventDefault();
+                event.stopPropagation();
+                self.dragged = 0;
+            }
+        }, true);
+
+        world.addEventListener('wheel', function (event) {
+            event.preventDefault();
+            var box = world.getBoundingClientRect();
+            var factor = Math.exp(-event.deltaY * 0.0012);
+            self.zoomAt(self.scale * factor, event.clientX - box.left, event.clientY - box.top, false);
+        }, { passive: false });
+
+        world.addEventListener('dblclick', function (event) {
+            var box = world.getBoundingClientRect();
+            var target = self.scale > self.fit * 1.25 ? self.fit : self.fit * 1.8;
+            self.zoomAt(target, event.clientX - box.left, event.clientY - box.top, true);
+        });
+
+        window.addEventListener('resize', function () { self.measure(); });
+        if (global.ResizeObserver) new ResizeObserver(function () { self.measure(); }).observe(world);
+    };
+
+    global.BrewsteadWorld = {
+        SCENE_WIDTH: SCENE_WIDTH,
+        SCENE_HEIGHT: SCENE_HEIGHT,
+        create: function (options) { return new World(options); }
+    };
+})(window);

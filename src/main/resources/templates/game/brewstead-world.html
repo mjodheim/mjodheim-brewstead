@@ -2,45 +2,187 @@
 <html lang="fr" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#181710">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1b1309">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232b1c10'/%3E%3Cpath d='M16 27V13' stroke='%23e9bc55' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M16 13c0-3.4 2.3-5.7 4.9-6.9.5 3.6-1.3 6.9-4.9 6.9Z' fill='%23e9bc55'/%3E%3Cpath d='M16 19c0-2.9-2.3-4.7-4.9-5.4-.4 3 1.3 5.4 4.9 5.4Z' fill='%23e9bc55'/%3E%3Cpath d='M16 19c0-2.9 2.3-4.7 4.9-5.4.4 3-1.3 5.4-4.9 5.4Z' fill='%23e9bc55'/%3E%3C/svg%3E">
+    <meta name="description" content="Brewstead — cultive, brasse et commerce depuis ton domaine de Mjödheim.">
     <title>Mjödheim · Brewstead</title>
-    <link rel="stylesheet" th:href="@{/css/brewstead-world.css}" href="/css/brewstead-world.css">
+    <meta name="_csrf" th:content="${_csrf?.token}" content="">
+    <meta name="_csrf_header" th:content="${_csrf?.headerName}" content="">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+    <link rel="stylesheet" th:href="@{/css/brewstead.css}" href="/css/brewstead.css">
 </head>
 <body>
-<div class="jeu" id="jeu" data-zone-active="domaine" data-weather="clear">
-    <main class="scene" aria-label="Domaine de Brewstead">
-        <img id="sceneImage" class="scene-image" th:src="@{/images/brewstead-reference.webp}" src="/images/brewstead-reference.webp" alt="" draggable="false">
 
-        <div class="atmosphere" aria-hidden="true">
-            <div class="sunlight"></div>
-            <div class="cloud-light"></div>
-            <div class="water-shimmer water-shimmer--lake"></div>
-            <div class="water-shimmer water-shimmer--falls"></div>
-            <div class="weather-layer weather-rain"></div>
-            <div class="weather-layer weather-snow"></div>
-            <div class="vignette"></div>
+<svg class="sprite" aria-hidden="true" focusable="false">
+    <defs>
+        <symbol id="i-coin" viewBox="0 0 24 24">
+            <ellipse cx="12" cy="16" rx="8" ry="4"/><ellipse cx="12" cy="12" rx="8" ry="4"/><ellipse cx="12" cy="8" rx="8" ry="4"/>
+        </symbol>
+        <symbol id="i-wood" viewBox="0 0 24 24">
+            <rect x="3" y="7" width="18" height="10" rx="2"/><ellipse cx="6" cy="12" rx="2" ry="4"/><path d="M6 10.5a1.4 1.4 0 0 1 0 3"/>
+        </symbol>
+        <symbol id="i-grain" viewBox="0 0 24 24">
+            <path d="M12 21V8"/><path d="M12 8c0-3 2-5 4-6 .4 3-1 6-4 6Z"/><path d="M12 13c0-2.5 2-4 4-4.6.3 2.6-1.2 4.6-4 4.6Z"/>
+            <path d="M12 18c0-2.5 2-4 4-4.6.3 2.6-1.2 4.6-4 4.6Z"/><path d="M12 13c0-2.5-2-4-4-4.6-.3 2.6 1.2 4.6 4 4.6Z"/>
+            <path d="M12 18c0-2.5-2-4-4-4.6-.3 2.6 1.2 4.6 4 4.6Z"/>
+        </symbol>
+        <symbol id="i-honey" viewBox="0 0 24 24">
+            <path d="M7 9h10l1 9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2Z"/><path d="M6 9c1.5-1.2 10.5-1.2 12 0"/><path d="M12 4v3"/><path d="M9.5 5.5 12 4l2.5 1.5"/>
+        </symbol>
+        <symbol id="i-barrel" viewBox="0 0 24 24">
+            <path d="M8 3h8c1.6 2.6 2.4 5.6 2.4 9s-.8 6.4-2.4 9H8c-1.6-2.6-2.4-5.6-2.4-9S6.4 5.6 8 3Z"/><path d="M5.6 8.5h12.8M5.6 15.5h12.8M12 3v18"/>
+        </symbol>
+        <symbol id="i-home" viewBox="0 0 24 24">
+            <path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/><path d="M10 19v-5h4v5"/>
+        </symbol>
+        <symbol id="i-pouch" viewBox="0 0 24 24">
+            <path d="M9 7h6l3 6.5A5.5 5.5 0 0 1 12.5 20h-1A5.5 5.5 0 0 1 6 13.5Z"/><path d="M9 7c0-2 1.3-3 3-3s3 1 3 3"/><path d="M8 10h8"/>
+        </symbol>
+        <symbol id="i-recipe" viewBox="0 0 24 24">
+            <path d="M5 4v6a3 3 0 0 0 6 0V4"/><path d="M8 4v16"/><path d="M17 4c-1.6 1.4-2.4 3.2-2.4 5.4 0 1.6.8 2.6 2.4 2.6s2.4-1 2.4-2.6C19.4 7.2 18.6 5.4 17 4Z"/><path d="M17 12v8"/>
+        </symbol>
+        <symbol id="i-orders" viewBox="0 0 24 24">
+            <rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>
+        </symbol>
+        <symbol id="i-tavern" viewBox="0 0 24 24">
+            <path d="M5 8h11v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3Z"/><path d="M16 10h2.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 5V3M12 5V3"/>
+        </symbol>
+        <symbol id="i-trophy" viewBox="0 0 24 24">
+            <path d="M8 4h8v5a4 4 0 0 1-8 0Z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M12 13v4M9 20h6M10 17h4"/>
+        </symbol>
+        <symbol id="i-gear" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3.2"/><path d="M12 3.2 13 5.6l2.6-.6 1 2.5 2.4 1.2-1 2.4 1 2.4-2.4 1.2-1 2.5-2.6-.6-1 2.4-1-2.4-2.6.6-1-2.5-2.4-1.2 1-2.4-1-2.4 2.4-1.2 1-2.5 2.6.6Z"/>
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+        <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/></symbol>
+    </defs>
+</svg>
+
+<div class="game" id="game" data-view="monde">
+
+    <div class="world" id="world">
+        <div class="world__scene" id="scene">
+            <img class="world__art" id="worldArt" width="1536" height="742" alt="Le domaine de Brewstead"
+                 th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
+            <div class="world__markers" id="markers"></div>
+        </div>
+        <div class="world__fx" aria-hidden="true"></div>
+        <div class="world__hint" id="worldHint">Glisse pour explorer le domaine</div>
+    </div>
+
+    <header class="hud hud--top">
+        <a class="crest" href="/" aria-label="Brewstead, accueil">
+            <span class="crest__mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><use href="#i-grain"/></svg>
+            </span>
+            <span class="crest__text">
+                <strong>Brewstead</strong>
+                <em>Craft · Farm · Brew · Trade</em>
+            </span>
+        </a>
+
+        <div class="hud__center">
+            <div class="panel player" id="playerCard">
+                <span class="player__avatar" id="playerAvatar" aria-hidden="true">E</span>
+                <span class="player__body">
+                    <span class="player__name" id="playerName">—</span>
+                    <span class="player__level" id="playerLevel">Niveau —</span>
+                    <span class="player__xp">
+                        <span class="bar"><i id="xpBar" style="width:0%"></i></span>
+                        <small id="xpLabel">— / — XP</small>
+                    </span>
+                </span>
+            </div>
+
+            <div class="panel resources" id="resources" role="list"></div>
         </div>
 
-        <button class="hotspot hotspot-rucher" type="button" data-zone="rucher" aria-label="Ouvrir le rucher"></button>
-        <button class="hotspot hotspot-champs" type="button" data-zone="champs" aria-label="Ouvrir les champs"></button>
-        <button class="hotspot hotspot-reserve" type="button" data-zone="reserve" aria-label="Ouvrir l'entrepôt"></button>
-        <button class="hotspot hotspot-brasserie" type="button" data-zone="brasserie" aria-label="Ouvrir la brasserie"></button>
-        <button class="hotspot hotspot-laboratoire" type="button" data-zone="laboratoire" aria-label="Ouvrir le laboratoire"></button>
-        <button class="hotspot hotspot-taverne" type="button" data-zone="taverne" aria-label="Ouvrir la taverne"></button>
-        <button class="hotspot hotspot-commandes" type="button" data-zone="commandes" aria-label="Ouvrir les commandes"></button>
+        <div class="hud__right">
+            <section class="parchment quest" id="quest" aria-labelledby="questTitle">
+                <h2 id="questTitle">Objectif du jour</h2>
+                <button class="quest__row" type="button" id="questRow">
+                    <span class="quest__box" id="questBox" aria-hidden="true"></span>
+                    <span class="quest__text" id="questText">—</span>
+                    <svg class="quest__go" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"/></svg>
+                </button>
+                <div class="quest__progress">
+                    <span class="bar bar--gold"><i id="questBar" style="width:0%"></i></span>
+                    <small id="questCount">0/0</small>
+                </div>
+            </section>
+            <button class="round-btn" id="settingsBtn" type="button" aria-label="Réglages">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>
+            </button>
+        </div>
+    </header>
 
-        <aside class="panneau-lieu" id="panneauLieu" aria-live="polite" aria-hidden="true">
-            <button class="close-panel" id="fermerPanneau" type="button" aria-label="Fermer">×</button>
-            <small id="surtitreLieu">Mjödheim · Brewstead</small>
-            <h2 id="titreLieu">Le domaine</h2>
-            <p id="descriptionLieu"></p>
-            <button class="primary-action" id="actionLieu" type="button">Ouvrir</button>
-        </aside>
+    <aside class="hud panel feed" id="feed" aria-label="Événements">
+        <h2><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-compass"/></svg> Événements</h2>
+        <ul id="feedList"></ul>
+    </aside>
 
-        <div class="notification" id="notification" role="status" aria-live="polite"></div>
-    </main>
+    <nav class="hud dock" id="dock" aria-label="Navigation principale">
+        <button class="dock__tab is-active" type="button" data-view="monde">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-home"/></svg><span>Vue d'ensemble</span>
+        </button>
+        <button class="dock__tab" type="button" data-view="inventaire">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pouch"/></svg><span>Inventaire</span>
+        </button>
+        <button class="dock__tab" type="button" data-view="recettes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-recipe"/></svg><span>Recettes</span>
+        </button>
+        <button class="dock__tab" type="button" data-view="commandes">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-orders"/></svg><span>Commandes</span>
+        </button>
+        <button class="dock__tab" type="button" data-view="taverne">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tavern"/></svg><span>Taverne</span>
+        </button>
+        <button class="dock__tab" type="button" data-view="classement">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg><span>Classement</span>
+        </button>
+    </nav>
+
+    <p class="hud tagline">Même esprit.<br>Même aventure.<br>Maintenant en vrai.</p>
+
+    <section class="place" id="place" aria-live="polite" aria-hidden="true" tabindex="-1">
+        <header class="place__head">
+            <div>
+                <small id="placeKicker">—</small>
+                <h2 id="placeTitle">—</h2>
+            </div>
+            <button class="round-btn round-btn--ghost" id="placeClose" type="button" aria-label="Fermer">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-close"/></svg>
+            </button>
+        </header>
+        <p class="place__intro" id="placeIntro"></p>
+        <div class="place__body" id="placeBody"></div>
+        <footer class="place__foot">
+            <button class="btn btn--gold" id="placeAction" type="button">Ouvrir</button>
+        </footer>
+    </section>
+
+    <section class="screen" id="screen" aria-hidden="true" tabindex="-1">
+        <div class="screen__sheet parchment">
+            <header class="screen__head">
+                <h2 id="screenTitle">—</h2>
+                <button class="round-btn round-btn--ink" id="screenClose" type="button" aria-label="Fermer">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-close"/></svg>
+                </button>
+            </header>
+            <div class="screen__body" id="screenBody"></div>
+        </div>
+    </section>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
+
+<script th:src="@{/js/brewstead-data.js}" src="/js/brewstead-data.js"></script>
 <script th:src="@{/js/brewstead-world.js}" src="/js/brewstead-world.js"></script>
+<script th:src="@{/js/brewstead-app.js}" src="/js/brewstead-app.js"></script>
 </body>
 </html>

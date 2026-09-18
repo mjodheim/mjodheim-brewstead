@@ -296,7 +296,7 @@ class GameJourneyIntegrationTest {
 
         mockMvc.perform(get("/api/tavern/chat").session(beta))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.body == 'Skål depuis le test d\'intégration')]").exists());
+                .andExpect(content().string(containsString("Skål depuis le test d'intégration")));
 
         assertTrue(tavernMessageRepository.count() >= 1);
 

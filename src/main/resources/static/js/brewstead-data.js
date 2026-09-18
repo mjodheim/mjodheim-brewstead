@@ -7,8 +7,8 @@
 (function (global) {
     'use strict';
 
-    var PLAYER_ID = Number(document.documentElement.dataset.playerId || 1);
     var XP_PER_LEVEL = 1000;
+    var AVATARS = ['CERF', 'CORBEAU', 'OURS', 'LOUP', 'ABEILLE', 'ORGE', 'TONNEAU', 'MARTEAU'];
 
     /* ---------------------------------------------------------------- Lieux */
 
@@ -131,7 +131,10 @@
     function demoState() {
         return {
             source: 'demo',
-            player: { id: PLAYER_ID, username: 'Eirik', level: 12, experience: 320, coins: 1240, reputation: 86 },
+            player: {
+                id: 0, username: 'Eirik', displayName: 'Eirik', avatar: 'CERF',
+                level: 12, experience: 320, coins: 1240, reputation: 86
+            },
             inventory: [
                 { id: 1, ingredientName: 'Bois de chêne', unit: 'KILOGRAM', quantity: 328 },
                 { id: 2, ingredientName: 'Orge maltée', unit: 'KILOGRAM', quantity: 96 },
@@ -219,7 +222,7 @@
                 notablePlayers: [
                     { playerId: 7, username: 'Astrid', level: 18, reputation: 214 },
                     { playerId: 3, username: 'Bjorn', level: 15, reputation: 168 },
-                    { playerId: PLAYER_ID, username: 'Eirik', level: 12, reputation: 86 },
+                    { playerId: 0, username: 'Eirik', level: 12, reputation: 86 },
                     { playerId: 11, username: 'Ingrid', level: 11, reputation: 74 },
                     { playerId: 5, username: 'Torvald', level: 9, reputation: 52 }
                 ]
@@ -242,6 +245,7 @@
         return {
             source: 'api',
             player: state.player,
+            playerId: state.player ? state.player.id : null,
             inventory: state.inventory || [],
             fields: state.fields || [],
             hives: state.hives || [],
@@ -252,17 +256,37 @@
         };
     }
 
+    /** Le domaine chargé est toujours celui de la session en cours. */
     function load() {
-        return getJson('/api/players/' + PLAYER_ID + '/state')
-            .then(function (state) {
-                return getJson('/api/tavern')
-                    .catch(function () { return null; })
-                    .then(function (tavern) { return normalise(state, tavern); });
+        return getJson('/api/account/me')
+            .then(function (account) {
+                return Promise.all([
+                    getJson('/api/players/' + account.id + '/state'),
+                    getJson('/api/tavern').catch(function () { return null; })
+                ]).then(function (results) {
+                    return normalise(results[0], results[1]);
+                });
             })
             .catch(function (error) {
                 if (global.console) console.info('Brewstead : état local utilisé (' + error.message + ').');
                 return demoState();
             });
+    }
+
+    function saveAccount(payload, headers) {
+        return fetch('/api/account/me', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: headers,
+            body: JSON.stringify(payload)
+        }).then(function (response) {
+            if (!response.ok) {
+                return response.json()
+                    .catch(function () { return {}; })
+                    .then(function (body) { throw new Error(body.message || 'Enregistrement refusé.'); });
+            }
+            return response.json();
+        });
     }
 
     /* ---------------------------------------------------------- Journal & but */
@@ -331,6 +355,8 @@
     global.BrewsteadData = {
         PLACES: PLACES,
         RESOURCES: RESOURCES,
+        AVATARS: AVATARS,
+        saveAccount: saveAccount,
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
         demoState: demoState,

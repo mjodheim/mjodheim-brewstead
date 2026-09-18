@@ -1,5 +1,6 @@
 package be.mjodheim.brewstead.entity;
 
+import be.mjodheim.brewstead.enums.Avatar;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -37,5 +38,28 @@ public class PlayerProfile {
     @Builder.Default
     @Column(nullable = false)
     private int reputation = 0;
+
+    /**
+     * Nom montré dans le jeu. Reste nul tant que le joueur n'en a pas choisi un :
+     * on retombe alors sur l'identifiant de connexion.
+     */
+    @Column(length = 30)
+    private String displayName;
+
+    /** Colonne laissée nullable pour ne pas casser les lignes déjà en base. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Avatar avatar;
+
+    public String getDisplayName() {
+        if (displayName != null && !displayName.isBlank()) {
+            return displayName;
+        }
+        return user == null ? null : user.getUsername();
+    }
+
+    public Avatar getAvatar() {
+        return avatar == null ? Avatar.DEFAULT : avatar;
+    }
 
 }

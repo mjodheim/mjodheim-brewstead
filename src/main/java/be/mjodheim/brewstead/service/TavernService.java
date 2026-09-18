@@ -36,7 +36,7 @@ public class TavernService {
     private TavernPlayerResponse toResponse(PlayerProfile player) {
         return new TavernPlayerResponse(
                 player.getId(),
-                player.getUser().getUsername(),
+                player.getDisplayName(),
                 player.getLevel(),
                 player.getReputation()
         );

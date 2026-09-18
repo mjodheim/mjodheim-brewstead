@@ -6,6 +6,7 @@ import be.mjodheim.brewstead.enums.IngredientType;
 import be.mjodheim.brewstead.enums.Unit;
 import be.mjodheim.brewstead.enums.UserRole;
 import be.mjodheim.brewstead.repository.*;
+import be.mjodheim.brewstead.service.PlayerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,10 +22,10 @@ public class DataSeeder implements CommandLineRunner {
     private final IngredientRepository ingredientRepository;
     private final RecipeRepository recipeRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
-    private final PlayerProfileRepository  playerProfileRepository;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PlayerService playerService;
 
     @Override
     public void run(String... args) throws Exception {
@@ -113,11 +114,8 @@ public class DataSeeder implements CommandLineRunner {
 
             userRepository.save(player);
 
-            PlayerProfile profile = PlayerProfile.builder()
-                    .user(player)
-                    .build();
-
-            playerProfileRepository.save(profile);
+            // même chemin que l'inscription : champs, ruches et réserves de départ
+            playerService.initializePlayer(player.getId());
         }
     }
 }

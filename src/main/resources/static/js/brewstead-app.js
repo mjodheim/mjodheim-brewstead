@@ -19,6 +19,36 @@
     var picker = null;          // { kind, fieldId, query }
     var tavern = { tab: 'salle', messages: [], lastId: null, counter: [], timer: null, loading: false };
     var offerDraft = null;      // { batchId, recipeName }
+    var orders = { tab: 'marche', query: '', ingredient: null };
+
+    /* Les préférences restent dans ce navigateur : elles ne décrivent que
+       l'affichage, jamais l'état du domaine. */
+    var SETTINGS_KEY = 'brewstead.reglages';
+    var DEFAULTS = { taille: 'normale', mouvement: 'complet', ambiance: true, recentrage: true, alertes: true };
+    var settings = Object.assign({}, DEFAULTS);
+    var readySeen = {};
+
+    function loadSettings() {
+        try {
+            var stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+            settings = Object.assign({}, DEFAULTS, stored);
+        } catch (ignored) {
+            settings = Object.assign({}, DEFAULTS);
+        }
+        applySettings();
+    }
+
+    function saveSettings() {
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (ignored) { /* navigation privée */ }
+        applySettings();
+    }
+
+    function applySettings() {
+        var root = document.documentElement;
+        root.dataset.taille = settings.taille;
+        root.dataset.mouvement = settings.mouvement;
+        root.dataset.ambiance = settings.ambiance ? 'oui' : 'non';
+    }
 
     /* ----------------------------------------------------------- Utilitaires */
 
@@ -122,6 +152,14 @@
             return stockOf(s, line.ingredientName) < Number(line.quantity);
         });
         return { ok: missing.length === 0, missing: missing };
+    }
+
+    /** « de » devient « d' » devant une voyelle ou un h muet. */
+    function de(word) {
+        var low = String(word || '');
+        return 'aeiouyéèêëàâîïôûùhAEIOUYÉÈÊËÀÂÎÏÔÛÙH'.indexOf(low.charAt(0)) !== -1
+            ? 'd’' + low
+            : 'de ' + low;
     }
 
     function matches(text, query) {
@@ -308,20 +346,17 @@
             live: true,
             title: 'Commandes',
             render: function (s) {
-                if (!s.npcOrders.length) return empty('Aucune commande en attente.');
-                return s.npcOrders.map(function (order) {
-                    var lines = (order.lines || []).map(function (line) {
-                        return line.quantity + ' × ' + line.recipeName + (line.minQuality ? ' (qualité ≥ ' + line.minQuality + ')' : '');
-                    }).join(' · ');
-                    var open = order.status === 'OPEN';
-                    return row({
-                        icon: 'i-orders',
-                        title: order.customerName,
-                        meta: lines + (order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
-                        side: chip(ORDER_LABELS[order.status] || order.status, open ? 'ok' : 'info') +
-                            chip(fmt.number(order.rewardCoins) + ' pièces', 'gold')
-                    });
-                }).join('');
+                var tabs = '<div class="tabs">' +
+                    [['marche', 'Le marché'], ['miennes', 'Les miennes'], ['pnj', 'Les marchands']]
+                        .map(function (pair) {
+                            return '<button class="tabs__tab' + (orders.tab === pair[0] ? ' is-active' : '') + '"' +
+                                ' type="button" data-action="orders-tab" data-id="' + pair[0] + '">' +
+                                pair[1] + '</button>';
+                        }).join('') + '</div>';
+
+                if (orders.tab === 'marche') return tabs + renderMarket(s);
+                if (orders.tab === 'miennes') return tabs + renderMyOrders(s);
+                return tabs + renderNpcOrders(s);
             }
         },
 
@@ -336,6 +371,84 @@
                     }).join('') + '</div>';
 
                 return tabs + (tavern.tab === 'salle' ? renderChat(s) : renderCounter(s));
+            }
+        },
+
+        reglages: {
+            title: 'Réglages',
+            render: function () {
+                function choice(key, options) {
+                    return '<div class="choices">' + options.map(function (pair) {
+                        return '<button class="choices__item' + (settings[key] === pair[0] ? ' is-chosen' : '') + '"' +
+                            ' type="button" data-action="set-' + key + '" data-id="' + pair[0] + '">' +
+                            esc(pair[1]) + '</button>';
+                    }).join('') + '</div>';
+                }
+
+                function toggle(key, label, detail) {
+                    return '<button class="switch' + (settings[key] ? ' is-on' : '') + '"' +
+                        ' type="button" data-action="toggle" data-id="' + key + '"' +
+                        ' aria-pressed="' + (!!settings[key]) + '">' +
+                        '<span class="switch__track"><i></i></span>' +
+                        '<span class="switch__body"><span class="switch__label">' + esc(label) + '</span>' +
+                        '<small>' + esc(detail) + '</small></span></button>';
+                }
+
+                return '<p class="section-title">Taille de l’interface</p>' +
+                    choice('taille', [['compacte', 'Compacte'], ['normale', 'Normale'], ['large', 'Large']]) +
+
+                    '<p class="section-title">Mouvement</p>' +
+                    choice('mouvement', [['complet', 'Complet'], ['sobre', 'Sobre']]) +
+                    '<p class="hint">En mode sobre, les panneaux apparaissent sans glisser et la caméra ne dérive plus ' +
+                    'après un déplacement. Utile sur une machine modeste, ou si le mouvement te gêne.</p>' +
+
+                    '<p class="section-title">Confort</p>' +
+                    toggle('ambiance', 'Lumière et vignettage',
+                        'La teinte dorée et l’assombrissement des bords du domaine.') +
+                    toggle('recentrage', 'Recentrer sur le lieu ouvert',
+                        'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
+                    toggle('alertes', 'Me prévenir quand quelque chose est prêt',
+                        'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.');
+            }
+        },
+
+        commande: {
+            title: 'Passer une commande',
+            render: function (s) {
+                if (!orders.ingredient) {
+                    var list = s.ingredients.filter(function (item) {
+                        return matches(item.name, orders.query);
+                    });
+                    return '<p class="section-title">Que te faut-il ?</p>' +
+                        '<label class="account-field" style="margin-bottom:.9em">' +
+                        '<input id="pickerSearch" type="search" autocomplete="off"' +
+                        ' placeholder="Chercher parmi ' + s.ingredients.length + ' ingrédients…"' +
+                        ' value="' + esc(orders.query) + '"></label>' +
+                        (list.length
+                            ? '<div class="grid">' + list.slice(0, 48).map(function (item) {
+                                return '<button class="row row--pick" type="button"' +
+                                    ' data-action="pick-order-ingredient" data-id="' + item.id + '">' +
+                                    icon('i-pouch', 'row__icon') +
+                                    '<span class="row__body"><span class="row__title">' + esc(item.name) + '</span>' +
+                                    '<small class="row__meta">en réserve : ' +
+                                    esc(fmt.number(stockOf(s, item.name))) + '</small></span></button>';
+                            }).join('') + '</div>'
+                            : empty('Aucun ingrédient ne correspond.'));
+                }
+
+                return '<p class="section-title">' + esc(orders.ingredient.name) + '</p>' +
+                    '<label class="account-field"><input id="orderQty" type="number" min="0.1" step="0.1" value="5">' +
+                    '<small>Quantité demandée.</small></label>' +
+                    '<label class="account-field" style="margin-top:.7em">' +
+                    '<input id="orderReward" type="number" min="1" max="100000" value="120">' +
+                    '<small>Récompense en pièces. Elle quitte ta bourse dès maintenant et revient si personne ne livre.</small></label>' +
+                    '<label class="account-field" style="margin-top:.7em">' +
+                    '<input id="orderMinutes" type="number" min="5" max="10080" value="60">' +
+                    '<small>Durée en minutes. Aux deux tiers du temps, un marchand de passage prend le relais.</small></label>' +
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="new-order">Changer d’ingrédient</button>' +
+                    '<button class="btn btn--gold" type="button" data-action="order-confirm">Publier la commande</button>' +
+                    '</div>';
             }
         },
 
@@ -359,6 +472,69 @@
             }
         },
 
+        compte: {
+            title: 'Mon compte',
+            render: function (s) {
+                var player = s.player;
+                var chosen = accountDraft.avatar || player.avatar || 'CERF';
+                var name = accountDraft.displayName !== null
+                    ? accountDraft.displayName
+                    : (player.displayName || player.username || '');
+
+                var picker = Data.AVATARS.map(function (key) {
+                    return '<button class="avatar-pick' + (key === chosen ? ' is-chosen' : '') + '"' +
+                        ' type="button" data-action="pick-avatar" data-id="' + key + '"' +
+                        ' aria-pressed="' + (key === chosen) + '" title="' + esc(AVATAR_LABELS[key] || key) + '">' +
+                        icon('av-' + key) +
+                        '<span>' + esc(AVATAR_LABELS[key] || key) + '</span>' +
+                        '</button>';
+                }).join('');
+
+                return '<p class="section-title">Emblème</p>' +
+                    '<div class="avatars">' + picker + '</div>' +
+
+                    '<p class="section-title">Nom affiché</p>' +
+                    '<label class="account-field">' +
+                    '<input id="accountName" type="text" maxlength="30" value="' + esc(name) + '"' +
+                    ' placeholder="' + esc(player.username || '') + '" autocomplete="off">' +
+                    '<small>Ce nom apparaît sur ton domaine, à la taverne et au classement. ' +
+                    'Laisse-le vide pour reprendre ton identifiant de connexion.</small>' +
+                    '</label>' +
+
+                    '<div class="account-actions">' +
+                    '<button class="btn btn--gold" type="button" data-action="save-account">' +
+                    icon('i-check') + 'Enregistrer</button>' +
+                    '</div>' +
+
+                    '<p class="section-title">Connexion</p>' +
+                    row({
+                        icon: 'i-pouch',
+                        title: player.username || '—',
+                        meta: 'Identifiant de connexion, il ne change pas'
+                    }) +
+                    '<label class="account-field" style="margin-top:.7em">' +
+                    '<input id="pwdCurrent" type="password" autocomplete="current-password" placeholder="Mot de passe actuel"></label>' +
+                    '<label class="account-field" style="margin-top:.5em">' +
+                    '<input id="pwdNew" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (8 caractères mini)"></label>' +
+                    '<label class="account-field" style="margin-top:.5em">' +
+                    '<input id="pwdConfirm" type="password" autocomplete="new-password" placeholder="Confirmation"></label>' +
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="change-password">Changer le mot de passe</button>' +
+                    '</div>' +
+                    row({
+                        icon: 'i-trophy',
+                        title: 'Niveau ' + player.level,
+                        meta: fmt.number(player.reputation) + ' de réputation · ' + fmt.number(player.coins) + ' pièces'
+                    }) +
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="open-settings">' +
+                    icon('i-gear') + 'Réglages</button>' +
+                    '<button class="btn" type="button" data-action="logout">' +
+                    icon('i-logout') + 'Quitter le domaine</button>' +
+                    '</div>';
+            }
+        },
+
         classement: {
             title: 'Classement',
             render: function (s) {
@@ -378,6 +554,88 @@
             }
         }
     };
+
+    /** Ai-je de quoi honorer cette commande ? */
+    function deliverability(s, order) {
+        var missing = (order.lines || []).filter(function (line) {
+            return stockOf(s, line.ingredientName) < Number(line.quantity);
+        });
+        return { ok: missing.length === 0, missing: missing };
+    }
+
+    function orderLines(order) {
+        return (order.lines || []).map(function (line) {
+            return fmt.quantity(line.quantity, line.unit) + ' ' + de(line.ingredientName);
+        }).join(', ');
+    }
+
+    function renderMarket(s) {
+        var open = s.market.filter(function (order) { return order.creatorId !== s.player.id; });
+        var head = '<p class="section-title">Ce que les autres domaines réclament</p>';
+
+        if (!open.length) {
+            return head + empty('Aucune demande en attente. Passe la tienne, quelqu’un finira par la voir.') +
+                newOrderButton();
+        }
+
+        return head + open.map(function (order) {
+            var can = deliverability(s, order);
+            var lack = can.missing.slice(0, 2).map(function (l) { return l.ingredientName; }).join(', ');
+            return row({
+                icon: 'i-orders',
+                title: order.creatorUsername,
+                meta: orderLines(order) +
+                    ' · expire dans ' + fmt.countdown(order.expiresAt) +
+                    (can.ok ? '' : ' — il te manque ' + lack),
+                side: (can.ok
+                        ? actionButton('fulfill-order', 'Livrer', order.id)
+                        : chip('hors de portée')) +
+                    chip(fmt.number(order.rewardCoins) + ' pièces', 'gold')
+            });
+        }).join('') + newOrderButton();
+    }
+
+    function renderMyOrders(s) {
+        if (!s.myOrders.length) {
+            return empty('Tu n’as rien demandé pour l’instant.') + newOrderButton();
+        }
+        return s.myOrders.map(function (order) {
+            var open = order.status === 'OPEN';
+            var who = order.fulfillerUsername
+                ? ' · livrée par ' + order.fulfillerUsername
+                : (open ? ' · expire dans ' + fmt.countdown(order.expiresAt) : '');
+            return row({
+                icon: 'i-orders',
+                title: orderLines(order),
+                meta: (ORDER_LABELS[order.status] || order.status) + who,
+                side: (open ? actionButton('cancel-order', 'Annuler', order.id) : '') +
+                    chip(fmt.number(order.rewardCoins) + ' pièces', order.fulfilledByNpc ? 'warn' : 'gold')
+            });
+        }).join('') + newOrderButton();
+    }
+
+    function renderNpcOrders(s) {
+        if (!s.npcOrders.length) return empty('Aucun marchand ne te réclame quoi que ce soit.');
+        return s.npcOrders.map(function (order) {
+            var lines = (order.lines || []).map(function (line) {
+                return line.quantity + ' × ' + line.recipeName +
+                    (line.minQuality ? ' (qualité ≥ ' + line.minQuality + ')' : '');
+            }).join(' · ');
+            return row({
+                icon: 'i-orders',
+                title: order.customerName,
+                meta: lines + (order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
+                side: chip(ORDER_LABELS[order.status] || order.status, order.status === 'OPEN' ? 'ok' : 'info') +
+                    chip(fmt.number(order.rewardCoins) + ' pièces', 'gold')
+            });
+        }).join('');
+    }
+
+    function newOrderButton() {
+        return '<div class="account-actions">' +
+            '<button class="btn btn--gold" type="button" data-action="new-order">' +
+            icon('i-plus') + 'Passer une commande</button></div>';
+    }
 
     function renderChat(s) {
         var mine = s.player.id;
@@ -538,6 +796,68 @@
     }
 
     function runAction(action, id) {
+        if (action && action.indexOf('set-') === 0) {
+            settings[action.slice(4)] = id;
+            saveSettings();
+            renderScreen();
+            return;
+        }
+
+        if (action === 'toggle') {
+            settings[id] = !settings[id];
+            saveSettings();
+            renderScreen();
+            return;
+        }
+
+        if (action === 'orders-tab') { orders.tab = id; renderScreen(); return; }
+
+        if (action === 'new-order') {
+            orders.ingredient = null;
+            orders.query = '';
+            openScreen('commande');
+            focusSearch();
+            return;
+        }
+
+        if (action === 'pick-order-ingredient') {
+            orders.ingredient = state.ingredients.find(function (i) { return i.id === Number(id); });
+            renderScreen();
+            return;
+        }
+
+        if (action === 'order-confirm') {
+            var quantity = Number(($('orderQty') || {}).value || 0);
+            var reward = Number(($('orderReward') || {}).value || 0);
+            var minutes = Number(($('orderMinutes') || {}).value || 0);
+            if (quantity <= 0 || reward <= 0) { toast('Quantité et récompense doivent être positives.'); return; }
+            if (reward > state.player.coins) { toast('Ta bourse ne suit pas.'); return; }
+
+            send('/api/player-orders', {
+                creatorId: state.player.id,
+                expiresInMinutes: minutes,
+                rewardCoins: reward,
+                lines: [{ ingredientId: orders.ingredient.id, quantity: quantity }]
+            }, function () {
+                orders.tab = 'miennes';
+                openScreen('commandes');
+                toast('Commande publiée.');
+            });
+            return;
+        }
+
+        if (action === 'fulfill-order') {
+            send('/api/player-orders/' + Number(id) + '/fulfill', undefined,
+                function () { toast('Livré. Les pièces sont à toi.'); });
+            return;
+        }
+
+        if (action === 'cancel-order') {
+            send('/api/player-orders/' + Number(id) + '/cancel', undefined,
+                function () { toast('Commande retirée, mise remboursée.'); });
+            return;
+        }
+
         if (action === 'tavern-tab') {
             tavern.tab = id;
             tavern.lastId = null;
@@ -636,6 +956,8 @@
             renderScreen();
             return;
         }
+        if (action === 'open-settings') { openScreen('reglages'); return; }
+
         if (action === 'change-password') {
             var current = $('pwdCurrent'), fresh = $('pwdNew'), again = $('pwdConfirm');
             if (!current || !fresh || !again) return;
@@ -733,6 +1055,33 @@
         }).join('');
     }
 
+    /** Un mot quand un travail s'achève, une seule fois par élément. */
+    function announceReady() {
+        if (!settings.alertes || !state) return;
+        var due = [];
+
+        state.fields.forEach(function (field) {
+            if ((field.status === 'READY' || (field.readyAt && fmt.isDone(field.readyAt))) && !readySeen['f' + field.id]) {
+                readySeen['f' + field.id] = true;
+                due.push((field.cropName || 'Une parcelle') + ' est à récolter');
+            }
+        });
+        state.hives.forEach(function (hive) {
+            if (hive.status === 'READY' && !readySeen['h' + hive.id]) {
+                readySeen['h' + hive.id] = true;
+                due.push('Le miel de la ruche n°' + hive.id + ' est prêt');
+            }
+        });
+        state.batches.forEach(function (batch) {
+            if (batch.status === 'READY' && !readySeen['b' + batch.id]) {
+                readySeen['b' + batch.id] = true;
+                due.push(batch.recipeName + ' sort de garde');
+            }
+        });
+
+        if (due.length) toast(due[0] + (due.length > 1 ? ' (+' + (due.length - 1) + ')' : ''));
+    }
+
     function renderMarkers() {
         Data.PLACES.forEach(function (place) {
             var marker = dom.markers.querySelector('[data-place="' + place.id + '"]');
@@ -795,6 +1144,8 @@
         renderPlace();
         dom.place.classList.add('is-open');
         dom.place.setAttribute('aria-hidden', 'false');
+
+        if (!settings.recentrage) { hideHint(); return; }
 
         var drawer = dom.place.getBoundingClientRect();
         var narrow = window.matchMedia('(max-width: 1080px)').matches;
@@ -886,8 +1237,10 @@
         });
 
         dom.screenBody.addEventListener('input', function (event) {
-            if (event.target.id !== 'pickerSearch' || !picker) return;
-            picker.query = event.target.value;
+            if (event.target.id !== 'pickerSearch') return;
+            if (activeView === 'commande') orders.query = event.target.value;
+            else if (picker) picker.query = event.target.value;
+            else return;
             renderScreen();
             focusSearch();
         });
@@ -938,6 +1291,7 @@
             state = fresh;
             hideFault();
             render();
+            announceReady();
             return state;
         }, function (error) {
             showFault(error);
@@ -952,6 +1306,7 @@
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
             'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects'].forEach(function (id) { dom[id] = $(id); });
 
+        loadSettings();
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();
         bind();

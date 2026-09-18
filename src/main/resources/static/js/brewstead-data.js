@@ -166,6 +166,9 @@
             playerId: state.player ? state.player.id : null,
             crops: [],
             effects: [],
+            ingredients: [],
+            market: [],
+            myOrders: [],
             inventory: state.inventory || [],
             fields: state.fields || [],
             hives: state.hives || [],
@@ -184,11 +187,17 @@
                     getJson('/api/players/' + account.id + '/state'),
                     getJson('/api/tavern').catch(function () { return null; }),
                     getJson('/api/catalog/crops').catch(function () { return []; }),
-                    getJson('/api/account/me/effects').catch(function () { return []; })
+                    getJson('/api/account/me/effects').catch(function () { return []; }),
+                    getJson('/api/catalog/ingredients').catch(function () { return []; }),
+                    getJson('/api/player-orders/market').catch(function () { return []; }),
+                    getJson('/api/player-orders/players/' + account.id).catch(function () { return []; })
                 ]).then(function (results) {
                     var state = normalise(results[0], results[1]);
                     state.crops = results[2] || [];
                     state.effects = results[3] || [];
+                    state.ingredients = results[4] || [];
+                    state.market = results[5] || [];
+                    state.myOrders = results[6] || [];
                     return state;
                 });
             });

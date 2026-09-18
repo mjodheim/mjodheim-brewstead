@@ -171,3 +171,7 @@ docker compose restart brewstead
 docker compose build --pull
 docker compose up -d --remove-orphans
 ```
+
+## CI/CD validation
+
+Continuous deployment is enabled for production. A push to `main` triggers the VPS deployment workflow when `VPS_CD_ENABLED=true`.

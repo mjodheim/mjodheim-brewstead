@@ -217,6 +217,15 @@
         </div>
     </section>
 
+    <section class="fault" id="fault" aria-hidden="true" role="alertdialog" aria-labelledby="faultTitle">
+        <div class="fault__sheet panel">
+            <h2 id="faultTitle">Domaine injoignable</h2>
+            <p id="faultText"></p>
+            <button class="btn btn--gold" type="button" id="faultRetry">Réessayer</button>
+            <a class="btn btn--gold" th:href="@{/login}" href="/login" id="faultLogin" hidden>Se reconnecter</a>
+        </div>
+    </section>
+
     <form id="logoutForm" th:action="@{/logout}" action="/logout" method="post" hidden></form>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>

@@ -61,6 +61,23 @@
         return '<button class="btn btn--sm btn--gold" type="button" data-action="' + action + '" data-id="' + id + '">' + esc(label) + '</button>';
     }
 
+    function showFault(error) {
+        var expired = !!error.sessionExpired;
+        dom.faultTitle.textContent = expired ? 'Session expirée' : 'Domaine injoignable';
+        dom.faultText.textContent = expired
+            ? 'Ta session n’est plus valable. Reconnecte-toi pour retrouver ton domaine.'
+            : (error.message || 'Le domaine n’a pas répondu.') + ' Rien n’est perdu : réessaie dans un instant.';
+        dom.faultRetry.hidden = expired;
+        dom.faultLogin.hidden = !expired;
+        dom.fault.classList.add('is-open');
+        dom.fault.setAttribute('aria-hidden', 'false');
+    }
+
+    function hideFault() {
+        dom.fault.classList.remove('is-open');
+        dom.fault.setAttribute('aria-hidden', 'true');
+    }
+
     function toast(message) {
         dom.toast.textContent = message;
         dom.toast.classList.add('is-visible');
@@ -310,36 +327,6 @@
             });
     }
 
-    /** En démonstration, les actions font vivre l'état local du navigateur. */
-    function applyLocally(action, id) {
-        if (action === 'harvest-hive') {
-            var hive = state.hives.find(function (h) { return h.id === id; });
-            if (!hive) return 'Ruche introuvable.';
-            hive.status = 'PRODUCING';
-            hive.startedAt = new Date().toISOString();
-            hive.readyAt = new Date(Date.now() + 45 * 60000).toISOString();
-            addStock('Miel de bruyère', 'KILOGRAM', 2 + hive.level);
-            return 'Miel récolté au rucher.';
-        }
-        if (action === 'harvest-field') {
-            var field = state.fields.find(function (f) { return f.id === id; });
-            if (!field) return 'Parcelle introuvable.';
-            addStock(field.cropName || 'Récolte', 'KILOGRAM', 3);
-            field.status = 'EMPTY';
-            field.cropName = null;
-            field.plantedAt = null;
-            field.readyAt = null;
-            return 'Récolte rentrée à l’entrepôt.';
-        }
-        return null;
-    }
-
-    function addStock(name, unit, quantity) {
-        var line = state.inventory.find(function (item) { return item.ingredientName === name; });
-        if (line) line.quantity = Number(line.quantity) + quantity;
-        else state.inventory.push({ id: Date.now(), ingredientName: name, unit: unit, quantity: quantity });
-    }
-
     var ENDPOINTS = {
         'harvest-hive': function (id) { return '/api/apiary/hives/' + id + '/harvest'; },
         'harvest-field': function (id) { return '/api/farm/fields/' + id + '/harvest'; }
@@ -358,15 +345,6 @@
         var headers = csrfHeaders();
         headers['Content-Type'] = 'application/json';
 
-        if (state.source === 'demo') {
-            state.player.displayName = (payload.displayName || '').trim() || state.player.username;
-            state.player.avatar = payload.avatar;
-            accountDraft = { avatar: null, displayName: null };
-            render();
-            toast('Compte mis à jour.');
-            return;
-        }
-
         Data.saveAccount(payload, headers)
             .then(function (account) {
                 state.player = account;
@@ -374,7 +352,10 @@
                 render();
                 toast('Compte mis à jour.');
             })
-            .catch(function (error) { toast(error.message); });
+            .catch(function (error) {
+                if (error.sessionExpired) showFault(error);
+                else toast(error.message);
+            });
     }
 
     function runAction(action, id) {
@@ -394,18 +375,12 @@
             return;
         }
 
-        id = Number(id);
-        if (state.source === 'demo') {
-            var message = applyLocally(action, id);
-            if (message) { render(); toast(message); }
-            return;
-        }
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
-        post(endpoint(id))
+        post(endpoint(Number(id)))
             .then(function () { return refresh(); })
             .then(function () { toast('Action enregistrée.'); })
-            .catch(function () { toast('Connecte-toi pour agir sur le domaine.'); });
+            .catch(function () { toast('L’action n’a pas pu être enregistrée.'); });
     }
 
     /* --------------------------------------------------------------- Rendu */
@@ -442,7 +417,6 @@
 
     function renderFeed() {
         var items = Data.feed(state);
-        if (state.source === 'demo') items.unshift({ tone: 'info', text: 'Mode démo — données locales' });
         dom.feedList.innerHTML = items.slice(0, 4).map(function (item) {
             return '<li data-tone="' + item.tone + '">' + esc(item.text) + '</li>';
         }).join('');
@@ -621,6 +595,11 @@
         });
 
         dom.world.addEventListener('pointerdown', hideHint, { once: true });
+
+        dom.faultRetry.addEventListener('click', function () {
+            dom.faultRetry.disabled = true;
+            refresh().catch(function () {}).then(function () { dom.faultRetry.disabled = false; });
+        });
     }
 
     /* ------------------------------------------------------------ Démarrage */
@@ -628,8 +607,12 @@
     function refresh() {
         return Data.load().then(function (fresh) {
             state = fresh;
+            hideFault();
             render();
             return state;
+        }, function (error) {
+            showFault(error);
+            throw error;
         });
     }
 
@@ -638,15 +621,16 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'settingsBtn'].forEach(function (id) { dom[id] = $(id); });
+            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin'].forEach(function (id) { dom[id] = $(id); });
 
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();
         bind();
         camera.reset();
 
-        refresh().then(function () {
+        refresh().catch(function () { /* panneau de panne déjà affiché */ }).then(function () {
             setInterval(function () {
+                if (!state) return;
                 renderMarkers();
                 renderPlace();
                 // On ne réécrit que les écrans à minuterie : ailleurs cela
@@ -655,7 +639,7 @@
                     renderScreen();
                 }
             }, 1000);
-            setInterval(function () { renderFeed(); renderQuest(); }, 15000);
+            setInterval(function () { if (state) { renderFeed(); renderQuest(); } }, 15000);
         });
 
         setTimeout(hideHint, 6000);

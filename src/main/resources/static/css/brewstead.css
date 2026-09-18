@@ -35,6 +35,9 @@
 
 * { box-sizing: border-box; }
 
+/* Les composants en display: flex écrasent sinon l'attribut hidden. */
+[hidden] { display: none !important; }
+
 html, body {
     height: 100%;
     margin: 0;
@@ -852,6 +855,37 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     border-color: rgba(90, 65, 32, .45);
     box-shadow: none;
 }
+
+/* --------------------------------------------------------------------------
+   Domaine injoignable
+   -------------------------------------------------------------------------- */
+
+.fault {
+    position: absolute;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 1.2em;
+    font-size: var(--ui);
+    background: rgba(8, 5, 2, .78);
+    backdrop-filter: blur(7px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .3s ease, visibility .3s;
+}
+
+.fault.is-open { opacity: 1; visibility: visible; }
+
+.fault__sheet {
+    width: min(26em, 100%);
+    padding: 1.7em 1.6em 1.5em;
+    text-align: center;
+}
+
+.fault__sheet h2 { font-size: 1.45em; color: #fbf1dc; }
+.fault__sheet p { margin: .7em 0 1.3em; font-size: .98em; line-height: 1.55; color: #d9c9a8; }
+.fault__sheet .btn { width: 100%; text-decoration: none; }
 
 /* --------------------------------------------------------------------------
    Notification

@@ -2,7 +2,11 @@ FROM eclipse-temurin:26-jdk AS build
 
 WORKDIR /app
 COPY . .
-RUN chmod +x mvnw && ./mvnw -DskipTests clean package
+
+# Docker on the VPS has working IPv4 connectivity but no usable IPv6 route.
+# Force the Maven Wrapper JVM to prefer IPv4 so Maven downloads do not time out.
+RUN chmod +x mvnw \
+    && JAVA_TOOL_OPTIONS="-Djava.net.preferIPv4Stack=true" ./mvnw -DskipTests clean package
 
 FROM eclipse-temurin:26-jre
 

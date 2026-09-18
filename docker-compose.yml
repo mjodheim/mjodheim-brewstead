@@ -1,0 +1,46 @@
+name: brewstead
+
+services:
+  brewstead:
+    build:
+      context: .
+      dockerfile: Dockerfile.spring
+
+    container_name: brewstead
+
+    env_file:
+      - .env
+
+    environment:
+      PORT: "8080"
+      TZ: Europe/Brussels
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70.0"
+
+    restart: unless-stopped
+
+    mem_limit: 1g
+    cpus: 1.0
+
+    networks:
+      - web
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+
+      - "traefik.http.routers.brewstead.rule=Host(`brewstead.mjodheim.be`)"
+      - "traefik.http.routers.brewstead.entrypoints=websecure"
+      - "traefik.http.routers.brewstead.tls=true"
+      - "traefik.http.routers.brewstead.tls.certresolver=letsencrypt"
+
+      - "traefik.http.services.brewstead.loadbalancer.server.port=8080"
+
+      - "traefik.http.middlewares.brewstead-security.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.brewstead-security.headers.frameDeny=true"
+      - "traefik.http.middlewares.brewstead-security.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.brewstead-security.headers.stsIncludeSubdomains=true"
+      - "traefik.http.routers.brewstead.middlewares=brewstead-security"
+
+networks:
+  web:
+    external: true

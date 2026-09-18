@@ -3,115 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#17120c">
+    <meta name="theme-color" content="#181710">
     <title>Mjödheim · Brewstead</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=IM+Fell+English:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/brewstead-world.css}" href="/css/brewstead-world.css">
 </head>
 <body>
-<div class="jeu" id="jeu" data-zone-active="domaine">
-    <div class="painted-scene" aria-hidden="true">
-        <img th:src="@{/images/brewstead-scene-0-0.svg}" src="/images/brewstead-scene-0-0.svg" alt="">
-        <img th:src="@{/images/brewstead-scene-0-1.svg}" src="/images/brewstead-scene-0-1.svg" alt="">
-        <img th:src="@{/images/brewstead-scene-1-0.svg}" src="/images/brewstead-scene-1-0.svg" alt="">
-        <img th:src="@{/images/brewstead-scene-1-1.svg}" src="/images/brewstead-scene-1-1.svg" alt="">
-        <div class="scene-grade"></div>
-    </div>
+<div class="jeu" id="jeu" data-zone-active="domaine" data-weather="clear">
+    <main class="scene" aria-label="Domaine de Brewstead">
+        <img id="sceneImage" class="scene-image" th:src="@{/images/brewstead-reference.webp}" src="/images/brewstead-reference.webp" alt="" draggable="false">
 
-    <header class="top-hud">
-        <button class="brand" type="button" data-zone="domaine" aria-label="Retour au domaine">
-            <span class="brand-rune">ᛗ</span>
-            <span class="brand-name"><strong>MJÖDHEIM</strong><small>BREWSTEAD</small></span>
-            <em>Des brasseurs d’aujourd’hui<br>pour un meilleur demain.</em>
-        </button>
+        <div class="atmosphere" aria-hidden="true">
+            <div class="sunlight"></div>
+            <div class="cloud-light"></div>
+            <div class="water-shimmer water-shimmer--lake"></div>
+            <div class="water-shimmer water-shimmer--falls"></div>
+            <div class="weather-layer weather-rain"></div>
+            <div class="weather-layer weather-snow"></div>
+            <div class="vignette"></div>
+        </div>
 
-        <section class="player-card" aria-label="Profil du joueur">
-            <span class="avatar">ᛉ</span>
-            <span class="player-name"><small>Maître brasseur</small><strong th:text="${playerName != null ? playerName : 'Eirik'}">Eirik</strong></span>
-            <span class="level"><small>Niv.</small><b th:text="${level != null ? level : 7}">7</b></span>
-            <span class="xp"><i style="width:48%"></i></span>
-            <span class="xp-copy">2 420 / 5 000 XP</span>
-        </section>
+        <button class="hotspot hotspot-rucher" type="button" data-zone="rucher" aria-label="Ouvrir le rucher"></button>
+        <button class="hotspot hotspot-champs" type="button" data-zone="champs" aria-label="Ouvrir les champs"></button>
+        <button class="hotspot hotspot-reserve" type="button" data-zone="reserve" aria-label="Ouvrir l'entrepôt"></button>
+        <button class="hotspot hotspot-brasserie" type="button" data-zone="brasserie" aria-label="Ouvrir la brasserie"></button>
+        <button class="hotspot hotspot-laboratoire" type="button" data-zone="laboratoire" aria-label="Ouvrir le laboratoire"></button>
+        <button class="hotspot hotspot-taverne" type="button" data-zone="taverne" aria-label="Ouvrir la taverne"></button>
+        <button class="hotspot hotspot-commandes" type="button" data-zone="commandes" aria-label="Ouvrir les commandes"></button>
 
-        <section class="resources" aria-label="Ressources">
-            <div><span>◉</span><b th:text="${coins != null ? coins : 1280}">1280</b><small>Pièces</small></div>
-            <div><span>🍯</span><b>84</b><small>Miel</small></div>
-            <div><span>🌾</span><b>320</b><small>Céréales</small></div>
-            <div><span>🪵</span><b>56</b><small>Bois</small></div>
-        </section>
-
-        <section class="weather" aria-label="Météo du domaine">
-            <span class="sun">☀</span>
-            <span><small>Jeudi 17 septembre</small><strong>Automne · Ciel dégagé</strong><em>14°C · <b id="heureJeu">20:11</b></em></span>
-        </section>
-    </header>
-
-    <nav class="side-nav" aria-label="Navigation du domaine">
-        <button class="est-actif" type="button" data-zone="domaine"><span>⌂</span><strong>Domaine</strong></button>
-        <button type="button" data-zone="champs"><span>🌾</span><strong>Champs</strong></button>
-        <button type="button" data-zone="rucher"><span>⬡</span><strong>Rucher</strong></button>
-        <button type="button" data-zone="laboratoire"><span>⚗</span><strong>Laboratoire</strong></button>
-        <button type="button" data-zone="brasserie"><span>♨</span><strong>Brasserie</strong></button>
-        <button type="button" data-zone="reserve"><span>▤</span><strong>Réserves</strong></button>
-        <button type="button" data-zone="commandes"><span>✉</span><strong>Commandes</strong><i>3</i></button>
-        <button type="button" data-zone="taverne"><span>ᚦ</span><strong>Taverne</strong></button>
-        <div class="side-motto"><span>✦</span><em>Cultiver<br>Brasser<br>Partager</em><b>ᛗ</b></div>
-    </nav>
-
-    <main class="world-stage">
-        <section class="welcome" id="intro">
-            <small>BIENVENUE À</small>
-            <h1>Mjödheim</h1>
-            <p>Un domaine vivant, où la nature offre ses trésors et où chaque brassin raconte une histoire.</p>
-            <blockquote>« Un bon hydromel commence toujours par une belle histoire. »</blockquote>
-        </section>
-
-        <button class="world-marker marker-champs" type="button" data-zone="champs"><span>🌾</span><strong>Champs</strong><small>Cultiver et récolter</small></button>
-        <button class="world-marker marker-rucher" type="button" data-zone="rucher"><span>⬡</span><strong>Rucher</strong><small>Produire du miel</small></button>
-        <button class="world-marker marker-brasserie" type="button" data-zone="brasserie"><span>♨</span><strong>Brasserie</strong><small>Transformer les récoltes</small></button>
-        <button class="world-marker marker-laboratoire" type="button" data-zone="laboratoire"><span>⚗</span><strong>Laboratoire</strong><small>Créer et expérimenter</small></button>
-        <button class="world-marker marker-reserve" type="button" data-zone="reserve"><span>▤</span><strong>Réserves</strong><small>Gérer les stocks</small></button>
-        <button class="world-marker marker-taverne" type="button" data-zone="taverne"><span>ᚦ</span><strong>Taverne</strong><small>Accueillir les voyageurs</small></button>
-
-        <aside class="quest-panel parchment-panel">
-            <div class="panel-title"><span>◎</span><strong>Objectif du moment</strong></div>
-            <p>Produire 10 hydromels de qualité</p>
-            <div class="progress-row"><span class="progress"><i style="width:60%"></i></span><b>6 / 10</b></div>
-            <button type="button" data-zone="commandes">Voir toutes les quêtes →</button>
-        </aside>
-
-        <aside class="news-panel dark-panel">
-            <div class="panel-title"><span>▤</span><strong>Dernières nouvelles</strong></div>
-            <p><i>⬡</i><span>Les ruches produisent bien cette saison !<small>Il y a 2 heures</small></span></p>
-            <p><i>♟</i><span>Un voyageur est arrivé à la taverne.<small>Il y a 5 heures</small></span></p>
-            <p><i>♨</i><span>Votre dernier brassin est prêt !<small>Il y a 1 jour</small></span></p>
-        </aside>
-
-        <aside class="tip-panel dark-panel">
-            <span class="tip-icon">●</span>
-            <div><strong>Conseil du jour</strong><p>Pense à surveiller la météo : elle influence la production des champs et du rucher.</p></div>
-        </aside>
-
-        <aside class="panneau-lieu" id="panneauLieu" aria-live="polite">
+        <aside class="panneau-lieu" id="panneauLieu" aria-live="polite" aria-hidden="true">
             <button class="close-panel" id="fermerPanneau" type="button" aria-label="Fermer">×</button>
-            <div class="location-crest" id="iconeLieu">ᛗ</div>
-            <small class="location-kicker" id="surtitreLieu">Ton domaine</small>
-            <h2 id="titreLieu">Le domaine de Mjödheim</h2>
-            <p id="descriptionLieu">La vallée entière s’organise autour de ta brasserie.</p>
-            <div class="etat-lieu" id="etatLieu"></div>
-            <div class="actions-lieu" id="actionsLieu"></div>
+            <small id="surtitreLieu">Mjödheim · Brewstead</small>
+            <h2 id="titreLieu">Le domaine</h2>
+            <p id="descriptionLieu"></p>
+            <button class="primary-action" id="actionLieu" type="button">Ouvrir</button>
         </aside>
 
-        <div class="notification" id="notification" role="status"></div>
+        <div class="notification" id="notification" role="status" aria-live="polite"></div>
     </main>
-
-    <div class="utility-controls" aria-label="Outils">
-        <button type="button" title="Aide"><span>?</span><small>Aide</small></button>
-        <button type="button" id="boutonPleinEcran" title="Plein écran"><span>⛶</span><small>Plein écran</small></button>
-        <button type="button" id="boutonSon" aria-pressed="false" title="Ambiance sonore"><span>♪</span><small>Son</small></button>
-    </div>
 </div>
 <script th:src="@{/js/brewstead-world.js}" src="/js/brewstead-world.js"></script>
 </body>

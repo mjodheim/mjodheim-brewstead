@@ -133,7 +133,7 @@ class OwnedResourceControllersTest {
         controller.cancel(principal, 20L);
 
         verify(service).findPlayerOrders(7L);
-        verify(current).requireSelf(principal, 7L, times(2));
+        verify(current, times(2)).requireSelf(principal, 7L);
         verify(service).createOrder(request);
         verify(service).fulfillOrder(20L, 7L);
         verify(service).cancelOrder(20L, 7L);

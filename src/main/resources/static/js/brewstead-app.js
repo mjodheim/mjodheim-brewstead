@@ -17,6 +17,8 @@
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
+    var tavern = { tab: 'salle', messages: [], lastId: null, counter: [], timer: null, loading: false };
+    var offerDraft = null;      // { batchId, recipeName }
 
     /* ----------------------------------------------------------- Utilitaires */
 
@@ -274,7 +276,8 @@
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
                         progress: !ready && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
                         side: ready
-                            ? actionButton('taste-batch', 'Goûter', batch.id) + chip('prêt', 'ok')
+                            ? actionButton('taste-batch', 'Goûter', batch.id) +
+                              actionButton('offer-batch', 'Au comptoir', batch.id)
                             : chip(BATCH_LABELS[batch.status] || batch.status, 'warn')
                     });
                 }).join('');
@@ -325,79 +328,33 @@
         taverne: {
             title: 'Taverne',
             render: function (s) {
-                var head = '<p class="section-title">' + fmt.number(s.tavern.openPlayerOrders) +
-                    ' échange(s) ouvert(s) entre brasseurs</p>';
-                var players = (s.tavern.notablePlayers || []);
-                if (!players.length) return head + empty('La salle est calme ce soir.');
-                return head + players.map(function (player) {
-                    return row({
-                        icon: 'i-tavern',
-                        title: player.username,
-                        meta: 'Niveau ' + player.level,
-                        side: chip(fmt.number(player.reputation) + ' réputation', 'gold')
-                    });
-                }).join('');
+                var tabs = '<div class="tabs">' +
+                    ['salle', 'comptoir'].map(function (key) {
+                        return '<button class="tabs__tab' + (tavern.tab === key ? ' is-active' : '') + '"' +
+                            ' type="button" data-action="tavern-tab" data-id="' + key + '">' +
+                            (key === 'salle' ? 'La salle' : 'Le comptoir') + '</button>';
+                    }).join('') + '</div>';
+
+                return tabs + (tavern.tab === 'salle' ? renderChat(s) : renderCounter(s));
             }
         },
 
-
-        compte: {
-            title: 'Mon compte',
-            render: function (s) {
-                var player = s.player;
-                var chosen = accountDraft.avatar || player.avatar || 'CERF';
-                var name = accountDraft.displayName !== null
-                    ? accountDraft.displayName
-                    : (player.displayName || player.username || '');
-
-                var picker = Data.AVATARS.map(function (key) {
-                    return '<button class="avatar-pick' + (key === chosen ? ' is-chosen' : '') + '"' +
-                        ' type="button" data-action="pick-avatar" data-id="' + key + '"' +
-                        ' aria-pressed="' + (key === chosen) + '" title="' + esc(AVATAR_LABELS[key] || key) + '">' +
-                        icon('av-' + key) +
-                        '<span>' + esc(AVATAR_LABELS[key] || key) + '</span>' +
-                        '</button>';
-                }).join('');
-
-                return '<p class="section-title">Emblème</p>' +
-                    '<div class="avatars">' + picker + '</div>' +
-
-                    '<p class="section-title">Nom affiché</p>' +
-                    '<label class="account-field">' +
-                    '<input id="accountName" type="text" maxlength="30" value="' + esc(name) + '"' +
-                    ' placeholder="' + esc(player.username || '') + '" autocomplete="off">' +
-                    '<small>Ce nom apparaît sur ton domaine, à la taverne et au classement. ' +
-                    'Laisse-le vide pour reprendre ton identifiant de connexion.</small>' +
-                    '</label>' +
-
-                    '<div class="account-actions">' +
-                    '<button class="btn btn--gold" type="button" data-action="save-account">' +
-                    icon('i-check') + 'Enregistrer</button>' +
-                    '</div>' +
-
-                    '<p class="section-title">Connexion</p>' +
-                    row({
-                        icon: 'i-pouch',
-                        title: player.username || '—',
-                        meta: 'Identifiant de connexion, il ne change pas'
-                    }) +
+        comptoir: {
+            title: 'Mettre un fût au comptoir',
+            render: function () {
+                if (!offerDraft) return empty('Choisis un fût prêt depuis la brasserie.');
+                return '<p class="section-title">' + esc(offerDraft.recipeName) + '</p>' +
+                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="40" value="6">' +
+                    '<small>Nombre de services proposés. Un service, c’est un demi-litre.</small></label>' +
                     '<label class="account-field" style="margin-top:.7em">' +
-                    '<input id="pwdCurrent" type="password" autocomplete="current-password" placeholder="Mot de passe actuel"></label>' +
-                    '<label class="account-field" style="margin-top:.5em">' +
-                    '<input id="pwdNew" type="password" autocomplete="new-password" placeholder="Nouveau mot de passe (8 caractères mini)"></label>' +
-                    '<label class="account-field" style="margin-top:.5em">' +
-                    '<input id="pwdConfirm" type="password" autocomplete="new-password" placeholder="Confirmation"></label>' +
+                    '<input id="offerPrice" type="number" min="0" max="5000" value="0">' +
+                    '<small>Prix du verre, en pièces. <strong>Zéro</strong> pour faire goûter : ça ne rapporte rien, ' +
+                    'sauf de la réputation, ce qui finit par rapporter davantage.</small></label>' +
+                    '<label class="account-field" style="margin-top:.7em">' +
+                    '<input id="offerNote" type="text" maxlength="140" placeholder="Un mot pour vanter ta production…">' +
+                    '</label>' +
                     '<div class="account-actions">' +
-                    '<button class="btn" type="button" data-action="change-password">Changer le mot de passe</button>' +
-                    '</div>' +
-                    row({
-                        icon: 'i-trophy',
-                        title: 'Niveau ' + player.level,
-                        meta: fmt.number(player.reputation) + ' de réputation · ' + fmt.number(player.coins) + ' pièces'
-                    }) +
-                    '<div class="account-actions">' +
-                    '<button class="btn" type="button" data-action="logout">' +
-                    icon('i-logout') + 'Quitter le domaine</button>' +
+                    '<button class="btn btn--gold" type="button" data-action="offer-confirm">Ouvrir le fût</button>' +
                     '</div>';
             }
         },
@@ -421,6 +378,47 @@
             }
         }
     };
+
+    function renderChat(s) {
+        var mine = s.player.id;
+        var list = tavern.messages.length
+            ? '<div class="chat" id="chatLog">' + tavern.messages.map(function (message) {
+                return '<div class="chat__line' + (message.authorId === mine ? ' chat__line--mine' : '') + '">' +
+                    '<span class="chat__avatar">' + icon('av-' + (message.avatar || 'CERF')) + '</span>' +
+                    '<span class="chat__body">' +
+                    '<span class="chat__who">' + esc(message.author) + '</span>' +
+                    '<span class="chat__text">' + esc(message.body) + '</span>' +
+                    '</span></div>';
+            }).join('') + '</div>'
+            : '<p class="empty">La salle est silencieuse. Lance la première réplique.</p>';
+
+        return list +
+            '<div class="chat__compose">' +
+            '<input id="chatInput" type="text" maxlength="280" placeholder="Dire quelque chose à la salle…" autocomplete="off">' +
+            '<button class="btn btn--gold" type="button" data-action="chat-send">Parler</button>' +
+            '</div>';
+    }
+
+    function renderCounter(s) {
+        if (!tavern.counter.length) {
+            return empty('Personne ne sert rien pour l’instant. Mets ton fût au comptoir depuis la brasserie.');
+        }
+        return tavern.counter.map(function (offer) {
+            var free = offer.price === 0;
+            return row({
+                icon: 'i-tavern',
+                title: offer.recipeName,
+                meta: 'servi par ' + offer.seller +
+                    ' · ' + offer.servings + ' service' + (offer.servings > 1 ? 's' : '') +
+                    (offer.quality ? ' · qualité ' + offer.quality : '') +
+                    (offer.note ? ' — ' + offer.note : ''),
+                side: (offer.mine
+                        ? chip('ton fût', 'gold')
+                        : actionButton('serve-offer', free ? 'Goûter' : offer.price + ' pièces', offer.id)) +
+                    (offer.effectKind && offer.effectKind !== 'AUCUN' ? chip(offer.effectLabel, 'info') : '')
+            });
+        }).join('');
+    }
 
     /* ------------------------------------------------------------- Actions */
 
@@ -495,7 +493,108 @@
             });
     }
 
+    /** Fusionne sans doublon : deux chargements peuvent se croiser. */
+    function mergeMessages(existing, incoming) {
+        var seen = {};
+        return existing.concat(incoming)
+            .filter(function (message) {
+                if (seen[message.id]) return false;
+                seen[message.id] = true;
+                return true;
+            })
+            .sort(function (a, b) { return a.id - b.id; })
+            .slice(-60);
+    }
+
+    function loadTavern(force) {
+        if (tavern.loading && !force) return Promise.resolve();
+        tavern.loading = true;
+
+        var job = tavern.tab === 'salle'
+            ? Data.get('/api/tavern/chat' + (tavern.lastId && !force ? '?since=' + tavern.lastId : ''))
+                .then(function (messages) {
+                    tavern.messages = force ? messages : mergeMessages(tavern.messages, messages);
+                    if (tavern.messages.length) {
+                        tavern.lastId = tavern.messages[tavern.messages.length - 1].id;
+                    }
+                })
+            : Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers; });
+
+        return job
+            .then(function () { if (activeView === 'taverne') { renderScreen(); scrollChat(); } })
+            .catch(function () { /* la salle attendra le prochain passage */ })
+            .then(function () { tavern.loading = false; });
+    }
+
+    function scrollChat() {
+        var log = $('chatLog');
+        if (log) log.scrollTop = log.scrollHeight;
+    }
+
+    function watchTavern(on) {
+        clearInterval(tavern.timer);
+        tavern.timer = null;
+        if (on) tavern.timer = setInterval(function () { loadTavern(false); }, 4000);
+    }
+
     function runAction(action, id) {
+        if (action === 'tavern-tab') {
+            tavern.tab = id;
+            tavern.lastId = null;
+            renderScreen();
+            loadTavern(true);
+            return;
+        }
+
+        if (action === 'chat-send') {
+            var field = $('chatInput');
+            if (!field || !field.value.trim()) return;
+            var headers = csrfHeaders();
+            headers['Content-Type'] = 'application/json';
+            var text = field.value;
+            field.value = '';
+            Data.postJson('/api/tavern/chat', { body: text }, headers)
+                .then(function () { return loadTavern(false); })
+                .then(function () { var f = $('chatInput'); if (f) f.focus(); })
+                .catch(function (error) { toast(error.message); field.value = text; });
+            return;
+        }
+
+        if (action === 'serve-offer') {
+            send('/api/tavern/counter/' + Number(id) + '/serve', undefined, function (result) {
+                loadTavern(true);
+                if (result) {
+                    toast(result.effect
+                        ? result.recipeName + ' — ' + result.effect.label
+                        : result.recipeName + ' — ' + (result.flavour || 'santé !'));
+                }
+            });
+            return;
+        }
+
+        if (action === 'offer-batch') {
+            var batch = state.batches.find(function (b) { return b.id === Number(id); });
+            if (!batch) return;
+            offerDraft = { batchId: batch.id, recipeName: batch.recipeName };
+            openScreen('comptoir');
+            return;
+        }
+
+        if (action === 'offer-confirm') {
+            var servings = Number(($('offerServings') || {}).value || 0);
+            var price = Number(($('offerPrice') || {}).value || 0);
+            var note = ($('offerNote') || {}).value || '';
+            send('/api/tavern/counter',
+                { batchId: offerDraft.batchId, servings: servings, price: price, note: note },
+                function () {
+                    tavern.tab = 'comptoir';
+                    openScreen('taverne');
+                    loadTavern(true);
+                    toast(price === 0 ? 'C’est ta tournée.' : 'Fût au comptoir.');
+                });
+            return;
+        }
+
         if (action === 'open-brew') { openPicker('recipe'); return; }
         if (action === 'sow-field') { openPicker('crop', Number(id)); return; }
 
@@ -723,12 +822,15 @@
         accountDraft = { avatar: null, displayName: null };
         renderScreen();
         syncDock();
+        watchTavern(view === 'taverne');
+        if (view === 'taverne') loadTavern(true);
         dom.screen.classList.add('is-open');
         dom.screen.setAttribute('aria-hidden', 'false');
         dom.screen.focus({ preventScroll: true });
     }
 
     function closeScreen() {
+        watchTavern(false);
         activeView = 'monde';
         dom.screen.classList.remove('is-open');
         dom.screen.setAttribute('aria-hidden', 'true');
@@ -774,6 +876,13 @@
         dom.place.addEventListener('click', function (event) {
             var button = event.target.closest('[data-action]');
             if (button) runAction(button.dataset.action, button.dataset.id);
+        });
+
+        dom.screenBody.addEventListener('keydown', function (event) {
+            if (event.target.id === 'chatInput' && event.key === 'Enter') {
+                event.preventDefault();
+                runAction('chat-send');
+            }
         });
 
         dom.screenBody.addEventListener('input', function (event) {

@@ -279,6 +279,7 @@
         AVATARS: AVATARS,
         saveAccount: saveAccount,
         postJson: postJson,
+        get: getJson,
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
         feed: feed,

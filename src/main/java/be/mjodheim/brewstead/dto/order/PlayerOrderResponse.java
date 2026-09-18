@@ -15,6 +15,7 @@ public record PlayerOrderResponse(
         LocalDateTime expiresAt,
         OrderStatus status,
         int rewardCoins,
+        boolean fulfilledByNpc,
         List<PlayerOrderLineResponse> lines
 ) {
 }

@@ -33,7 +33,7 @@ class TavernChatServiceTest {
     void recentWithoutCursorReversesRepositoryNewestFirstOrder() {
         TavernMessage newest = message(2, "new");
         TavernMessage oldest = message(1, "old");
-        when(messageRepository.findByOrderByPostedAtDesc(any(Limit.class)))
+        when(messageRepository.findByOrderByIdDesc(any(Limit.class)))
                 .thenReturn(List.of(newest, oldest));
 
         List<TavernMessageResponse> result = service.recent(null);
@@ -45,7 +45,7 @@ class TavernChatServiceTest {
     void recentWithCursorKeepsAscendingOrder() {
         TavernMessage one = message(3, "one");
         TavernMessage two = message(4, "two");
-        when(messageRepository.findByIdGreaterThanOrderByPostedAtAsc(eq(2L), any(Limit.class)))
+        when(messageRepository.findByIdGreaterThanOrderByIdAsc(eq(2L), any(Limit.class)))
                 .thenReturn(List.of(one, two));
 
         List<TavernMessageResponse> result = service.recent(2L);

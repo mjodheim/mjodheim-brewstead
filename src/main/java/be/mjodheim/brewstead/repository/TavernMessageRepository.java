@@ -9,9 +9,9 @@ import java.util.List;
 
 public interface TavernMessageRepository extends JpaRepository<TavernMessage, Long> {
 
-    List<TavernMessage> findByOrderByPostedAtDesc(Limit limit);
+    List<TavernMessage> findByOrderByIdDesc(Limit limit);
 
-    List<TavernMessage> findByIdGreaterThanOrderByPostedAtAsc(Long id, Limit limit);
+    List<TavernMessage> findByIdGreaterThanOrderByIdAsc(Long id, Limit limit);
 
     long countByAuthorIdAndPostedAtAfter(Long authorId, LocalDateTime moment);
 }

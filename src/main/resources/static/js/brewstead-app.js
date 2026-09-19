@@ -17,7 +17,9 @@
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
-    var tavern = { tab: 'salle', messages: [], lastId: null, counter: [], timer: null, loading: false };
+    var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '' };
+    var refreshJob = null;
+    var mutationPending = false;
     var offerDraft = null;      // { batchId, recipeName }
     var orders = { tab: 'marche', query: '', ingredient: null };
 
@@ -53,6 +55,39 @@
     /* ----------------------------------------------------------- Utilitaires */
 
     function $(id) { return document.getElementById(id); }
+
+    // Conserver les vrais nœuds : un tick ne doit pas interrompre un clic,
+    // une saisie, le focus clavier ou la lecture d'un panneau défilé.
+    function updateMarkup(container, html) {
+        if (container._markup === html) return;
+        var template = document.createElement('template');
+        template.innerHTML = html;
+        function reconcile(parent, incoming) {
+            Array.from(incoming.childNodes).forEach(function (next, index) {
+                var current = parent.childNodes[index];
+                if (!current) { parent.appendChild(next.cloneNode(true)); return; }
+                if (current.nodeType !== next.nodeType || current.nodeName !== next.nodeName ||
+                    (current.nodeType === 1 && (current.id !== next.id ||
+                     current.getAttribute('data-action') !== next.getAttribute('data-action') ||
+                     current.getAttribute('data-id') !== next.getAttribute('data-id')))) {
+                    parent.replaceChild(next.cloneNode(true), current);
+                } else if (next.nodeType === 3) {
+                    if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+                } else if (next.nodeType === 1) {
+                    Array.from(current.attributes).forEach(function (attr) {
+                        if (!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+                    });
+                    Array.from(next.attributes).forEach(function (attr) {
+                        if (current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+                    });
+                    reconcile(current, next);
+                }
+            });
+            while (parent.childNodes.length > incoming.childNodes.length) parent.lastChild.remove();
+        }
+        reconcile(container, template.content);
+        container._markup = html;
+    }
 
     function esc(value) {
         return String(value === null || value === undefined ? '' : value)
@@ -682,22 +717,22 @@
 
     function renderChat(s) {
         var mine = s.player.id;
-        var list = tavern.messages.length
-            ? '<div class="chat" id="chatLog">' + tavern.messages.map(function (message) {
+        var list = '<div class="chat" id="chatLog" role="log" aria-label="Messages de la salle">' + (tavern.messages.length
+            ? tavern.messages.map(function (message) {
                 return '<div class="chat__line' + (message.authorId === mine ? ' chat__line--mine' : '') + '">' +
                     '<span class="chat__avatar">' + icon('av-' + (message.avatar || 'CERF')) + '</span>' +
                     '<span class="chat__body">' +
                     '<span class="chat__who">' + esc(message.author) + '</span>' +
                     '<span class="chat__text">' + esc(message.body) + '</span>' +
                     '</span></div>';
-            }).join('') + '</div>'
-            : '<p class="empty">La salle est silencieuse. Lance la première réplique.</p>';
+            }).join('')
+            : '<p class="empty">La salle est silencieuse. Lance la première réplique.</p>') + '</div>';
 
         return list +
             '<div class="chat__compose">' +
-            '<input id="chatInput" type="text" maxlength="280" placeholder="Dire quelque chose à la salle…" autocomplete="off">' +
-            '<button class="btn btn--gold" type="button" data-action="chat-send">Parler</button>' +
-            '</div>';
+            '<input id="chatInput" aria-label="Ton message" type="text" maxlength="280" value="' + esc(tavern.draft) + '" placeholder="Dire quelque chose à la salle…" autocomplete="off">' +
+            '<button class="btn btn--gold" type="button" data-action="chat-send"' + (tavern.sending ? ' disabled' : '') + '>' + (tavern.sending ? 'Envoi…' : 'Parler') + '</button>' +
+            '</div><p class="chat__status" role="status">' + esc(tavern.error) + '</p>';
     }
 
     function renderCounter(s) {
@@ -784,14 +819,25 @@
     }
 
     function send(url, body, onDone, method) {
+        if (mutationPending) { toast('Une action est déjà en cours.'); return Promise.resolve(); }
+        mutationPending = true;
+        dom.game.setAttribute('aria-busy', 'true');
+        toast('Action en cours…');
         var headers = csrfHeaders();
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         return Data.postJson(url, body, headers, method || 'POST')
-            .then(function (payload) { return refresh().then(function () { onDone(payload); }); })
+            .then(function (payload) {
+                // Un chargement commencé avant la mutation n'est pas son résultat.
+                return (refreshJob || Promise.resolve()).catch(function () {}).then(function () {
+                    return refresh().then(function () { onDone(payload); }, function () {
+                        toast('Action enregistrée, mais actualisation impossible. Réessaie le chargement.');
+                    });
+                });
+            })
             .catch(function (error) {
                 if (error.sessionExpired) showFault(error);
                 else toast(error.message);
-            });
+            }).finally(function () { mutationPending = false; dom.game.removeAttribute('aria-busy'); });
     }
 
     /** Fusionne sans doublon : deux chargements peuvent se croiser. */
@@ -808,23 +854,31 @@
     }
 
     function loadTavern(force) {
-        if (tavern.loading && !force) return Promise.resolve();
-        tavern.loading = true;
-
-        var job = tavern.tab === 'salle'
-            ? Data.get('/api/tavern/chat' + (tavern.lastId && !force ? '?since=' + tavern.lastId : ''))
+        var tab = tavern.tab;
+        if (tavern.requests[tab]) return tavern.requests[tab];
+        var log = $('chatLog');
+        var atBottom = !log || log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+        // Relire la fenêtre bornée évite de perdre un message dont la transaction
+        // se termine après celle d'un id plus récent.
+        var job = tab === 'salle'
+            ? Data.get('/api/tavern/chat')
                 .then(function (messages) {
-                    tavern.messages = force ? messages : mergeMessages(tavern.messages, messages);
-                    if (tavern.messages.length) {
-                        tavern.lastId = tavern.messages[tavern.messages.length - 1].id;
-                    }
+                    tavern.messages = mergeMessages(tavern.messages, messages);
                 })
             : Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers; });
 
-        return job
-            .then(function () { if (activeView === 'taverne') { renderScreen(); scrollChat(); } })
-            .catch(function () { /* la salle attendra le prochain passage */ })
-            .then(function () { tavern.loading = false; });
+        tavern.requests[tab] = job.then(function () {
+            tavern.error = '';
+            if (activeView === 'taverne' && tavern.tab === tab) {
+                renderScreen();
+                if (atBottom || force) scrollChat();
+            }
+        }).catch(function (error) {
+            tavern.error = 'Connexion interrompue. Nouvelle tentative automatique…';
+            if (error.sessionExpired) showFault(error);
+            if (activeView === 'taverne' && tavern.tab === tab) renderScreen();
+        }).finally(function () { delete tavern.requests[tab]; });
+        return tavern.requests[tab];
     }
 
     function scrollChat() {
@@ -898,7 +952,7 @@
                 lines: [{ ingredientId: orders.ingredient.id, quantity: quantity }]
             }, function () {
                 orders.tab = 'miennes';
-                openScreen('commandes');
+                if (activeView === 'commande') openScreen('commandes');
                 toast('Commande publiée.');
             });
             return;
@@ -918,7 +972,6 @@
 
         if (action === 'tavern-tab') {
             tavern.tab = id;
-            tavern.lastId = null;
             renderScreen();
             loadTavern(true);
             return;
@@ -926,15 +979,30 @@
 
         if (action === 'chat-send') {
             var field = $('chatInput');
-            if (!field || !field.value.trim()) return;
+            if (!field || !field.value.trim() || tavern.sending) return;
             var headers = csrfHeaders();
             headers['Content-Type'] = 'application/json';
             var text = field.value;
-            field.value = '';
+            tavern.draft = text;
+            tavern.sending = true;
+            tavern.error = '';
+            renderScreen();
             Data.postJson('/api/tavern/chat', { body: text }, headers)
-                .then(function () { return loadTavern(false); })
-                .then(function () { var f = $('chatInput'); if (f) f.focus(); })
-                .catch(function (error) { toast(error.message); field.value = text; });
+                .then(function (message) {
+                    tavern.messages = mergeMessages(tavern.messages, [message]);
+                    if (tavern.draft === text) {
+                        tavern.draft = '';
+                        var input = $('chatInput');
+                        if (input) input.value = '';
+                    }
+                })
+                .catch(function (error) {
+                    tavern.error = error.message + ' Ton message est conservé.';
+                    if (error.sessionExpired) showFault(error);
+                }).finally(function () {
+                    tavern.sending = false;
+                    if (activeView === 'taverne' && tavern.tab === 'salle') { renderScreen(); scrollChat(); }
+                });
             return;
         }
 
@@ -966,8 +1034,7 @@
                 { batchId: offerDraft.batchId, servings: servings, price: price, note: note },
                 function () {
                     tavern.tab = 'comptoir';
-                    openScreen('taverne');
-                    loadTavern(true);
+                    if (activeView === 'comptoir') openScreen('taverne');
                     toast(price === 0 ? 'C’est ta tournée.' : 'Fût au comptoir.');
                 });
             return;
@@ -1175,14 +1242,16 @@
     function renderPlace() {
         if (!activePlace) return;
         var section = SECTIONS[activePlace.screen];
-        dom.placeBody.innerHTML = section ? section.render(state) : '';
+        updateMarkup(dom.placeBody, activePlace.screen === 'taverne'
+            ? empty('Entre dans la salle pour discuter et découvrir le comptoir.')
+            : (section ? section.render(state) : ''));
     }
 
     function renderScreen() {
         var section = SECTIONS[activeView];
         if (!section) return;
         dom.screenTitle.textContent = section.title;
-        dom.screenBody.innerHTML = section.render(state);
+        updateMarkup(dom.screenBody, section.render(state));
     }
 
     function render() {
@@ -1249,6 +1318,7 @@
 
     function closePlace() {
         activePlace = null;
+        updateMarkup(dom.placeBody, '');
         dom.place.classList.remove('is-open');
         dom.place.setAttribute('aria-hidden', 'true');
         dom.markers.querySelectorAll('.marker').forEach(function (marker) {
@@ -1272,6 +1342,7 @@
 
     function closeScreen() {
         watchTavern(false);
+        updateMarkup(dom.screenBody, '');
         activeView = 'monde';
         dom.screen.classList.remove('is-open');
         dom.screen.setAttribute('aria-hidden', 'true');
@@ -1320,13 +1391,14 @@
         });
 
         dom.screenBody.addEventListener('keydown', function (event) {
-            if (event.target.id === 'chatInput' && event.key === 'Enter') {
+            if (event.target.id === 'chatInput' && event.key === 'Enter' && !event.isComposing) {
                 event.preventDefault();
                 runAction('chat-send');
             }
         });
 
         dom.screenBody.addEventListener('input', function (event) {
+            if (event.target.id === 'chatInput') { tavern.draft = event.target.value; return; }
             if (event.target.id !== 'pickerSearch') return;
             if (activeView === 'commande') orders.query = event.target.value;
             else if (picker) picker.query = event.target.value;
@@ -1377,7 +1449,8 @@
     /* ------------------------------------------------------------ Démarrage */
 
     function refresh() {
-        return Data.load().then(function (fresh) {
+        if (refreshJob) return refreshJob;
+        refreshJob = Data.load().then(function (fresh) {
             state = fresh;
             hideFault();
             render();
@@ -1386,7 +1459,8 @@
         }, function (error) {
             showFault(error);
             throw error;
-        });
+        }).finally(function () { refreshJob = null; });
+        return refreshJob;
     }
 
     function start() {
@@ -1415,7 +1489,15 @@
                     renderScreen();
                 }
             }, 1000);
-            setInterval(function () { if (state) { renderFeed(); renderQuest(); renderEffects(); } }, 15000);
+            setInterval(function () {
+                if (!document.hidden && !mutationPending) refresh().catch(function () {});
+            }, 15000);
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden && !mutationPending) {
+                    refresh().catch(function () {});
+                    if (activeView === 'taverne') loadTavern(false);
+                }
+            });
         });
 
         setTimeout(hideHint, 6000);

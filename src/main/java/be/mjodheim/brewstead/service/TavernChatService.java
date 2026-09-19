@@ -30,8 +30,8 @@ public class TavernChatService {
     @Transactional
     public List<TavernMessageResponse> recent(Long sinceId) {
         List<TavernMessage> messages = sinceId == null
-                ? reversed(messageRepository.findByOrderByPostedAtDesc(Limit.of(WINDOW)))
-                : messageRepository.findByIdGreaterThanOrderByPostedAtAsc(sinceId, Limit.of(WINDOW));
+                ? reversed(messageRepository.findByOrderByIdDesc(Limit.of(WINDOW)))
+                : messageRepository.findByIdGreaterThanOrderByIdAsc(sinceId, Limit.of(WINDOW));
         return messages.stream().map(this::toResponse).toList();
     }
 

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.logging.LogEntry;
 import org.openqa.selenium.logging.LogType;
 import org.openqa.selenium.logging.LoggingPreferences;
@@ -19,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -91,6 +93,8 @@ class BrewsteadUiIntegrationTest {
             assertEquals("true", driver.findElement(By.id("fault")).getAttribute("aria-hidden"));
             assertEquals(5, driver.findElements(By.cssSelector("#resources .resource")).size());
             assertEquals(7, driver.findElements(By.cssSelector("#markers .marker")).size());
+            assertEquals("absolute", driver.findElement(By.id("weatherChip")).getCssValue("position"));
+            assertTrue(driver.findElement(By.id("weatherChip")).getSize().width < 400);
             screenshot(driver, "01-domain-desktop.png");
 
             PlayerProfile profile = profile(username);
@@ -129,6 +133,7 @@ class BrewsteadUiIntegrationTest {
             waitForScreen(wait, "Entrepôt");
             assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
 
+            click(driver, wait, By.id("screenClose"));
             click(driver, wait, By.id("settingsBtn"));
             waitForScreen(wait, "Mon compte");
             WebElement accountName = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("accountName")));
@@ -157,6 +162,15 @@ class BrewsteadUiIntegrationTest {
             click(driver, wait, By.cssSelector("[data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
+
+            var hive = hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
+            hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            hiveRepository.save(hive);
+            new WebDriverWait(driver, Duration.ofSeconds(30)).until(
+                    ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive']")));
+            click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive']"));
+            wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getStatus() == BehiveStatus.IDLE);
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
             click(driver, wait, By.cssSelector("#markers [data-place='brasserie']"));
@@ -187,9 +201,114 @@ class BrewsteadUiIntegrationTest {
 
             assertEquals("true", driver.findElement(By.id("fault")).getAttribute("aria-hidden"));
             assertNoApplicationJavascriptErrors(driver);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-core-journey.png");
+            throw failure;
         } finally {
             driver.quit();
         }
+    }
+
+    @Test
+    void twoBrowsersCanChatFromTheMapWithoutLosingDraftsAndRecoverFromFailure() {
+        WebDriver alice = newBrowser();
+        WebDriver bob = newBrowser();
+        WebDriverWait a = new WebDriverWait(alice, Duration.ofSeconds(20));
+        WebDriverWait b = new WebDriverWait(bob, Duration.ofSeconds(20));
+        try {
+            registerAndLogin(alice, a, "ui_chat_alice");
+            registerAndLogin(bob, b, "ui_chat_bob");
+            click(alice, a, By.cssSelector("#markers [data-place='taverne']"));
+            click(alice, a, By.id("placeAction"));
+            waitForScreen(a, "Taverne");
+            assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
+            WebElement draft = alice.findElement(By.id("chatInput"));
+            draft.sendKeys("Un message rédigé lentement");
+
+            click(bob, b, By.cssSelector(".dock__tab[data-view='taverne']"));
+            bob.findElement(By.id("chatInput")).sendKeys("Bonjour Alice");
+            click(bob, b, By.cssSelector("[data-action='chat-send']"));
+            a.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Bonjour Alice"));
+            new Actions(alice).pause(Duration.ofSeconds(5)).perform();
+            assertEquals(draft, alice.findElement(By.id("chatInput")), "Le polling conserve le nœud du champ");
+            assertEquals(draft, alice.switchTo().activeElement());
+            assertEquals("Un message rédigé lentement", draft.getDomProperty("value"));
+            draft.sendKeys(Keys.ENTER);
+            b.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Un message rédigé lentement"));
+            a.until(ExpectedConditions.attributeToBe(By.id("chatInput"), "value", ""));
+
+            // Panne réseau à l'envoi : conserver le texte et rendre le bouton réutilisable.
+            ((JavascriptExecutor) alice).executeScript("""
+                    const original = window.fetch;
+                    window.fetch = function(url, options) {
+                        if (url === '/api/tavern/chat' && options?.method === 'POST') {
+                            window.fetch = original;
+                            return Promise.reject(new Error('Réseau indisponible'));
+                        }
+                        return original.apply(this, arguments);
+                    };
+                    """);
+            alice.findElement(By.id("chatInput")).sendKeys("À renvoyer après la panne");
+            click(alice, a, By.cssSelector("[data-action='chat-send']"));
+            a.until(ExpectedConditions.textToBePresentInElementLocated(By.cssSelector(".chat__status"), "conservé"));
+            assertEquals("À renvoyer après la panne", alice.findElement(By.id("chatInput")).getDomProperty("value"));
+            screenshot(alice, "04-chat-retry-desktop.png");
+            click(alice, a, By.cssSelector("[data-action='chat-send']"));
+            b.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "À renvoyer après la panne"));
+
+            alice.manage().window().setSize(new Dimension(390, 844));
+            WebElement input = alice.findElement(By.id("chatInput"));
+            input.sendKeys("Message depuis le mobile");
+            new Actions(alice).doubleClick(alice.findElement(By.cssSelector("[data-action='chat-send']"))).perform();
+            b.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Message depuis le mobile"));
+            assertEquals(1L, tavernMessageRepository.findAll().stream()
+                    .filter(message -> "Message depuis le mobile".equals(message.getBody())).count());
+            screenshot(alice, "05-chat-mobile.png");
+
+            alice.findElement(By.id("chatInput")).sendKeys("Brouillon à conserver");
+            click(alice, a, By.cssSelector(".dock__tab[data-view='monde']"));
+            assertTrue(alice.findElements(By.id("chatInput")).isEmpty());
+            click(alice, a, By.cssSelector(".dock__tab[data-view='taverne']"));
+            assertEquals("Brouillon à conserver", alice.findElement(By.id("chatInput")).getDomProperty("value"));
+            alice.manage().deleteCookieNamed("JSESSIONID");
+            click(alice, a, By.cssSelector("[data-action='chat-send']"));
+            a.until(ExpectedConditions.attributeToBe(By.id("fault"), "aria-hidden", "false"));
+            assertEquals("Brouillon à conserver", alice.findElement(By.id("chatInput")).getDomProperty("value"));
+            assertNoApplicationJavascriptErrors(bob);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(alice, "failure-chat-alice.png");
+            screenshot(bob, "failure-chat-bob.png");
+            throw failure;
+        } finally {
+            alice.quit();
+            bob.quit();
+        }
+    }
+
+    private WebDriver newBrowser() {
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1440,1000");
+        String binary = System.getenv("CHROME_BIN");
+        if (binary != null && !binary.isBlank()) options.setBinary(binary);
+        String executable = System.getenv("CHROMEDRIVER_PATH");
+        if (executable != null && !executable.isBlank()) System.setProperty("webdriver.chrome.driver", executable);
+        LoggingPreferences logging = new LoggingPreferences();
+        logging.enable(LogType.BROWSER, Level.ALL);
+        options.setCapability("goog:loggingPrefs", logging);
+        return new ChromeDriver(options);
+    }
+
+    private void registerAndLogin(WebDriver driver, WebDriverWait wait, String username) {
+        driver.get("http://127.0.0.1:" + port + "/register");
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("username"))).sendKeys(username);
+        driver.findElement(By.name("password")).sendKeys("Secret123!");
+        driver.findElement(By.name("confirmation")).sendKeys("Secret123!");
+        click(driver, wait, By.cssSelector("form button[type='submit']"));
+        wait.until(ExpectedConditions.urlContains("/login?registered"));
+        driver.findElement(By.name("username")).sendKeys(username);
+        driver.findElement(By.name("password")).sendKeys("Secret123!");
+        click(driver, wait, By.cssSelector("form button[type='submit']"));
+        wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
     }
 
     private PlayerProfile profile(String username) {
@@ -203,12 +322,18 @@ class BrewsteadUiIntegrationTest {
     }
 
     private void click(WebDriver driver, WebDriverWait wait, By locator) {
-        WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(locator));
-        click(driver, element);
+        wait.ignoring(StaleElementReferenceException.class).ignoring(ElementClickInterceptedException.class)
+                .until(d -> {
+                    WebElement element = d.findElement(locator);
+                    if (!element.isDisplayed() || !element.isEnabled()) return false;
+                    click(d, element);
+                    return true;
+                });
     }
 
     private void click(WebDriver driver, WebElement element) {
-        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block:'center', inline:'nearest'});", element);
+        element.click();
     }
 
     private void assertNoApplicationJavascriptErrors(WebDriver driver) {

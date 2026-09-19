@@ -149,6 +149,7 @@
             body: body === undefined ? undefined : JSON.stringify(body)
         }).then(function (response) {
             if (response.redirected && response.url.indexOf('/login') !== -1) throw sessionLost();
+            if (response.status === 401 || response.status === 403) throw sessionLost();
             if (!response.ok) {
                 return response.json()
                     .catch(function () { return {}; })
@@ -180,48 +181,50 @@
         };
     }
 
+    var accountId = null;
+    var catalogs = null;
+
+    function loadCatalogs() {
+        if (!catalogs) {
+            catalogs = Promise.all([getJson('/api/catalog/crops'), getJson('/api/catalog/ingredients')])
+                .catch(function (error) { catalogs = null; throw error; });
+        }
+        return catalogs;
+    }
+
     /** Le domaine chargé est toujours celui de la session en cours. */
     function load() {
-        return getJson('/api/account/me')
-            .then(function (account) {
+        var identity = accountId !== null ? Promise.resolve(accountId)
+            : getJson('/api/account/me').then(function (account) { accountId = account.id; return accountId; });
+        return identity
+            .then(function (id) {
                 // La visite peut attribuer une récompense (série ou haut fait) :
                 // on la comptabilise avant de relire le profil et ses ressources.
-                return getJson('/api/progression').then(function (progression) {
-                    return Promise.all([
-                        getJson('/api/players/' + account.id + '/state'),
-                        getJson('/api/tavern').catch(function () { return null; }),
-                        getJson('/api/catalog/crops').catch(function () { return []; }),
-                        getJson('/api/account/me/effects').catch(function () { return []; }),
-                        getJson('/api/catalog/ingredients').catch(function () { return []; }),
-                        getJson('/api/player-orders/market').catch(function () { return []; }),
-                        getJson('/api/player-orders/players/' + account.id).catch(function () { return []; })
-                    ]).then(function (results) {
-                        var state = normalise(results[0], results[1], progression);
-                        state.crops = results[2] || [];
-                        state.effects = results[3] || [];
-                        state.ingredients = results[4] || [];
-                        state.market = results[5] || [];
-                        state.myOrders = results[6] || [];
+                return Promise.all([
+                    getJson('/api/progression').then(function (progression) {
+                        return getJson('/api/players/' + id + '/state').then(function (state) {
+                            return { state: state, progression: progression };
+                        });
+                    }),
+                    getJson('/api/tavern'),
+                    loadCatalogs(),
+                    getJson('/api/account/me/effects'),
+                    getJson('/api/player-orders/market'),
+                    getJson('/api/player-orders/players/' + id)
+                ]).then(function (results) {
+                        var state = normalise(results[0].state, results[1], results[0].progression);
+                        state.crops = results[2][0];
+                        state.effects = results[3];
+                        state.ingredients = results[2][1];
+                        state.market = results[4];
+                        state.myOrders = results[5];
                         return state;
-                    });
                 });
             });
     }
 
     function saveAccount(payload, headers) {
-        return fetch('/api/account/me', {
-            method: 'PUT',
-            credentials: 'same-origin',
-            headers: headers,
-            body: JSON.stringify(payload)
-        }).then(function (response) {
-            if (!response.ok) {
-                return response.json()
-                    .catch(function () { return {}; })
-                    .then(function (body) { throw new Error(body.message || 'Enregistrement refusé.'); });
-            }
-            return response.json();
-        });
+        return postJson('/api/account/me', payload, headers, 'PUT');
     }
 
     /* ---------------------------------------------------------- Journal & but */

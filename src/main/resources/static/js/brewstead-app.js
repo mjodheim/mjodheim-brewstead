@@ -21,7 +21,7 @@
     var refreshJob = null;
     var mutationPending = false;
     var navigationVersion = 0;
-    var offerDraft = null;      // { batchId, recipeName }
+    var offerDraft = null;      // { batchId, recipeName, maxServings }
     var orders = { tab: 'marche', query: '', ingredient: null };
 
     /* Les préférences restent dans ce navigateur : elles ne décrivent que
@@ -352,7 +352,7 @@
                         side: ready
                             ? actionButton('taste-batch', 'Goûter', batch.id) +
                               actionButton('offer-batch', 'Au comptoir', batch.id)
-                            : chip(BATCH_LABELS[batch.status] || batch.status, 'warn')
+                            : chip(batch.status === 'SOLD_OUT' ? 'Fût épuisé' : (BATCH_LABELS[batch.status] || batch.status), batch.status === 'SOLD_OUT' ? 'info' : 'warn')
                     });
                 }).join('');
             }
@@ -370,7 +370,7 @@
                         icon: 'i-recipe',
                         title: recipe.name,
                         meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
-                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationHours + ' h' +
+                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
                             (ingredients ? ' — ' + ingredients : ''),
                         side: chip(recipe.isPublic ? 'publique' : 'privée', recipe.isPublic ? 'gold' : null)
                     });
@@ -493,7 +493,8 @@
             render: function () {
                 if (!offerDraft) return empty('Choisis un fût prêt depuis la brasserie.');
                 return '<p class="section-title">' + esc(offerDraft.recipeName) + '</p>' +
-                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="40" value="6">' +
+                    '<p class="hint">Un service = 0,5 L. Ce fût permet encore ' + offerDraft.maxServings + ' services.</p>' +
+                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="' + offerDraft.maxServings + '" value="' + Math.min(6, offerDraft.maxServings) + '">' +
                     '<small>Nombre de services proposés. Un service, c’est un demi-litre.</small></label>' +
                     '<label class="account-field" style="margin-top:.7em">' +
                     '<input id="offerPrice" type="number" min="0" max="5000" value="0">' +
@@ -694,18 +695,31 @@
     }
 
     function renderNpcOrders(s) {
-        if (!s.npcOrders.length) return empty('Aucun marchand ne te réclame quoi que ce soit.');
-        return s.npcOrders.map(function (order) {
+        var active = s.npcOrders.filter(function (order) { return order.status === 'OPEN' || order.status === 'IN_PROGRESS'; });
+        var head = '<p class="hint">Brasse, puis livre les marchands pour gagner des pièces, de la réputation et de l’expérience. Trois contrats actifs au maximum.</p>' +
+            '<div class="account-actions"><button class="btn btn--gold" type="button" data-action="npc-generate"' +
+            (active.length >= 3 ? ' disabled' : '') + '>Faire venir un marchand</button></div>';
+        if (!s.npcOrders.length) return head + empty('Le premier marchand attend ton invitation.');
+        return head + s.npcOrders.map(function (order) {
+            var open = order.status === 'OPEN' || order.status === 'IN_PROGRESS';
+            var available = (order.lines || []).every(function (line) {
+                return s.batches.filter(function (batch) {
+                    return batch.recipeId === line.recipeId && batch.status === 'READY' && batch.quality >= line.minQuality;
+                }).reduce(function (total, batch) { return total + Number(batch.volume); }, 0) >= line.quantity;
+            });
             var lines = (order.lines || []).map(function (line) {
-                return line.quantity + ' × ' + line.recipeName +
+                return line.quantity + ' L de ' + line.recipeName +
                     (line.minQuality ? ' (qualité ≥ ' + line.minQuality + ')' : '');
             }).join(' · ');
             return row({
                 icon: 'i-orders',
                 title: order.customerName,
-                meta: lines + (order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
+                meta: lines + (open && order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
                 side: chip(ORDER_LABELS[order.status] || order.status, order.status === 'OPEN' ? 'ok' : 'info') +
-                    chip(fmt.number(order.rewardCoins) + ' pièces', 'gold')
+                    chip(fmt.number(order.rewardCoins) + ' pièces · ' + order.rewardReputation + ' réputation', 'gold') +
+                    (order.status === 'OPEN' ? actionButton('npc-accept', 'Accepter', order.id) : '') +
+                    (open ? (available ? actionButton('npc-complete', 'Livrer le brassin', order.id)
+                        : chip('Brassin requis en cave', 'warn')) : '')
             });
         }).join('');
     }
@@ -913,6 +927,16 @@
 
         if (action === 'orders-tab') { orders.tab = id; renderScreen(); return; }
 
+        if (action === 'npc-generate') {
+            send('/api/npc-orders/players/' + state.player.id + '/generate', undefined, function () { toast('Un marchand te propose un contrat.'); });
+            return;
+        }
+        if (action === 'npc-accept' || action === 'npc-complete') {
+            send('/api/npc-orders/' + Number(id) + (action === 'npc-accept' ? '/accept' : '/complete'), undefined,
+                function () { toast(action === 'npc-accept' ? 'Contrat accepté. Prépare ta livraison.' : 'Brassin livré. Pièces, expérience et réputation reçues.'); });
+            return;
+        }
+
         if (action === 'choose-specialization') {
             send('/api/progression/specialization', { specialization: id }, function () {
                 toast('Ton domaine a choisi sa voie.');
@@ -1027,7 +1051,8 @@
         if (action === 'offer-batch') {
             var batch = state.batches.find(function (b) { return b.id === Number(id); });
             if (!batch) return;
-            offerDraft = { batchId: batch.id, recipeName: batch.recipeName };
+            offerDraft = { batchId: batch.id, recipeName: batch.recipeName, maxServings: Math.min(40, Math.floor(Number(batch.volume) * 2)) };
+            if (!offerDraft.maxServings) { toast('Il faut au moins un demi-litre pour ouvrir un fût au comptoir.'); return; }
             openScreen('comptoir');
             return;
         }
@@ -1036,6 +1061,9 @@
             var servings = Number(($('offerServings') || {}).value || 0);
             var price = Number(($('offerPrice') || {}).value || 0);
             var note = ($('offerNote') || {}).value || '';
+            if (!Number.isInteger(servings) || servings < 1 || servings > offerDraft.maxServings || !Number.isInteger(price) || price < 0) {
+                toast('Vérifie le nombre de services et le prix du verre.'); return;
+            }
             send('/api/tavern/counter',
                 { batchId: offerDraft.batchId, servings: servings, price: price, note: note },
                 function (payload, stillHere) {
@@ -1136,10 +1164,7 @@
 
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
-        post(endpoint(Number(id)))
-            .then(function () { return refresh(); })
-            .then(function () { toast('Action enregistrée.'); })
-            .catch(function () { toast('L’action n’a pas pu être enregistrée.'); });
+        send(endpoint(Number(id)), undefined, function () { toast('Récolte rentrée à l’entrepôt.'); });
     }
 
     /* --------------------------------------------------------------- Rendu */
@@ -1204,6 +1229,7 @@
         dom.game.dataset.light = light;
         dom.weatherLabel.textContent = weather.label;
         dom.weatherChip.title = 'Météo du domaine · ' + (light === 'jour' ? 'jour' : light);
+        dom.game.dataset.paused = document.hidden ? 'true' : 'false';
     }
 
     function renderFeed() {
@@ -1500,9 +1526,11 @@
                 }
             }, 1000);
             setInterval(function () {
+                if (!document.hidden) initAtmosphere();
                 if (!document.hidden && !mutationPending) refresh().catch(function () {});
             }, 15000);
             document.addEventListener('visibilitychange', function () {
+                dom.game.dataset.paused = document.hidden ? 'true' : 'false';
                 if (!document.hidden && !mutationPending) {
                     refresh().catch(function () {});
                     if (activeView === 'taverne') loadTavern(false);

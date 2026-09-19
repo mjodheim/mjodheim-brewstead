@@ -21,6 +21,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +57,11 @@ public class NpcOrderService {
     @Transactional
     public NpcOrderResponse generateOrder(Long playerId) {
         PlayerProfile player = getPlayer(playerId);
+        long active = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(playerId).stream()
+                .peek(this::refreshOrderStatus)
+                .filter(order -> order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
+                .count();
+        if (active >= 3) throw new IllegalStateException("Termine tes contrats actifs avant d’inviter un autre marchand.");
         List<Recipe> recipes = recipeRepository.findAllByIsPublicTrue().stream()
                 .sorted(Comparator.comparingLong(Recipe::getId))
                 .toList();
@@ -62,6 +69,11 @@ public class NpcOrderService {
             throw new IllegalStateException("No public recipe is available for NPC orders");
         }
 
+        // Les premiers contrats suivent ce que le joueur a réellement brassé.
+        Set<Long> brewed = brewService.findPlayerBatches(playerId).stream()
+                .map(batch -> batch.recipeId()).collect(Collectors.toSet());
+        List<Recipe> familiar = recipes.stream().filter(recipe -> brewed.contains(recipe.getId())).toList();
+        if (!familiar.isEmpty()) recipes = familiar;
         long sequence = npcOrderRepository.count();
         Recipe recipe = recipes.get((int) (sequence % recipes.size()));
         int quantity = 2 + (int) (sequence % 4);

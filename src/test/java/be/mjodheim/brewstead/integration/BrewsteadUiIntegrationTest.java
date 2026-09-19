@@ -4,6 +4,8 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.User;
 import be.mjodheim.brewstead.enums.BehiveStatus;
 import be.mjodheim.brewstead.enums.FieldStatus;
+import be.mjodheim.brewstead.enums.BatchStatus;
+import be.mjodheim.brewstead.enums.OrderStatus;
 import be.mjodheim.brewstead.repository.*;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.*;
@@ -21,6 +23,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -43,6 +46,9 @@ class BrewsteadUiIntegrationTest {
     @Autowired PlayerProgressRepository progressRepository;
     @Autowired IngredientRepository ingredientRepository;
     @Autowired PlayerOrderRepository orderRepository;
+    @Autowired NpcOrderRepository npcOrderRepository;
+    @Autowired TastingOfferRepository offerRepository;
+    @Autowired PlayerAchievementRepository achievementRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -343,6 +349,119 @@ class BrewsteadUiIntegrationTest {
         logging.enable(LogType.BROWSER, Level.ALL);
         options.setCapability("goog:loggingPrefs", logging);
         return new ChromeDriver(options);
+    }
+
+    @Test
+    void completeProductionDeliveryAndNeighbourTastingLoopWithAnimatedWorld() {
+        WebDriver brewer = newBrowser();
+        WebDriver guest = newBrowser();
+        WebDriverWait wait = new WebDriverWait(brewer, Duration.ofSeconds(30));
+        WebDriverWait guestWait = new WebDriverWait(guest, Duration.ofSeconds(30));
+        try {
+            registerAndLogin(brewer, wait, "ui_loop_brewer");
+            registerAndLogin(guest, guestWait, "ui_loop_guest");
+            var profile = profile("ui_loop_brewer");
+            ((JavascriptExecutor) brewer).executeScript(
+                    "document.getElementById('game').dataset.light='crepuscule'; document.getElementById('game').dataset.weather='clair';");
+            WebElement flow = brewer.findElement(By.cssSelector(".fall--near .fall__flow"));
+            assertEquals("none", brewer.findElement(By.cssSelector(".world__life")).getCssValue("pointer-events"));
+            String firstFlow = flow.getCssValue("transform");
+            String firstCloud = brewer.findElement(By.cssSelector(".cloud-bank--near")).getCssValue("transform");
+            screenshot(brewer, "07-world-motion-a.png");
+            new Actions(brewer).pause(Duration.ofMillis(900)).perform();
+            assertNotEquals(firstFlow, flow.getCssValue("transform"));
+            assertNotEquals(firstCloud, brewer.findElement(By.cssSelector(".cloud-bank--near")).getCssValue("transform"));
+            screenshot(brewer, "08-world-motion-b.png");
+
+            openPlaceScreen(brewer, wait, "champs");
+            assertEquals("paused", flow.getCssValue("animation-play-state"), "L'animation repose pendant la lecture des menus");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("[data-action='pick-crop']"));
+            wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream().anyMatch(f -> f.getStatus() == FieldStatus.GROWING));
+            var field = fieldRepository.findAllByPlayerId(profile.getId()).stream().filter(f -> f.getStatus() == FieldStatus.GROWING).findFirst().orElseThrow();
+            // Accélération uniquement du temps d'attente ; récolte et récompenses passent par l'UI et les vraies API.
+            field.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            fieldRepository.save(field);
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            openPlaceScreen(brewer, wait, "champs");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-field']"));
+            wait.until(d -> achievementRepository.existsByPlayerIdAndCode(profile.getId(), "FIRST_HARVEST"));
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+
+            openPlaceScreen(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("[data-action='open-brew']"));
+            brewer.findElement(By.id("pickerSearch")).sendKeys("Hydromel doré");
+            click(brewer, wait, By.cssSelector("[data-action='pick-recipe']:not([disabled])"));
+            wait.until(d -> !batchRepository.findAllByPlayerIdOrderByStartedAtDesc(profile.getId()).isEmpty());
+            var batch = batchRepository.findAllByPlayerIdOrderByStartedAtDesc(profile.getId()).getFirst();
+            batch.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            batchRepository.save(batch);
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            openPlaceScreen(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch']"));
+            wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
+            click(brewer, wait, By.cssSelector("[data-action='npc-generate']"));
+            wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).isEmpty());
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            var order = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).getFirst();
+            click(brewer, wait, By.cssSelector("[data-action='npc-accept']"));
+            wait.until(d -> npcOrderRepository.findById(order.getId()).orElseThrow().getStatus() == OrderStatus.IN_PROGRESS);
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            int coins = profile("ui_loop_brewer").getCoin();
+            click(brewer, wait, By.cssSelector("[data-action='npc-complete']"));
+            wait.until(d -> npcOrderRepository.findById(order.getId()).orElseThrow().getStatus() == OrderStatus.COMPLETED);
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            assertTrue(profile("ui_loop_brewer").getCoin() >= coins + order.getRewardCoins());
+            assertEquals(1, progressRepository.findByPlayerId(profile.getId()).orElseThrow().getSeasonRewardTier());
+            screenshot(brewer, "09-merchant-delivered.png");
+
+            openPlaceScreen(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch']"));
+            WebElement servings = brewer.findElement(By.id("offerServings"));
+            assertTrue(Integer.parseInt(servings.getDomAttribute("max")) <= batchRepository.findById(batch.getId()).orElseThrow().getVolume().multiply(BigDecimal.valueOf(2)).intValue());
+            servings.clear();
+            servings.sendKeys("2");
+            WebElement price = brewer.findElement(By.id("offerPrice"));
+            price.clear();
+            price.sendKeys("5");
+            brewer.findElement(By.id("offerNote")).sendKeys("La cuvée du parcours complet");
+            click(brewer, wait, By.cssSelector("[data-action='offer-confirm']"));
+            wait.until(d -> offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).isPresent());
+            var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).orElseThrow();
+            click(guest, guestWait, By.cssSelector(".dock__tab[data-view='taverne']"));
+            click(guest, guestWait, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
+            click(guest, guestWait, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
+            guestWait.until(d -> offerRepository.findById(offer.getId()).orElseThrow().getServings() == 1);
+            assertEquals(1, progressRepository.findByPlayerId(profile("ui_loop_guest").getId()).orElseThrow().getTavernTastings());
+            screenshot(guest, "10-neighbour-tasting.png");
+
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            assertTrue(brewer.findElements(By.cssSelector(".achievement.is-unlocked")).size() >= 2);
+            brewer.navigate().refresh();
+            wait.until(ExpectedConditions.textToBe(By.id("playerName"), "ui_loop_brewer"));
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            assertTrue(brewer.findElements(By.cssSelector(".achievement.is-unlocked")).size() >= 2);
+            screenshot(brewer, "11-persistent-rewards.png");
+            assertNoApplicationJavascriptErrors(brewer);
+            assertNoApplicationJavascriptErrors(guest);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(brewer, "failure-full-loop.png");
+            throw failure;
+        } finally {
+            brewer.quit();
+            guest.quit();
+        }
+    }
+
+    private void openPlaceScreen(WebDriver driver, WebDriverWait wait, String place) {
+        click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+        click(driver, wait, By.cssSelector("#markers [data-place='" + place + "']"));
+        click(driver, wait, By.id("placeAction"));
+        wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
     }
 
     private void registerAndLogin(WebDriver driver, WebDriverWait wait, String username) {

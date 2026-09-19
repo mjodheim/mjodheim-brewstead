@@ -1,0 +1,61 @@
+/* Animation layers use the same coordinates and camera as the painted map.
+   Only transforms and opacity animate; filters and masks remain static. */
+.world__life {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: hidden;
+    stroke: none;
+    --lamp-strength: .66;
+}
+.world__life g, .world__life path, .world__life ellipse, .world__life rect, .world__life circle {
+    pointer-events: none;
+}
+.world__life .cloud-bank { animation: cloud-sailing 36s ease-in-out infinite alternate; opacity: .8; }
+.world__life .cloud-bank--far { animation-duration: 58s; animation-delay: -22s; opacity: .55; }
+.world__life .chimney-smoke { animation: smoke-rising 8s ease-out infinite; opacity: .35; }
+.world__life .fall { mix-blend-mode: screen; opacity: .64; }
+.world__life .fall--far { opacity: .48; }
+.world__life .fall__flow { animation: waterfall-flow 1.65s linear infinite; }
+.world__life .fall__flow--far { animation-duration: 2.4s; animation-delay: -.8s; }
+.world__life .fall-foam { animation: foam-breath 4.2s ease-in-out infinite alternate; mix-blend-mode: screen; }
+.world__life .water-shimmer {
+    position: static; opacity: .3; height: auto; background: none;
+    animation: river-flow 5s linear infinite; mix-blend-mode: screen;
+}
+.world__life .water-spark {
+    fill: none; stroke: #f3ffff; stroke-width: 1.4;
+    animation: water-glint 5.7s ease-in-out infinite;
+}
+.world__life .water-spark--late { animation-delay: -3.1s; animation-duration: 7s; }
+.world__life .tavern-glow, .world__life .window-lights, .world__life .lantern-lights {
+    position: static; width: auto; height: auto; background: none;
+    opacity: var(--lamp-strength); mix-blend-mode: screen;
+    animation: window-breath 5.3s ease-in-out infinite;
+}
+.world__life .window-lights { animation-delay: -1.8s; animation-duration: 7.1s; }
+.world__life .lantern-lights { animation-delay: -3.2s; animation-duration: 4.4s; }
+.game[data-light="nuit"] .world__life { --lamp-strength: 1; }
+.game[data-light="crepuscule"] .world__life { --lamp-strength: .9; }
+.game[data-weather="pluie"] .cloud-bank { opacity: .55; }
+.game[data-weather="brume"] .cloud-bank { opacity: 1; }
+.game[data-theme="solstice"] .world__life { --lamp-strength: 1; }
+.game:not([data-view="monde"]) .world__life *,
+.game[data-paused="true"] .world__life *,
+.game[data-paused="true"] .weather { animation-play-state: paused; }
+:root[data-mouvement="sobre"] .world__life * { animation: none !important; }
+:root[data-ambiance="non"] .world__life { display: none; }
+
+@keyframes waterfall-flow { from { transform: translateY(-74px); } to { transform: translateY(0); } }
+@keyframes river-flow { from { transform: translate(-30px, -46px); } to { transform: translate(-30px, 0); } }
+@keyframes cloud-sailing { from { transform: translate(-55px, 0); } to { transform: translate(90px, 6px); } }
+@keyframes smoke-rising { from { transform: translate(0, 6px); opacity: .35; } to { transform: translate(24px, -22px); opacity: 0; } }
+@keyframes foam-breath { from { opacity: .42; } to { opacity: .8; } }
+@keyframes water-glint { 0%, 65%, 100% { opacity: .08; } 30% { opacity: .7; } 44% { opacity: .22; } }
+@keyframes window-breath { 0%, 100% { opacity: var(--lamp-strength); } 35% { opacity: calc(var(--lamp-strength) * .72); } 62% { opacity: calc(var(--lamp-strength) * .9); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .world__life *, .weather { animation: none !important; }
+}

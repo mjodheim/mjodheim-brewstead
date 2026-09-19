@@ -63,6 +63,17 @@ class NpcOrderServiceTest {
     }
 
     @Test
+    void generatingAnotherContractRequiresAnAvailableSlot() {
+        PlayerProfile player = player(1);
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player));
+        when(orderRepository.findAllByPlayerIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(
+                order(1, player, OrderStatus.OPEN), order(2, player, OrderStatus.IN_PROGRESS),
+                order(3, player, OrderStatus.OPEN)));
+        assertThrows(IllegalStateException.class, () -> service.generateOrder(1L));
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
     void generateOrderUsesDeterministicSequence() {
         PlayerProfile player = player(1);
         Recipe first = recipe(10);

@@ -13,6 +13,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap">
     <link rel="stylesheet" th:href="@{/css/brewstead.css}" href="/css/brewstead.css">
+    <link rel="stylesheet" th:href="@{/css/brewstead-atmosphere.css}" href="/css/brewstead-atmosphere.css">
 </head>
 <body>
 
@@ -108,8 +109,7 @@
         <div class="world__scene" id="scene">
             <img class="world__art" id="worldArt" width="1536" height="742" alt="Le domaine de Brewstead"
                  th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
-            <span class="water-shimmer" aria-hidden="true"></span>
-            <span class="tavern-glow" aria-hidden="true"></span>
+            <svg th:replace="~{game/brewstead-atmosphere :: atmosphere}"></svg>
             <div class="world__markers" id="markers"></div>
         </div>
         <div class="world__fx" aria-hidden="true">

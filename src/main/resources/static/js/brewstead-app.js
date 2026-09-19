@@ -940,7 +940,11 @@
         if (action === 'pick-crop') {
             var fieldId = picker ? picker.fieldId : null;
             send('/api/farm/plant', { fieldId: fieldId, cropId: Number(id) },
-                function () { selectView('monde'); openPlace('champs'); toast('Semé. Ça pousse.'); });
+                function () {
+                    // Une réponse lente ne doit pas écraser une navigation plus récente.
+                    if (activeView === 'semer') { selectView('monde'); openPlace('champs'); }
+                    toast('Semé. Ça pousse.');
+                });
             return;
         }
 
@@ -948,7 +952,10 @@
             var recipe = state.recipes.find(function (r) { return r.id === Number(id); });
             if (!recipe) return;
             send('/api/brewery/batches', { playerId: state.player.id, recipeId: recipe.id, volume: recipe.baseVolume },
-                function () { selectView('monde'); openPlace('brasserie'); toast('Brassin lancé : ' + recipe.name); });
+                function () {
+                    if (activeView === 'brasser') { selectView('monde'); openPlace('brasserie'); }
+                    toast('Brassin lancé : ' + recipe.name);
+                });
             return;
         }
 

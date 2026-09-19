@@ -20,6 +20,7 @@
     var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '', connectionError: '' };
     var refreshJob = null;
     var mutationPending = false;
+    var navigationVersion = 0;
     var offerDraft = null;      // { batchId, recipeName }
     var orders = { tab: 'marche', query: '', ingredient: null };
 
@@ -821,6 +822,7 @@
     function send(url, body, onDone, method) {
         if (mutationPending) { toast('Une action est déjà en cours.'); return Promise.resolve(); }
         mutationPending = true;
+        var originNavigation = navigationVersion;
         dom.game.setAttribute('aria-busy', 'true');
         toast('Action en cours…');
         var headers = csrfHeaders();
@@ -829,7 +831,7 @@
             .then(function (payload) {
                 // Un chargement commencé avant la mutation n'est pas son résultat.
                 return (refreshJob || Promise.resolve()).catch(function () {}).then(function () {
-                    return refresh().then(function () { onDone(payload); }, function () {
+                    return refresh().then(function () { onDone(payload, originNavigation === navigationVersion); }, function () {
                         toast('Action enregistrée, mais actualisation impossible. Réessaie le chargement.');
                     });
                 });
@@ -952,9 +954,11 @@
                 expiresInMinutes: minutes,
                 rewardCoins: reward,
                 lines: [{ ingredientId: orders.ingredient.id, quantity: quantity }]
-            }, function () {
-                orders.tab = 'miennes';
-                if (activeView === 'commande') openScreen('commandes');
+            }, function (payload, stillHere) {
+                if (stillHere && activeView === 'commande') {
+                    orders.tab = 'miennes';
+                    openScreen('commandes');
+                }
                 toast('Commande publiée.');
             });
             return;
@@ -1034,9 +1038,11 @@
             var note = ($('offerNote') || {}).value || '';
             send('/api/tavern/counter',
                 { batchId: offerDraft.batchId, servings: servings, price: price, note: note },
-                function () {
-                    tavern.tab = 'comptoir';
-                    if (activeView === 'comptoir') openScreen('taverne');
+                function (payload, stillHere) {
+                    if (stillHere && activeView === 'comptoir') {
+                        tavern.tab = 'comptoir';
+                        openScreen('taverne');
+                    }
                     toast(price === 0 ? 'C’est ta tournée.' : 'Fût au comptoir.');
                 });
             return;
@@ -1048,9 +1054,9 @@
         if (action === 'pick-crop') {
             var fieldId = picker ? picker.fieldId : null;
             send('/api/farm/plant', { fieldId: fieldId, cropId: Number(id) },
-                function () {
+                function (payload, stillHere) {
                     // Une réponse lente ne doit pas écraser une navigation plus récente.
-                    if (activeView === 'semer') { selectView('monde'); openPlace('champs'); }
+                    if (stillHere && activeView === 'semer') { selectView('monde'); openPlace('champs'); }
                     toast('Semé. Ça pousse.');
                 });
             return;
@@ -1060,8 +1066,8 @@
             var recipe = state.recipes.find(function (r) { return r.id === Number(id); });
             if (!recipe) return;
             send('/api/brewery/batches', { playerId: state.player.id, recipeId: recipe.id, volume: recipe.baseVolume },
-                function () {
-                    if (activeView === 'brasser') { selectView('monde'); openPlace('brasserie'); }
+                function (payload, stillHere) {
+                    if (stillHere && activeView === 'brasser') { selectView('monde'); openPlace('brasserie'); }
                     toast('Brassin lancé : ' + recipe.name);
                 });
             return;
@@ -1330,6 +1336,7 @@
 
     function openScreen(view) {
         if (!SECTIONS[view]) return;
+        navigationVersion++;
         closePlace();
         activeView = view;
         accountDraft = { avatar: null, displayName: null };
@@ -1343,6 +1350,7 @@
     }
 
     function closeScreen() {
+        navigationVersion++;
         watchTavern(false);
         updateMarkup(dom.screenBody, '');
         activeView = 'monde';

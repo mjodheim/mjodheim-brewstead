@@ -126,8 +126,18 @@
         return error;
     }
 
+    function request(url, options) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, 12000);
+        return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+            .catch(function (error) {
+                if (error.name === 'AbortError') throw new Error('Le serveur met trop de temps à répondre. Réessaie.');
+                throw error;
+            }).finally(function () { clearTimeout(timer); });
+    }
+
     function getJson(url) {
-        return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        return request(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then(function (response) {
                 // Spring renvoie le portail : la session n'est plus valable.
                 if (response.redirected && response.url.indexOf('/login') !== -1) throw sessionLost();
@@ -142,7 +152,7 @@
     }
 
     function postJson(url, body, headers, method) {
-        return fetch(url, {
+        return request(url, {
             method: method || 'POST',
             credentials: 'same-origin',
             headers: headers,

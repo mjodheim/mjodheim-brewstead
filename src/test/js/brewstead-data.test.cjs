@@ -4,8 +4,8 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 
 const source = readFileSync('src/main/resources/static/js/brewstead-data.js', 'utf8');
-function client(fetch) {
-    const context = { window: {}, fetch };
+function client(fetch, overrides = {}) {
+    const context = { window: {}, fetch, AbortController, setTimeout, clearTimeout, ...overrides };
     vm.runInNewContext(source, context);
     return context.window.BrewsteadData;
 }
@@ -67,4 +67,11 @@ test('a failed catalog is retried on the next refresh', async () => {
     await assert.rejects(() => data.load(), /503/);
     await data.load();
     assert.equal(crops, 2);
+});
+
+test('a stalled request times out and releases the interface for retry', async () => {
+    const data = client((url, options) => new Promise((resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(Object.assign(new Error(), { name: 'AbortError' })));
+    }), { setTimeout: callback => { queueMicrotask(callback); return 1; }, clearTimeout: () => {} });
+    await assert.rejects(() => data.postJson('/api/tavern/chat', { body: 'Bonjour' }, {}), /trop de temps/);
 });

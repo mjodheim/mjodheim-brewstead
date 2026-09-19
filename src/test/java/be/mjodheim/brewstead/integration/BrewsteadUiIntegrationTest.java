@@ -285,7 +285,21 @@ class BrewsteadUiIntegrationTest {
             reward.clear();
             reward.sendKeys("20");
             int coins = profile("ui_chat_alice").getCoin();
+            ((JavascriptExecutor) alice).executeScript("""
+                    const original = window.fetch;
+                    window.fetch = function(url, options) {
+                        if (url === '/api/player-orders' && options?.method === 'POST') {
+                            window.fetch = original;
+                            return original.apply(this, arguments).then(response =>
+                                new Promise(resolve => setTimeout(() => resolve(response), 1200)));
+                        }
+                        return original.apply(this, arguments);
+                    };
+                    """);
             click(alice, a, By.cssSelector("[data-action='order-confirm']"));
+            click(alice, a, By.cssSelector(".dock__tab[data-view='inventaire']"));
+            a.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            waitForScreen(a, "Entrepôt");
             a.until(d -> !orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).isEmpty());
             var order = orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).getFirst();
             assertEquals(coins - 20, profile("ui_chat_alice").getCoin());

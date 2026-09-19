@@ -17,6 +17,30 @@ erDiagram
         int reputation
     }
 
+    PLAYER_PROGRESS {
+        Long id PK
+        Long player_id FK, UK
+        long harvested_fields
+        long harvested_hives
+        long started_batches
+        long completed_orders
+        long player_trades
+        long tavern_tastings
+        date last_visit_date
+        int visit_streak
+        date daily_date
+        String daily_action
+        int daily_progress
+        boolean daily_claimed
+    }
+
+    PLAYER_ACHIEVEMENT {
+        Long id PK
+        Long player_id FK
+        String code UK
+        datetime unlocked_at
+    }
+
     INGREDIENT {
         Long id PK
         String name
@@ -122,6 +146,8 @@ erDiagram
     }
 
     USER ||--|| PLAYER_PROFILE : has
+    PLAYER_PROFILE ||--|| PLAYER_PROGRESS : tracks
+    PLAYER_PROFILE ||--o{ PLAYER_ACHIEVEMENT : unlocks
 
     PLAYER_PROFILE ||--o{ PLAYER_INVENTORY : owns
     INGREDIENT ||--o{ PLAYER_INVENTORY : stored_as
@@ -156,6 +182,8 @@ erDiagram
 - `RECIPE_INGREDIENT` est une table de liaison enrichie par la quantité.
 - `PLAYER_ORDER_LINE` porte les ressources demandées par une commande entre joueurs.
 - `PLAYER_ORDER.fulfilled_by_id` reste nul tant que la commande n'a pas été satisfaite.
+- `PLAYER_PROGRESS` conserve les compteurs durables, la série de visites et l'objectif quotidien courant.
+- L'unicité `(player_id, code)` de `PLAYER_ACHIEVEMENT` garantit qu'une récompense de haut fait n'est attribuée qu'une fois.
 - Les temps de production, de fermentation et d'expiration utilisent des timestamps (`LocalDateTime` côté Java).
 - Les statuts sont modélisés en Java avec des enums.
 - Dans le MVP fonctionnel, le volume restant d'un `BATCH` en statut `READY` sert de stock de boisson finie pour les commandes PNJ.

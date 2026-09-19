@@ -159,7 +159,7 @@
         });
     }
 
-    function normalise(state, tavern) {
+    function normalise(state, tavern, progression) {
         return {
             source: 'api',
             player: state.player,
@@ -175,6 +175,7 @@
             recipes: state.recipes || [],
             batches: state.batches || [],
             npcOrders: state.npcOrders || [],
+            progression: progression || null,
             tavern: tavern || { notablePlayers: [], openPlayerOrders: 0 }
         };
     }
@@ -183,22 +184,26 @@
     function load() {
         return getJson('/api/account/me')
             .then(function (account) {
-                return Promise.all([
-                    getJson('/api/players/' + account.id + '/state'),
-                    getJson('/api/tavern').catch(function () { return null; }),
-                    getJson('/api/catalog/crops').catch(function () { return []; }),
-                    getJson('/api/account/me/effects').catch(function () { return []; }),
-                    getJson('/api/catalog/ingredients').catch(function () { return []; }),
-                    getJson('/api/player-orders/market').catch(function () { return []; }),
-                    getJson('/api/player-orders/players/' + account.id).catch(function () { return []; })
-                ]).then(function (results) {
-                    var state = normalise(results[0], results[1]);
-                    state.crops = results[2] || [];
-                    state.effects = results[3] || [];
-                    state.ingredients = results[4] || [];
-                    state.market = results[5] || [];
-                    state.myOrders = results[6] || [];
-                    return state;
+                // La visite peut attribuer une récompense (série ou haut fait) :
+                // on la comptabilise avant de relire le profil et ses ressources.
+                return getJson('/api/progression').then(function (progression) {
+                    return Promise.all([
+                        getJson('/api/players/' + account.id + '/state'),
+                        getJson('/api/tavern').catch(function () { return null; }),
+                        getJson('/api/catalog/crops').catch(function () { return []; }),
+                        getJson('/api/account/me/effects').catch(function () { return []; }),
+                        getJson('/api/catalog/ingredients').catch(function () { return []; }),
+                        getJson('/api/player-orders/market').catch(function () { return []; }),
+                        getJson('/api/player-orders/players/' + account.id).catch(function () { return []; })
+                    ]).then(function (results) {
+                        var state = normalise(results[0], results[1], progression);
+                        state.crops = results[2] || [];
+                        state.effects = results[3] || [];
+                        state.ingredients = results[4] || [];
+                        state.market = results[5] || [];
+                        state.myOrders = results[6] || [];
+                        return state;
+                    });
                 });
             });
     }
@@ -242,6 +247,15 @@
     }
 
     function goal(state) {
+        if (state.progression && state.progression.dailyQuest) {
+            var daily = state.progression.dailyQuest;
+            return {
+                text: daily.title + (daily.claimed ? ' — récompense reçue' : ''),
+                done: daily.progress,
+                total: daily.target,
+                place: daily.place
+            };
+        }
         var order = state.npcOrders.filter(function (o) { return o.status === 'OPEN' || o.status === 'IN_PROGRESS'; })[0];
         if (!order || !order.lines.length) {
             return { text: 'Lancer un brassin à la brasserie', done: 0, total: 1, place: 'brasserie' };

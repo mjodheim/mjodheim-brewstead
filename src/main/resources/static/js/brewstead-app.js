@@ -536,13 +536,32 @@
         },
 
         classement: {
-            title: 'Classement',
+            title: 'Renommée & hauts faits',
             render: function (s) {
+                var progression = s.progression;
+                var achievementBlock = '';
+                if (progression) {
+                    var unlocked = progression.achievements.filter(function (a) { return a.unlocked; }).length;
+                    achievementBlock = '<div class="progression-summary">' +
+                        '<strong>' + progression.visitStreak + ' jour' + (progression.visitStreak > 1 ? 's' : '') + ' de série</strong>' +
+                        '<span>' + unlocked + '/' + progression.achievements.length + ' hauts faits</span></div>' +
+                        '<p class="section-title">Hauts faits</p>' +
+                        '<div class="achievements">' + progression.achievements.map(function (achievement) {
+                            var value = Math.min(achievement.progress, achievement.target);
+                            return '<article class="achievement' + (achievement.unlocked ? ' is-unlocked' : '') + '">' +
+                                icon(achievement.unlocked ? 'i-trophy' : 'i-compass', 'achievement__icon') +
+                                '<div><strong>' + esc(achievement.title) + '</strong>' +
+                                '<small>' + esc(achievement.description) + '</small>' +
+                                '<span class="bar"><i style="width:' + (value / achievement.target * 100) + '%"></i></span>' +
+                                '<em>' + value + '/' + achievement.target + ' · ' + achievement.rewardCoins + ' pièces · ' + achievement.rewardExperience + ' XP</em></div>' +
+                                '</article>';
+                        }).join('') + '</div><p class="section-title">Classement du fjord</p>';
+                }
                 var players = (s.tavern.notablePlayers || []).slice().sort(function (a, b) {
                     return b.reputation - a.reputation;
                 });
-                if (!players.length) return empty('Le classement n’est pas encore établi.');
-                return players.map(function (player, index) {
+                if (!players.length) return achievementBlock + empty('Le classement n’est pas encore établi.');
+                return achievementBlock + players.map(function (player, index) {
                     var mine = player.username === s.player.username;
                     return row({
                         icon: 'i-trophy',
@@ -921,7 +940,11 @@
         if (action === 'pick-crop') {
             var fieldId = picker ? picker.fieldId : null;
             send('/api/farm/plant', { fieldId: fieldId, cropId: Number(id) },
-                function () { selectView('monde'); openPlace('champs'); toast('Semé. Ça pousse.'); });
+                function () {
+                    // Une réponse lente ne doit pas écraser une navigation plus récente.
+                    if (activeView === 'semer') { selectView('monde'); openPlace('champs'); }
+                    toast('Semé. Ça pousse.');
+                });
             return;
         }
 
@@ -929,7 +952,10 @@
             var recipe = state.recipes.find(function (r) { return r.id === Number(id); });
             if (!recipe) return;
             send('/api/brewery/batches', { playerId: state.player.id, recipeId: recipe.id, volume: recipe.baseVolume },
-                function () { selectView('monde'); openPlace('brasserie'); toast('Brassin lancé : ' + recipe.name); });
+                function () {
+                    if (activeView === 'brasser') { selectView('monde'); openPlace('brasserie'); }
+                    toast('Brassin lancé : ' + recipe.name);
+                });
             return;
         }
 
@@ -1046,6 +1072,24 @@
         dom.questBar.style.width = (goal.total ? goal.done / goal.total * 100 : 0) + '%';
         dom.questBox.classList.toggle('is-done', goal.done >= goal.total);
         dom.quest.dataset.place = goal.place;
+    }
+
+    function initAtmosphere() {
+        var now = new Date();
+        var day = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) / 86400000);
+        var weathers = [
+            { key: 'clair', label: 'Éclaircies' },
+            { key: 'pluie', label: 'Pluie du fjord' },
+            { key: 'brume', label: 'Brume marine' },
+            { key: 'clair', label: 'Vent léger' }
+        ];
+        var weather = weathers[Math.abs(day * 17) % weathers.length];
+        var hour = now.getHours();
+        var light = hour < 6 || hour >= 21 ? 'nuit' : (hour < 9 || hour >= 18 ? 'crepuscule' : 'jour');
+        dom.game.dataset.weather = weather.key;
+        dom.game.dataset.light = light;
+        dom.weatherLabel.textContent = weather.label;
+        dom.weatherChip.title = 'Météo du domaine · ' + (light === 'jour' ? 'jour' : light);
     }
 
     function renderFeed() {
@@ -1304,9 +1348,11 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects'].forEach(function (id) { dom[id] = $(id); });
+            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
+            'weatherChip', 'weatherLabel'].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
+        initAtmosphere();
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();
         bind();

@@ -7,6 +7,7 @@ import be.mjodheim.brewstead.entity.Crop;
 import be.mjodheim.brewstead.entity.PlayerField;
 import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.FieldStatus;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.mapper.FarmMapper;
 import be.mjodheim.brewstead.repository.CropRepository;
 import be.mjodheim.brewstead.repository.PlayerFieldRepository;
@@ -27,6 +28,7 @@ public class FarmService {
     private final CropRepository cropRepository;
     private final FarmMapper farmMapper;
     private final EffectService effectService;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<PlayerFieldResponse> findAllFields(Long id) {
@@ -85,6 +87,8 @@ public class FarmService {
         field.setCrop(null);
         field.setPlantedAt(null);
         field.setReadyAt(null);
+
+        progressionService.record(playerId, ProgressAction.HARVEST_FIELD);
 
         return farmMapper.toResponse(field);
     }

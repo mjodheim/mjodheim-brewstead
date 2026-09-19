@@ -38,6 +38,7 @@ class FarmServiceTest {
     @Mock CropRepository cropRepository;
     @Mock FarmMapper mapper;
     @Mock EffectService effectService;
+    @Mock ProgressionService progressionService;
     @InjectMocks FarmService service;
 
     @Test

@@ -6,6 +6,7 @@ import be.mjodheim.brewstead.entity.NpcOrderLine;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.enums.OrderStatus;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.mapper.NpcOrderMapper;
 import be.mjodheim.brewstead.repository.NpcOrderLineRepository;
 import be.mjodheim.brewstead.repository.NpcOrderRepository;
@@ -40,6 +41,7 @@ public class NpcOrderService {
     private final BrewService brewService;
     private final PlayerService playerService;
     private final NpcOrderMapper npcOrderMapper;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<NpcOrderResponse> findAllOrders(Long playerId) {
@@ -134,6 +136,7 @@ public class NpcOrderService {
                 order.getRewardReputation() * 5
         );
         order.setStatus(OrderStatus.COMPLETED);
+        progressionService.record(playerId, ProgressAction.COMPLETE_ORDER);
 
         return npcOrderMapper.toResponse(order, lines);
     }

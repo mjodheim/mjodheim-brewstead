@@ -7,6 +7,7 @@ import be.mjodheim.brewstead.entity.Ingredient;
 import be.mjodheim.brewstead.enums.BehiveStatus;
 import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.IngredientType;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.mapper.ApiaryMapper;
 import be.mjodheim.brewstead.repository.BeehiveRepository;
 import be.mjodheim.brewstead.repository.IngredientRepository;
@@ -31,6 +32,7 @@ public class ApiaryService {
     private final InventoryService inventoryService;
     private final ApiaryMapper apiaryMapper;
     private final EffectService effectService;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<BeehiveResponse> findAllHives(Long playerId) {
@@ -87,6 +89,8 @@ public class ApiaryService {
         hive.setStatus(BehiveStatus.IDLE);
         hive.setStartedAt(null);
         hive.setReadyAt(null);
+
+        progressionService.record(playerId, ProgressAction.HARVEST_HIVE);
 
         return apiaryMapper.toResponse(hive);
     }

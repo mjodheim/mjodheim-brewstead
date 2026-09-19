@@ -482,11 +482,12 @@ L'objectif n'est pas d'implémenter immédiatement toutes les mécaniques prévu
 
 ## 📌 État du projet
 
-**Phase actuelle : conception et architecture initiale.**
+**Phase actuelle : socle multijoueur jouable et progression persistante.**
 
-Premier objectif :
-
-> Mettre en place le projet Spring Boot, l'architecture trois tiers, les entités, les DTO et la persistance avant d'implémenter les premiers services métier.
+Le jeu comprend l'inscription sécurisée, la ferme, le rucher, la brasserie, les commandes PNJ,
+le marché entre joueurs, la taverne commune, le comptoir de dégustation, le classement,
+les objectifs quotidiens, les séries de visites et les hauts faits récompensés. L'interface du
+domaine adapte aussi sa météo et sa lumière, avec un mode de mouvement réduit.
 
 ---
 
@@ -953,11 +954,12 @@ The goal is not to implement every planned system immediately, but to build a sm
 
 ## 📌 Project status
 
-**Current phase: concept and initial architecture.**
+**Current phase: playable multiplayer foundation with persistent progression.**
 
-First objective:
-
-> Set up the Spring Boot project, three-tier architecture, entities, DTOs and persistence before implementing the first business services.
+The game now includes secure registration, farming, beekeeping, brewing, NPC orders,
+the player market, shared tavern and chat, tasting counter, leaderboard, daily quests,
+visit streaks and rewarded achievements. The estate also adapts its weather and lighting,
+including a reduced-motion mode.
 
 ---
 

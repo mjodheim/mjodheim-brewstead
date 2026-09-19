@@ -35,6 +35,7 @@ class ApiaryServiceTest {
     @Mock InventoryService inventoryService;
     @Mock ApiaryMapper mapper;
     @Mock EffectService effectService;
+    @Mock ProgressionService progressionService;
     @InjectMocks ApiaryService service;
 
     @Test

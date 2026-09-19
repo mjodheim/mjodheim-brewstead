@@ -41,6 +41,7 @@ class BrewServiceTest {
     @Mock InventoryService inventoryService;
     @Mock BrewMapper mapper;
     @Mock EffectService effectService;
+    @Mock ProgressionService progressionService;
     @InjectMocks BrewService service;
 
     @Test

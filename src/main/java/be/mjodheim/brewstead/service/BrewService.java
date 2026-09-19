@@ -11,6 +11,7 @@ import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.RecipeIngredient;
 import be.mjodheim.brewstead.enums.BatchStatus;
 import be.mjodheim.brewstead.enums.EffectKind;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.exception.InsufficientStockException;
 import be.mjodheim.brewstead.mapper.BrewMapper;
 import be.mjodheim.brewstead.repository.BatchRepository;
@@ -38,6 +39,7 @@ public class BrewService {
     private final InventoryService inventoryService;
     private final BrewMapper brewMapper;
     private final EffectService effectService;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<BatchResponse> findPlayerBatches(Long playerId) {
@@ -87,6 +89,8 @@ public class BrewService {
                         .quality(null)
                         .build()
         );
+
+        progressionService.record(playerId, ProgressAction.START_BATCH);
 
         return brewMapper.toResponse(batch);
     }

@@ -38,6 +38,7 @@ class PlayerOrderServiceTest {
     @Mock InventoryService inventoryService;
     @Mock PlayerService playerService;
     @Mock PlayerOrderMapper mapper;
+    @Mock ProgressionService progressionService;
     @InjectMocks PlayerOrderService service;
 
     @Test

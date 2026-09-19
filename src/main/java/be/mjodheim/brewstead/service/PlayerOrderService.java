@@ -9,6 +9,7 @@ import be.mjodheim.brewstead.entity.PlayerOrder;
 import be.mjodheim.brewstead.entity.PlayerOrderLine;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.enums.OrderStatus;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.mapper.PlayerOrderMapper;
 import be.mjodheim.brewstead.repository.IngredientRepository;
 import be.mjodheim.brewstead.repository.PlayerOrderLineRepository;
@@ -35,6 +36,7 @@ public class PlayerOrderService {
     private final InventoryService inventoryService;
     private final PlayerService playerService;
     private final PlayerOrderMapper playerOrderMapper;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<PlayerOrderResponse> findOpenOrders() {
@@ -113,6 +115,7 @@ public class PlayerOrderService {
         playerService.reward(fulfillerId, order.getRewardCoins(), 0, Math.max(1, order.getRewardCoins() / 25));
         order.setFulfilledBy(fulfiller);
         order.setStatus(OrderStatus.COMPLETED);
+        progressionService.record(fulfillerId, ProgressAction.PLAYER_TRADE);
 
         return playerOrderMapper.toResponse(order, lines);
     }

@@ -121,7 +121,7 @@ class PlayerServiceTest {
     @Test
     void rewardAppliesEffectsAndLevelsPlayer() {
         PlayerProfile player = player(7);
-        player.setExperience(95);
+        player.setExperience(995);
         when(playerProfileRepository.findById(7L)).thenReturn(Optional.of(player));
         when(effectService.boostCoins(7L, 100)).thenReturn(125);
         when(effectService.boostReputation(7L, 10)).thenReturn(15);
@@ -130,7 +130,7 @@ class PlayerServiceTest {
 
         assertEquals(625, player.getCoin());
         assertEquals(15, player.getReputation());
-        assertEquals(105, player.getExperience());
+        assertEquals(1005, player.getExperience());
         assertEquals(2, player.getLevel());
     }
 

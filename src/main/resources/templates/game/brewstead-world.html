@@ -110,7 +110,16 @@
                  th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
             <div class="world__markers" id="markers"></div>
         </div>
-        <div class="world__fx" aria-hidden="true"></div>
+        <div class="world__fx" aria-hidden="true">
+            <span class="weather weather--rain"></span>
+            <span class="weather weather--mist"></span>
+            <span class="water-shimmer"></span>
+            <span class="tavern-glow"></span>
+        </div>
+        <div class="weather-chip panel" id="weatherChip" aria-label="Ambiance du domaine">
+            <span class="weather-chip__symbol" aria-hidden="true"></span>
+            <span id="weatherLabel">Éclaircies</span>
+        </div>
         <div class="world__hint" id="worldHint">Glisse pour explorer le domaine</div>
     </div>
 

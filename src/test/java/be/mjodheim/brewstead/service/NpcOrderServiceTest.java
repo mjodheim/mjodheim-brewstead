@@ -36,6 +36,7 @@ class NpcOrderServiceTest {
     @Mock BrewService brewService;
     @Mock PlayerService playerService;
     @Mock NpcOrderMapper mapper;
+    @Mock ProgressionService progressionService;
     @InjectMocks NpcOrderService service;
 
     @Test

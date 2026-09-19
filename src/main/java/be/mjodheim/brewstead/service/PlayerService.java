@@ -20,6 +20,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PlayerService {
 
+    private static final int XP_PER_LEVEL = 1_000;
+
     private final PlayerProfileRepository playerProfileRepository;
     private final UserRepository userRepository;
     private final PlayerFieldRepository playerFieldRepository;
@@ -69,7 +71,7 @@ public class PlayerService {
         player.setCoin(player.getCoin() + effectService.boostCoins(playerId, coins));
         player.setReputation(player.getReputation() + effectService.boostReputation(playerId, reputation));
         player.setExperience(player.getExperience() + experience);
-        player.setLevel(Math.max(player.getLevel(), 1 + player.getExperience() / 100));
+        player.setLevel(Math.max(player.getLevel(), 1 + player.getExperience() / XP_PER_LEVEL));
 
         return playerMapper.toResponse(player);
     }

@@ -9,6 +9,7 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.TastingOffer;
 import be.mjodheim.brewstead.enums.BatchStatus;
+import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.exception.InsufficientCoinsException;
 import be.mjodheim.brewstead.repository.BatchRepository;
 import be.mjodheim.brewstead.repository.PlayerProfileRepository;
@@ -39,6 +40,7 @@ public class TastingCounterService {
     private final PlayerProfileRepository playerProfileRepository;
     private final PlayerService playerService;
     private final EffectService effectService;
+    private final ProgressionService progressionService;
 
     @Transactional
     public List<TastingOfferResponse> counter(Long viewerId) {
@@ -117,6 +119,7 @@ public class TastingCounterService {
 
         Recipe recipe = offer.getBatch().getRecipe();
         PlayerEffectResponse effect = effectService.grant(playerId, recipe);
+        progressionService.record(playerId, ProgressAction.TASTE_AT_TAVERN);
         return new TastingResponse(recipe.getName(), recipe.getFlavour(), effect);
     }
 

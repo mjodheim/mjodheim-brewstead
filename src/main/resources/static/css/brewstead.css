@@ -124,6 +124,51 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
             radial-gradient(100% 100% at 50% 50%, transparent 55%, rgba(12, 8, 3, .55) 100%);
 }
 
+.weather { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
+.weather--rain {
+    inset: -25%;
+    background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .28) 14px 15px, transparent 16px 28px);
+    background-size: 38px 38px;
+    animation: rain-drift .7s linear infinite;
+}
+.weather--mist {
+    inset: auto -20% 0;
+    height: 62%;
+    background: radial-gradient(ellipse at 25% 70%, rgba(220, 226, 216, .3), transparent 42%),
+                radial-gradient(ellipse at 70% 60%, rgba(210, 220, 214, .22), transparent 48%);
+    filter: blur(12px);
+    animation: mist-drift 18s ease-in-out infinite alternate;
+}
+.game[data-weather="pluie"] .weather--rain,
+.game[data-weather="brume"] .weather--mist { opacity: 1; }
+.water-shimmer {
+    position: absolute; left: 36%; right: 0; bottom: 0; height: 29%; opacity: .34;
+    background: repeating-radial-gradient(ellipse at 65% 120%, transparent 0 11px, rgba(205, 224, 213, .24) 12px 13px, transparent 14px 27px);
+    transform-origin: center bottom; animation: water-breathe 5.5s ease-in-out infinite alternate; mix-blend-mode: screen;
+}
+.tavern-glow {
+    position: absolute; left: 52%; top: 46%; width: 16%; height: 24%; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(255, 174, 64, .34), transparent 68%);
+    animation: hearth-flicker 3.8s ease-in-out infinite alternate; mix-blend-mode: screen;
+}
+.game[data-light="nuit"] .world__fx::after,
+.game[data-light="crepuscule"] .world__fx::after {
+    content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
+}
+.game[data-light="crepuscule"] .world__fx::after { background: rgba(72, 38, 45, .22); }
+.weather-chip {
+    position: absolute; z-index: 8; left: 1.1em; top: 6.2em; display: flex; align-items: center; gap: .5em;
+    padding: .45em .75em; color: var(--cream-dim); font: 500 .78em "Cinzel", serif; letter-spacing: .03em; pointer-events: none;
+}
+.weather-chip__symbol { width: .65em; height: .65em; border-radius: 50%; background: #d6c58e; box-shadow: 0 0 .8em #e9bc55; }
+.game[data-weather="pluie"] .weather-chip__symbol { border-radius: 60% 40% 60% 40%; background: #8eb5c7; box-shadow: 0 0 .7em #75a9c2; transform: rotate(45deg); }
+.game[data-weather="brume"] .weather-chip__symbol { width: 1em; height: .35em; border-radius: 99px; background: #bac1b7; box-shadow: 0 .35em 0 rgba(186, 193, 183, .6); }
+
+@keyframes rain-drift { to { transform: translate3d(-25px, 38px, 0); } }
+@keyframes mist-drift { to { transform: translate3d(8%, -2%, 0) scale(1.08); } }
+@keyframes water-breathe { to { transform: translateY(5px) scaleX(1.025); opacity: .52; } }
+@keyframes hearth-flicker { 35% { opacity: .55; transform: scale(.96); } 70% { opacity: .9; transform: scale(1.04); } }
+
 .world__hint {
     position: absolute;
     left: 50%;
@@ -806,9 +851,30 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 :root[data-mouvement="sobre"] .marker__plate { transition-duration: .01ms; }
 
 :root[data-mouvement="sobre"] .marker[data-state="ready"] .marker__pin,
-:root[data-mouvement="sobre"] .gate { animation: none; }
+:root[data-mouvement="sobre"] .gate,
+:root[data-mouvement="sobre"] .weather,
+:root[data-mouvement="sobre"] .water-shimmer,
+:root[data-mouvement="sobre"] .tavern-glow { animation: none; }
 
 :root[data-ambiance="non"] .world__fx { display: none; }
+
+.progression-summary {
+    display: flex; justify-content: space-between; gap: 1em; padding: .85em 1em;
+    border: 1px solid rgba(111, 80, 37, .35); border-radius: .7em; background: rgba(111, 80, 37, .08);
+}
+.progression-summary strong { color: #765019; }
+.progression-summary span { color: var(--ink-soft); }
+.achievements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65em; }
+.achievement {
+    display: grid; grid-template-columns: 2.2em 1fr; gap: .7em; padding: .8em;
+    border: 1px solid rgba(80, 60, 35, .24); border-radius: .7em; background: rgba(90, 65, 32, .06); opacity: .72;
+}
+.achievement.is-unlocked { opacity: 1; border-color: rgba(159, 111, 27, .55); background: rgba(215, 170, 70, .12); }
+.achievement__icon { width: 2em; height: 2em; color: #8a6417; }
+.achievement strong, .achievement small, .achievement em { display: block; }
+.achievement small { margin: .15em 0 .5em; color: var(--ink-soft); }
+.achievement .bar { height: .42em; }
+.achievement em { margin-top: .35em; font-size: .75em; color: var(--ink-soft); font-style: normal; }
 
 .choices { display: flex; flex-wrap: wrap; gap: .5em; }
 
@@ -1183,6 +1249,8 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     .dock__tab span { display: none; }
     .dock__tab { min-width: 0; flex: 1; padding: .7em .4em; }
     .screen__sheet { max-height: 92vh; }
+    .achievements { grid-template-columns: 1fr; }
+    .weather-chip { top: auto; bottom: 5.5em; left: .6em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

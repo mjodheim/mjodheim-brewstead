@@ -39,6 +39,7 @@ class TastingCounterServiceTest {
     @Mock PlayerProfileRepository playerRepository;
     @Mock PlayerService playerService;
     @Mock EffectService effectService;
+    @Mock ProgressionService progressionService;
     @InjectMocks TastingCounterService service;
 
     @Test

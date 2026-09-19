@@ -119,6 +119,18 @@ class PlayerServiceTest {
     }
 
     @Test
+    void refundReturnsExactlyTheEscrowWithoutRewardBonuses() {
+        PlayerProfile player = player(7);
+        player.setCoin(100);
+        when(playerProfileRepository.findById(7L)).thenReturn(Optional.of(player));
+        service.spendCoins(7L, 40);
+        service.refundCoins(7L, 40);
+        assertEquals(100, player.getCoin());
+        verifyNoInteractions(effectService);
+        assertThrows(IllegalArgumentException.class, () -> service.refundCoins(7L, -1));
+    }
+
+    @Test
     void rewardAppliesEffectsAndLevelsPlayer() {
         PlayerProfile player = player(7);
         player.setExperience(995);

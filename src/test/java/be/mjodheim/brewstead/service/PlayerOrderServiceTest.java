@@ -156,7 +156,7 @@ class PlayerOrderServiceTest {
 
         service.cancelOrder(10L, 1L);
 
-        verify(playerService).reward(1L, 90, 0, 0);
+        verify(playerService).refundCoins(1L, 90);
         assertEquals(OrderStatus.CANCELED, order.getStatus());
     }
 
@@ -171,7 +171,7 @@ class PlayerOrderServiceTest {
         assertTrue(service.findOpenOrders().isEmpty());
 
         assertEquals(OrderStatus.EXPIRED, expired.getStatus());
-        verify(playerService).reward(1L, 80, 0, 0);
+        verify(playerService).refundCoins(1L, 80);
     }
 
     @Test

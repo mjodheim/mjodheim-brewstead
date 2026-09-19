@@ -62,6 +62,14 @@ public class PlayerService {
     }
 
     @Transactional
+    public void refundCoins(Long playerId, int amount) {
+        if (amount <= 0) throw new IllegalArgumentException("Refund must be greater than zero");
+        PlayerProfile player = getPlayerEntity(playerId);
+        // Restituer une mise n'est pas un gain : aucun bonus ne doit s'appliquer.
+        player.setCoin(Math.addExact(player.getCoin(), amount));
+    }
+
+    @Transactional
     public PlayerProfileResponse reward(Long playerId, int coins, int reputation, int experience) {
         if (coins < 0 || reputation < 0 || experience < 0) {
             throw new IllegalArgumentException("Rewards cannot be negative");

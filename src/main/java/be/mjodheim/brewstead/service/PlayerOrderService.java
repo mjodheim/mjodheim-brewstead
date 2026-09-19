@@ -132,7 +132,7 @@ public class PlayerOrderService {
             throw new IllegalStateException("Player order cannot be cancelled");
         }
 
-        playerService.reward(creatorId, order.getRewardCoins(), 0, 0);
+        playerService.refundCoins(creatorId, order.getRewardCoins());
         order.setStatus(OrderStatus.CANCELED);
         return toResponse(order);
     }
@@ -235,7 +235,7 @@ public class PlayerOrderService {
         if ((order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
                 && !LocalDateTime.now().isBefore(order.getExpiresAt())) {
             order.setStatus(OrderStatus.EXPIRED);
-            playerService.reward(order.getCreator().getId(), order.getRewardCoins(), 0, 0);
+            playerService.refundCoins(order.getCreator().getId(), order.getRewardCoins());
         }
     }
 }

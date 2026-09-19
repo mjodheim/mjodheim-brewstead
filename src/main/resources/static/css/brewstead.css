@@ -142,11 +142,13 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .game[data-weather="pluie"] .weather--rain,
 .game[data-weather="brume"] .weather--mist { opacity: 1; }
 .water-shimmer {
+    pointer-events: none;
     position: absolute; left: 36%; right: 0; bottom: 0; height: 29%; opacity: .34;
     background: repeating-radial-gradient(ellipse at 65% 120%, transparent 0 11px, rgba(205, 224, 213, .24) 12px 13px, transparent 14px 27px);
     transform-origin: center bottom; animation: water-breathe 5.5s ease-in-out infinite alternate; mix-blend-mode: screen;
 }
 .tavern-glow {
+    pointer-events: none;
     position: absolute; left: 52%; top: 46%; width: 16%; height: 24%; border-radius: 50%;
     background: radial-gradient(ellipse, rgba(255, 174, 64, .34), transparent 68%);
     animation: hearth-flicker 3.8s ease-in-out infinite alternate; mix-blend-mode: screen;
@@ -162,7 +164,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
 .game[data-theme="solstice"] .tavern-glow { width: 22%; height: 30%; opacity: .9; }
-.weather-chip {
+.weather-chip.panel {
     position: absolute; z-index: 8; left: 1.1em; top: 6.2em; display: flex; align-items: center; gap: .5em;
     padding: .45em .75em; color: var(--cream-dim); font: 500 .78em "Cinzel", serif; letter-spacing: .03em; pointer-events: none;
 }
@@ -773,7 +775,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     z-index: 40;
     display: grid;
     place-items: center;
-    padding: 1.2em;
+    padding: 1.2em 1.2em 7em;
     font-size: var(--ui);
     background: rgba(8, 5, 2, .62);
     backdrop-filter: blur(6px);
@@ -786,7 +788,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .screen__sheet {
     width: min(58em, 100%);
-    max-height: min(46em, 88vh);
+    max-height: min(46em, calc(100dvh - 8.2em));
     display: flex;
     flex-direction: column;
     padding: 0;
@@ -1031,6 +1033,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .chat__compose { display: flex; gap: .5em; margin-top: 1em; }
 
 .chat__compose input {
+    min-width: 0;
     flex: 1;
     padding: .65em .8em;
     font: inherit;
@@ -1277,10 +1280,10 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     .dock { left: .6em; right: .6em; bottom: .6em; transform: none; max-width: none; }
     .dock__tab span { display: none; }
     .dock__tab { min-width: 0; flex: 1; padding: .7em .4em; }
-    .screen__sheet { max-height: 92vh; }
+    .screen__sheet { max-height: calc(100dvh - 8.2em); }
     .achievements { grid-template-columns: 1fr; }
     .specializations { grid-template-columns: 1fr; }
-    .weather-chip { top: auto; bottom: 5.5em; left: .6em; }
+    .weather-chip.panel { top: auto; bottom: 5.5em; left: .6em; }
 }
 
 @media (prefers-reduced-motion: reduce) {

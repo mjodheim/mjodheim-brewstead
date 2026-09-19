@@ -17,7 +17,7 @@
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
-    var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '' };
+    var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '', connectionError: '' };
     var refreshJob = null;
     var mutationPending = false;
     var offerDraft = null;      // { batchId, recipeName }
@@ -732,7 +732,7 @@
             '<div class="chat__compose">' +
             '<input id="chatInput" aria-label="Ton message" type="text" maxlength="280" value="' + esc(tavern.draft) + '" placeholder="Dire quelque chose à la salle…" autocomplete="off">' +
             '<button class="btn btn--gold" type="button" data-action="chat-send"' + (tavern.sending ? ' disabled' : '') + '>' + (tavern.sending ? 'Envoi…' : 'Parler') + '</button>' +
-            '</div><p class="chat__status" role="status">' + esc(tavern.error) + '</p>';
+            '</div><p class="chat__status" role="status">' + esc(tavern.error || tavern.connectionError) + '</p>';
     }
 
     function renderCounter(s) {
@@ -868,13 +868,13 @@
             : Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers; });
 
         tavern.requests[tab] = job.then(function () {
-            tavern.error = '';
+            tavern.connectionError = '';
             if (activeView === 'taverne' && tavern.tab === tab) {
                 renderScreen();
                 if (atBottom || force) scrollChat();
             }
         }).catch(function (error) {
-            tavern.error = 'Connexion interrompue. Nouvelle tentative automatique…';
+            tavern.connectionError = 'Connexion interrompue. Nouvelle tentative automatique…';
             if (error.sessionExpired) showFault(error);
             if (activeView === 'taverne' && tavern.tab === tab) renderScreen();
         }).finally(function () { delete tavern.requests[tab]; });
@@ -889,7 +889,9 @@
     function watchTavern(on) {
         clearInterval(tavern.timer);
         tavern.timer = null;
-        if (on) tavern.timer = setInterval(function () { loadTavern(false); }, 4000);
+        if (on) tavern.timer = setInterval(function () {
+            if (!document.hidden) loadTavern(false);
+        }, 4000);
     }
 
     function runAction(action, id) {

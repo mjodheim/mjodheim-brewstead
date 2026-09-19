@@ -41,6 +41,8 @@ class BrewsteadUiIntegrationTest {
     @Autowired BatchRepository batchRepository;
     @Autowired TavernMessageRepository tavernMessageRepository;
     @Autowired PlayerProgressRepository progressRepository;
+    @Autowired IngredientRepository ingredientRepository;
+    @Autowired PlayerOrderRepository orderRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -117,11 +119,15 @@ class BrewsteadUiIntegrationTest {
                     .getSpecialization().name());
             screenshot(driver, "02-progression-desktop.png");
 
-            ((JavascriptExecutor) driver).executeScript(
-                    "document.documentElement.dataset.mouvement='sobre'");
+            click(driver, wait, By.id("screenClose"));
+            click(driver, wait, By.id("settingsBtn"));
+            click(driver, wait, By.cssSelector("[data-action='open-settings']"));
+            click(driver, wait, By.cssSelector("[data-action='set-mouvement'][data-id='sobre']"));
             String animation = driver.findElement(By.cssSelector(".water-shimmer"))
                     .getCssValue("animation-name");
             assertEquals("none", animation);
+
+            click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
 
             driver.manage().window().setSize(new Dimension(390, 844));
             assertFalse(driver.findElement(By.id("quest")).isDisplayed());
@@ -235,7 +241,7 @@ class BrewsteadUiIntegrationTest {
             assertEquals("Un message rédigé lentement", draft.getDomProperty("value"));
             draft.sendKeys(Keys.ENTER);
             b.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Un message rédigé lentement"));
-            a.until(ExpectedConditions.attributeToBe(By.id("chatInput"), "value", ""));
+            a.until(d -> d.findElement(By.id("chatInput")).getDomProperty("value").isEmpty());
 
             // Panne réseau à l'envoi : conserver le texte et rendre le bouton réutilisable.
             ((JavascriptExecutor) alice).executeScript("""
@@ -264,6 +270,33 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1L, tavernMessageRepository.findAll().stream()
                     .filter(message -> "Message depuis le mobile".equals(message.getBody())).count());
             screenshot(alice, "05-chat-mobile.png");
+
+            // Une vraie commande entre joueurs, publiée et livrée par l'interface.
+            alice.manage().window().setSize(new Dimension(1440, 1000));
+            click(alice, a, By.cssSelector(".dock__tab[data-view='commandes']"));
+            click(alice, a, By.cssSelector("[data-action='new-order']"));
+            alice.findElement(By.id("pickerSearch")).sendKeys("Eau de source");
+            var water = ingredientRepository.findByNameIgnoreCase("Eau de source").orElseThrow();
+            click(alice, a, By.cssSelector("[data-action='pick-order-ingredient'][data-id='" + water.getId() + "']"));
+            WebElement quantity = alice.findElement(By.id("orderQty"));
+            quantity.clear();
+            quantity.sendKeys("2");
+            WebElement reward = alice.findElement(By.id("orderReward"));
+            reward.clear();
+            reward.sendKeys("20");
+            int coins = profile("ui_chat_alice").getCoin();
+            click(alice, a, By.cssSelector("[data-action='order-confirm']"));
+            a.until(d -> !orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).isEmpty());
+            var order = orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).getFirst();
+            assertEquals(coins - 20, profile("ui_chat_alice").getCoin());
+            click(bob, b, By.cssSelector(".dock__tab[data-view='commandes']"));
+            By deliver = By.cssSelector("[data-action='fulfill-order'][data-id='" + order.getId() + "']");
+            new WebDriverWait(bob, Duration.ofSeconds(30)).until(ExpectedConditions.elementToBeClickable(deliver));
+            click(bob, b, deliver);
+            b.until(d -> orderRepository.findById(order.getId()).orElseThrow().getStatus()
+                    == be.mjodheim.brewstead.enums.OrderStatus.COMPLETED);
+            screenshot(bob, "06-market-delivered.png");
+            click(alice, a, By.cssSelector(".dock__tab[data-view='taverne']"));
 
             alice.findElement(By.id("chatInput")).sendKeys("Brouillon à conserver");
             click(alice, a, By.cssSelector(".dock__tab[data-view='monde']"));

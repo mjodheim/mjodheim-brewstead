@@ -2,13 +2,16 @@ package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.progression.*;
 import be.mjodheim.brewstead.entity.*;
-import be.mjodheim.brewstead.enums.ProgressAction;
+import be.mjodheim.brewstead.enums.*;
 import be.mjodheim.brewstead.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.function.ToLongFunction;
 
@@ -20,6 +23,12 @@ public class ProgressionService {
     private static final int DAILY_TARGET = 3;
     private static final int DAILY_COINS = 75;
     private static final int DAILY_XP = 100;
+    private static final LocalDate SEASON_EPOCH = LocalDate.of(2026, 1, 1);
+    private static final int SEASON_DAYS = 28;
+    private static final List<Integer> SEASON_MILESTONES = List.of(10, 30, 75);
+    private static final int[] SEASON_COINS = {100, 250, 600};
+    private static final int[] SEASON_XP = {100, 300, 750};
+    private static final long COMMUNITY_TARGET = 500;
 
     private final PlayerProgressRepository progressRepository;
     private final PlayerAchievementRepository achievementRepository;
@@ -50,6 +59,7 @@ public class ProgressionService {
             progress.setLastVisitDate(today);
         }
         prepareDaily(progress, today);
+        prepareSeason(progress, today);
         unlockEligible(progress);
         return toResponse(progress);
     }
@@ -60,6 +70,7 @@ public class ProgressionService {
         increment(progress, action);
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         prepareDaily(progress, today);
+        prepareSeason(progress, today);
         if (progress.getDailyAction() == action && !progress.isDailyClaimed()) {
             progress.setDailyProgress(Math.min(DAILY_TARGET, progress.getDailyProgress() + 1));
             if (progress.getDailyProgress() >= DAILY_TARGET) {
@@ -67,7 +78,51 @@ public class ProgressionService {
                 reward(progress.getPlayer(), DAILY_COINS, DAILY_XP);
             }
         }
+        progress.setSeasonPoints(progress.getSeasonPoints() + seasonValue(action));
+        rewardSeasonMilestones(progress);
         unlockEligible(progress);
+    }
+
+    @Transactional
+    public ProgressionResponse chooseSpecialization(Long playerId, String raw) {
+        PlayerProgress progress = getOrCreate(playerId);
+        if (progress.getPlayer().getLevel() < 2) {
+            throw new IllegalStateException("La spécialisation se débloque au niveau 2.");
+        }
+        Specialization choice = parseSpecialization(raw);
+        if (progress.getSpecialization() != null && progress.getSpecialization() != choice) {
+            throw new IllegalStateException("La spécialisation du domaine est définitive.");
+        }
+        progress.setSpecialization(choice);
+        return visit(playerId);
+    }
+
+    @Transactional
+    public ProgressionResponse chooseTheme(Long playerId, String raw) {
+        PlayerProgress progress = getOrCreate(playerId);
+        try {
+            progress.setEstateTheme(EstateTheme.valueOf(raw.trim().toUpperCase(Locale.ROOT)));
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("Thème inconnu.");
+        }
+        return visit(playerId);
+    }
+
+    @Transactional
+    public BigDecimal harvestYield(Long playerId, BigDecimal base) {
+        if (getOrCreate(playerId).getSpecialization() != Specialization.CULTIVATEUR) return base;
+        return base.multiply(new BigDecimal("1.15")).setScale(base.scale(), RoundingMode.HALF_UP);
+    }
+
+    @Transactional
+    public int brewingQualityBonus(Long playerId) {
+        return getOrCreate(playerId).getSpecialization() == Specialization.BRASSEUR ? 5 : 0;
+    }
+
+    @Transactional
+    public int npcCoinReward(Long playerId, int base) {
+        return getOrCreate(playerId).getSpecialization() == Specialization.MARCHAND
+                ? Math.round(base * 1.10f) : base;
     }
 
     private PlayerProgress getOrCreate(Long playerId) {
@@ -89,6 +144,51 @@ public class ProgressionService {
         progress.setDailyAction(rotation[Math.floorMod(today.getDayOfYear(), rotation.length)]);
         progress.setDailyProgress(0);
         progress.setDailyClaimed(false);
+    }
+
+    private void prepareSeason(PlayerProgress progress, LocalDate today) {
+        String key = seasonKey(today);
+        if (key.equals(progress.getSeasonKey())) return;
+        progress.setSeasonKey(key);
+        progress.setSeasonPoints(0);
+        progress.setSeasonRewardTier(0);
+    }
+
+    private String seasonKey(LocalDate date) {
+        long cycle = Math.floorDiv(ChronoUnit.DAYS.between(SEASON_EPOCH, date), SEASON_DAYS);
+        return "S" + cycle;
+    }
+
+    private LocalDate seasonEnds(LocalDate date) {
+        long elapsed = ChronoUnit.DAYS.between(SEASON_EPOCH, date);
+        long cycle = Math.floorDiv(elapsed, SEASON_DAYS);
+        return SEASON_EPOCH.plusDays((cycle + 1) * SEASON_DAYS - 1);
+    }
+
+    private int seasonValue(ProgressAction action) {
+        return switch (action) {
+            case HARVEST_FIELD, HARVEST_HIVE -> 2;
+            case START_BATCH -> 3;
+            case COMPLETE_ORDER, PLAYER_TRADE -> 5;
+            case TASTE_AT_TAVERN -> 1;
+        };
+    }
+
+    private void rewardSeasonMilestones(PlayerProgress progress) {
+        while (progress.getSeasonRewardTier() < SEASON_MILESTONES.size()
+                && progress.getSeasonPoints() >= SEASON_MILESTONES.get(progress.getSeasonRewardTier())) {
+            int tier = progress.getSeasonRewardTier();
+            reward(progress.getPlayer(), SEASON_COINS[tier], SEASON_XP[tier]);
+            progress.setSeasonRewardTier(tier + 1);
+        }
+    }
+
+    private Specialization parseSpecialization(String raw) {
+        try {
+            return Specialization.valueOf(raw.trim().toUpperCase(Locale.ROOT));
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("Spécialisation inconnue.");
+        }
     }
 
     private void increment(PlayerProgress p, ProgressAction action) {
@@ -125,7 +225,23 @@ public class ProgressionService {
         List<AchievementResponse> achievements = ACHIEVEMENTS.stream().map(a -> new AchievementResponse(
                 a.code(), a.title(), a.description(), a.counter().applyAsLong(progress), a.target(),
                 a.coins(), a.xp(), unlocked.containsKey(a.code()), unlocked.get(a.code()))).toList();
-        return new ProgressionResponse(progress.getVisitStreak(), daily(progress), achievements);
+        List<SpecializationResponse> specializations = Arrays.stream(Specialization.values())
+                .map(value -> new SpecializationResponse(value.name(), value.getLabel(), value.getDescription(),
+                        value == progress.getSpecialization())).toList();
+        List<ThemeResponse> themes = Arrays.stream(EstateTheme.values())
+                .map(value -> new ThemeResponse(value.name(), value.getLabel(), value == progress.getEstateTheme())).toList();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        SeasonResponse season = new SeasonResponse(progress.getSeasonKey(), seasonName(today), seasonEnds(today),
+                progress.getSeasonPoints(), progress.getSeasonRewardTier(), SEASON_MILESTONES,
+                progressRepository.sumSeasonPoints(progress.getSeasonKey()), COMMUNITY_TARGET);
+        return new ProgressionResponse(progress.getVisitStreak(), daily(progress), achievements,
+                specializations, themes, season);
+    }
+
+    private String seasonName(LocalDate today) {
+        String[] names = {"Saison des Semis", "Saison du Soleil", "Saison des Brumes", "Saison des Veillées"};
+        long cycle = Math.floorDiv(ChronoUnit.DAYS.between(SEASON_EPOCH, today), SEASON_DAYS);
+        return names[Math.floorMod((int) cycle, names.length)];
     }
 
     private DailyQuestResponse daily(PlayerProgress progress) {

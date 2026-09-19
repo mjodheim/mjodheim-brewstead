@@ -81,7 +81,8 @@ public class ApiaryService {
         Ingredient honey = ingredientRepository.findFirstByType(IngredientType.HONEY)
                 .orElseThrow(() -> new IllegalStateException("Honey ingredient is not configured"));
 
-        BigDecimal quantity = BASE_HONEY_YIELD.multiply(BigDecimal.valueOf(Math.max(1, hive.getLevel())));
+        BigDecimal quantity = progressionService.harvestYield(playerId,
+                BASE_HONEY_YIELD.multiply(BigDecimal.valueOf(Math.max(1, hive.getLevel()))));
         inventoryService.addIngredient(
                 new IngredientRequest(hive.getPlayer().getId(), honey.getId(), quantity)
         );

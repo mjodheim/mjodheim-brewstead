@@ -542,10 +542,34 @@
                 var achievementBlock = '';
                 if (progression) {
                     var unlocked = progression.achievements.filter(function (a) { return a.unlocked; }).length;
-                    achievementBlock = '<div class="progression-summary">' +
+                    var season = progression.season;
+                    var selectedSpec = progression.specializations.find(function (spec) { return spec.selected; });
+                    var seasonNext = season.milestones.find(function (value) { return value > season.points; }) || season.milestones[season.milestones.length - 1];
+                    var seasonBlock = '<section class="season-card">' +
+                        '<div><small>Saison en cours · jusqu’au ' + esc(new Date(season.endsOn + 'T12:00:00').toLocaleDateString('fr-FR')) + '</small>' +
+                        '<h3>' + esc(season.name) + '</h3></div>' +
+                        '<strong>' + season.points + ' sceaux</strong>' +
+                        '<div class="season-card__track"><span style="width:' + Math.min(100, season.points / seasonNext * 100) + '%"></span></div>' +
+                        '<small>Palier personnel ' + season.rewardTier + '/' + season.milestones.length +
+                        ' · effort du fjord ' + season.communityPoints + '/' + season.communityTarget + '</small></section>';
+                    var specializationBlock = '<p class="section-title">Spécialisation du domaine</p>' +
+                        '<div class="specializations">' + progression.specializations.map(function (spec) {
+                            var locked = !!selectedSpec && !spec.selected;
+                            var lowLevel = !selectedSpec && s.player.level < 2;
+                            return '<button class="specialization' + (spec.selected ? ' is-selected' : '') + '" type="button"' +
+                                (locked || lowLevel ? ' disabled' : '') + ' data-action="choose-specialization" data-id="' + spec.code + '">' +
+                                '<strong>' + esc(spec.label) + '</strong><small>' + esc(spec.description) + '</small>' +
+                                '<em>' + (spec.selected ? 'Spécialité active' : (lowLevel ? 'Disponible au niveau 2' : 'Choisir définitivement')) + '</em></button>';
+                        }).join('') + '</div>';
+                    var themesBlock = '<p class="section-title">Ambiance du domaine</p><div class="theme-picker">' +
+                        progression.themes.map(function (theme) {
+                            return '<button type="button" class="theme-choice' + (theme.selected ? ' is-selected' : '') +
+                                '" data-action="choose-theme" data-id="' + theme.code + '">' + esc(theme.label) + '</button>';
+                        }).join('') + '</div>';
+                    achievementBlock = seasonBlock + '<div class="progression-summary">' +
                         '<strong>' + progression.visitStreak + ' jour' + (progression.visitStreak > 1 ? 's' : '') + ' de série</strong>' +
                         '<span>' + unlocked + '/' + progression.achievements.length + ' hauts faits</span></div>' +
-                        '<p class="section-title">Hauts faits</p>' +
+                        specializationBlock + themesBlock + '<p class="section-title">Hauts faits</p>' +
                         '<div class="achievements">' + progression.achievements.map(function (achievement) {
                             var value = Math.min(achievement.progress, achievement.target);
                             return '<article class="achievement' + (achievement.unlocked ? ' is-unlocked' : '') + '">' +
@@ -759,10 +783,10 @@
         field.setSelectionRange(field.value.length, field.value.length);
     }
 
-    function send(url, body, onDone) {
+    function send(url, body, onDone, method) {
         var headers = csrfHeaders();
         if (body !== undefined) headers['Content-Type'] = 'application/json';
-        return Data.postJson(url, body, headers)
+        return Data.postJson(url, body, headers, method || 'POST')
             .then(function (payload) { return refresh().then(function () { onDone(payload); }); })
             .catch(function (error) {
                 if (error.sessionExpired) showFault(error);
@@ -830,6 +854,21 @@
         }
 
         if (action === 'orders-tab') { orders.tab = id; renderScreen(); return; }
+
+        if (action === 'choose-specialization') {
+            send('/api/progression/specialization', { specialization: id }, function () {
+                toast('Ton domaine a choisi sa voie.');
+            });
+            return;
+        }
+
+        if (action === 'choose-theme') {
+            send('/api/progression/theme', { theme: id }, function () {
+                applyProgressionStyle();
+                toast('Ambiance du domaine mise à jour.');
+            }, 'PUT');
+            return;
+        }
 
         if (action === 'new-order') {
             orders.ingredient = null;
@@ -1149,6 +1188,7 @@
     function render() {
         if (!accountDraft) accountDraft = { avatar: null, displayName: null };
         renderPlayer();
+        applyProgressionStyle();
         renderResources();
         renderEffects();
         renderQuest();
@@ -1156,6 +1196,12 @@
         renderMarkers();
         renderPlace();
         if (activeView !== 'monde') renderScreen();
+    }
+
+    function applyProgressionStyle() {
+        if (!state || !state.progression) return;
+        var selected = state.progression.themes.find(function (theme) { return theme.selected; });
+        dom.game.dataset.theme = selected ? selected.code.toLowerCase() : 'nordique';
     }
 
     /* --------------------------------------------------------- Navigation */

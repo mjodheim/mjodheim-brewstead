@@ -49,6 +49,7 @@ class GameJourneyIntegrationTest {
     @Autowired TastingOfferRepository tastingOfferRepository;
     @Autowired PlayerOrderRepository playerOrderRepository;
     @Autowired TavernMessageRepository tavernMessageRepository;
+    @Autowired PlayerProgressRepository progressRepository;
 
     @Test
     void fullTwoPlayerJourneyUsesRealPostgresAndSecurity() throws Exception {
@@ -64,6 +65,27 @@ class GameJourneyIntegrationTest {
 
         PlayerProfile alphaPlayer = profile(alphaName);
         PlayerProfile betaPlayer = profile(betaName);
+
+        alphaPlayer.setLevel(2);
+        playerRepository.save(alphaPlayer);
+
+        mockMvc.perform(post("/api/progression/specialization")
+                        .session(alpha).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"specialization\":\"BRASSEUR\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.specializations[1].selected").value(true));
+
+        mockMvc.perform(put("/api/progression/theme")
+                        .session(alpha).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"theme\":\"HIVER\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.themes[2].selected").value(true))
+                .andExpect(jsonPath("$.season.milestones.length()").value(3));
+
+        assertEquals("BRASSEUR", progressRepository.findByPlayerId(alphaPlayer.getId())
+                .orElseThrow().getSpecialization().name());
 
         mockMvc.perform(get("/api/account/me").session(alpha))
                 .andExpect(status().isOk())

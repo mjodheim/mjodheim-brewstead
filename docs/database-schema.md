@@ -32,6 +32,11 @@ erDiagram
         String daily_action
         int daily_progress
         boolean daily_claimed
+        String specialization
+        String estate_theme
+        String season_key
+        int season_points
+        int season_reward_tier
     }
 
     PLAYER_ACHIEVEMENT {

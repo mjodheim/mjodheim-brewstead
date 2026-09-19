@@ -19,6 +19,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 import java.time.Duration;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
@@ -36,6 +38,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired BeehiveRepository hiveRepository;
     @Autowired BatchRepository batchRepository;
     @Autowired TavernMessageRepository tavernMessageRepository;
+    @Autowired PlayerProgressRepository progressRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -88,8 +91,39 @@ class BrewsteadUiIntegrationTest {
             assertEquals("true", driver.findElement(By.id("fault")).getAttribute("aria-hidden"));
             assertEquals(5, driver.findElements(By.cssSelector("#resources .resource")).size());
             assertEquals(7, driver.findElements(By.cssSelector("#markers .marker")).size());
+            screenshot(driver, "01-domain-desktop.png");
 
             PlayerProfile profile = profile(username);
+            profile.setLevel(2);
+            playerRepository.save(profile);
+            driver.navigate().refresh();
+            wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
+
+            click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            waitForScreen(wait, "Renommée & hauts faits");
+            assertEquals(3, driver.findElements(By.cssSelector(".specialization")).size());
+            assertEquals(4, driver.findElements(By.cssSelector(".theme-choice")).size());
+            assertTrue(driver.findElement(By.cssSelector(".season-card")).isDisplayed());
+            click(driver, wait, By.cssSelector("[data-action='choose-specialization'][data-id='CULTIVATEUR']"));
+            wait.until(ExpectedConditions.attributeContains(
+                    By.cssSelector("[data-action='choose-specialization'][data-id='CULTIVATEUR']"), "class", "is-selected"));
+            click(driver, wait, By.cssSelector("[data-action='choose-theme'][data-id='HIVER']"));
+            wait.until(ExpectedConditions.attributeToBe(By.id("game"), "data-theme", "hiver"));
+            assertEquals("CULTIVATEUR", progressRepository.findByPlayerId(profile.getId()).orElseThrow()
+                    .getSpecialization().name());
+            screenshot(driver, "02-progression-desktop.png");
+
+            ((JavascriptExecutor) driver).executeScript(
+                    "document.documentElement.dataset.mouvement='sobre'");
+            String animation = driver.findElement(By.cssSelector(".water-shimmer"))
+                    .getCssValue("animation-name");
+            assertEquals("none", animation);
+
+            driver.manage().window().setSize(new Dimension(390, 844));
+            assertFalse(driver.findElement(By.id("quest")).isDisplayed());
+            assertTrue(driver.findElement(By.id("dock")).isDisplayed());
+            screenshot(driver, "03-progression-mobile.png");
+            driver.manage().window().setSize(new Dimension(1440, 1000));
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='inventaire']"));
             waitForScreen(wait, "Entrepôt");
@@ -192,5 +226,15 @@ class BrewsteadUiIntegrationTest {
                 .toList();
 
         assertTrue(errors.isEmpty(), "Erreurs JavaScript détectées : " + errors);
+    }
+
+    private void screenshot(WebDriver driver, String name) {
+        try {
+            Path directory = Path.of("target", "playtest");
+            Files.createDirectories(directory);
+            Files.write(directory.resolve(name), ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES));
+        } catch (Exception failure) {
+            fail("Capture du playtest impossible : " + failure.getMessage());
+        }
     }
 }

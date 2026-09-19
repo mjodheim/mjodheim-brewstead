@@ -130,6 +130,7 @@ class NpcOrderServiceTest {
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
         when(lineRepository.findAllByOrderId(10L)).thenReturn(List.of(line));
 
+        when(progressionService.npcCoinReward(1L, 120)).thenReturn(120);
         service.completeOrder(1L, 10L);
 
         verify(brewService).consumeReadyProduct(1L, 20L, BigDecimal.valueOf(3), 70);

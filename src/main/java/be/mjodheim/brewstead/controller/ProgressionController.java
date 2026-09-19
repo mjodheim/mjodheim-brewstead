@@ -1,6 +1,7 @@
 package be.mjodheim.brewstead.controller;
 
-import be.mjodheim.brewstead.dto.progression.ProgressionResponse;
+import be.mjodheim.brewstead.dto.progression.*;
+import jakarta.validation.Valid;
 import be.mjodheim.brewstead.service.CurrentPlayerService;
 import be.mjodheim.brewstead.service.ProgressionService;
 import lombok.RequiredArgsConstructor;
@@ -18,5 +19,17 @@ public class ProgressionController {
     @GetMapping
     public ProgressionResponse progression(Principal principal) {
         return progressionService.visit(currentPlayer.id(principal));
+    }
+
+    @PostMapping("/specialization")
+    public ProgressionResponse chooseSpecialization(Principal principal,
+                                                     @Valid @RequestBody ChooseSpecializationRequest request) {
+        return progressionService.chooseSpecialization(currentPlayer.id(principal), request.specialization());
+    }
+
+    @PutMapping("/theme")
+    public ProgressionResponse chooseTheme(Principal principal,
+                                           @Valid @RequestBody ChooseThemeRequest request) {
+        return progressionService.chooseTheme(currentPlayer.id(principal), request.theme());
     }
 }

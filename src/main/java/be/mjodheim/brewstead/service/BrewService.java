@@ -208,7 +208,8 @@ public class BrewService {
         int quality = 55
                 + Math.min(25, batch.getPlayer().getLevel() * 2)
                 + Math.min(20, ingredientVariety * 4)
-                + effectService.qualityShift(batch.getPlayer().getId());
+                + effectService.qualityShift(batch.getPlayer().getId())
+                + progressionService.brewingQualityBonus(batch.getPlayer().getId());
         return Math.max(1, Math.min(100, quality));
     }
 }

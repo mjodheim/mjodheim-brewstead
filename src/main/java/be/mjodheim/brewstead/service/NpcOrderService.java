@@ -131,7 +131,7 @@ public class NpcOrderService {
 
         playerService.reward(
                 order.getPlayer().getId(),
-                order.getRewardCoins(),
+                progressionService.npcCoinReward(playerId, order.getRewardCoins()),
                 order.getRewardReputation(),
                 order.getRewardReputation() * 5
         );

@@ -142,6 +142,8 @@ class FarmServiceTest {
                 .build();
         when(fieldRepository.findById(5L)).thenReturn(Optional.of(field));
 
+        when(progressionService.harvestYield(eq(1L), any(BigDecimal.class)))
+                .thenAnswer(call -> call.getArgument(1));
         service.harvest(1L, 5L);
 
         verify(inventoryService).addIngredient(argThat(request ->

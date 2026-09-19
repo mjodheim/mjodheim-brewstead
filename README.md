@@ -489,6 +489,11 @@ le marché entre joueurs, la taverne commune, le comptoir de dégustation, le cl
 les objectifs quotidiens, les séries de visites et les hauts faits récompensés. L'interface du
 domaine adapte aussi sa météo et sa lumière, avec un mode de mouvement réduit.
 
+La progression longue repose sur des saisons de 28 jours, trois paliers personnels et un objectif
+communautaire. Au niveau 2, chaque domaine choisit définitivement une spécialisation : Cultivateur
+(+15 % aux récoltes), Brasseur (+5 à la qualité) ou Marchand (+10 % aux pièces des commandes PNJ).
+Quatre ambiances visuelles persistantes permettent de personnaliser le domaine.
+
 ---
 
 # 🇬🇧 English
@@ -960,6 +965,11 @@ The game now includes secure registration, farming, beekeeping, brewing, NPC ord
 the player market, shared tavern and chat, tasting counter, leaderboard, daily quests,
 visit streaks and rewarded achievements. The estate also adapts its weather and lighting,
 including a reduced-motion mode.
+
+Long-term progression uses 28-day seasons, three personal reward milestones and a shared community
+goal. At level 2, each estate permanently chooses a specialization: farming (+15% harvest yield),
+brewing (+5 quality), or trading (+10% NPC order coins). Four persistent visual themes customize
+the estate.
 
 ---
 

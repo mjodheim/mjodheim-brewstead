@@ -141,9 +141,9 @@
             });
     }
 
-    function postJson(url, body, headers) {
+    function postJson(url, body, headers, method) {
         return fetch(url, {
-            method: 'POST',
+            method: method || 'POST',
             credentials: 'same-origin',
             headers: headers,
             body: body === undefined ? undefined : JSON.stringify(body)

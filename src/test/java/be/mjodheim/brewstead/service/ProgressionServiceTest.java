@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
+import java.math.BigDecimal;
 
 import static be.mjodheim.brewstead.TestData.player;
 import static org.junit.jupiter.api.Assertions.*;
@@ -88,5 +89,45 @@ class ProgressionServiceTest {
         assertTrue(response.dailyQuest().claimed());
         assertEquals(3, response.dailyQuest().progress());
         assertTrue(player.getCoin() >= initialCoins + 75);
+    }
+
+    @Test
+    void specializationRequiresLevelTwoAndAppliesItsBusinessBonus() {
+        assertThrows(IllegalStateException.class,
+                () -> service.chooseSpecialization(1L, "CULTIVATEUR"));
+
+        player.setLevel(2);
+        ProgressionResponse response = service.chooseSpecialization(1L, "CULTIVATEUR");
+
+        assertTrue(response.specializations().stream()
+                .anyMatch(choice -> choice.code().equals("CULTIVATEUR") && choice.selected()));
+        assertEquals(new BigDecimal("11.500"),
+                service.harvestYield(1L, new BigDecimal("10.000")));
+        assertThrows(IllegalStateException.class,
+                () -> service.chooseSpecialization(1L, "BRASSEUR"));
+    }
+
+    @Test
+    void seasonAccumulatesPointsAndPaysEachMilestoneOnce() {
+        int initialCoins = player.getCoin();
+        service.visit(1L);
+
+        service.record(1L, ProgressAction.COMPLETE_ORDER);
+        service.record(1L, ProgressAction.COMPLETE_ORDER);
+        int afterFirstTier = player.getCoin();
+        service.visit(1L);
+
+        ProgressionResponse response = service.visit(1L);
+        assertEquals(10, response.season().points());
+        assertEquals(1, response.season().rewardTier());
+        assertEquals(initialCoins + 100, afterFirstTier);
+        assertEquals(afterFirstTier, player.getCoin());
+    }
+
+    @Test
+    void themeIsPersistentAndReturnedAsSelected() {
+        ProgressionResponse response = service.chooseTheme(1L, "hiver");
+        assertTrue(response.themes().stream()
+                .anyMatch(theme -> theme.code().equals("HIVER") && theme.selected()));
     }
 }

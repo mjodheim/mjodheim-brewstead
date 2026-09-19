@@ -1,6 +1,8 @@
 package be.mjodheim.brewstead.entity;
 
 import be.mjodheim.brewstead.enums.ProgressAction;
+import be.mjodheim.brewstead.enums.EstateTheme;
+import be.mjodheim.brewstead.enums.Specialization;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -39,4 +41,23 @@ public class PlayerProgress {
 
     @Builder.Default private int dailyProgress = 0;
     @Builder.Default private boolean dailyClaimed = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24)
+    private Specialization specialization;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(length = 24)
+    private EstateTheme estateTheme = EstateTheme.NORDIQUE;
+
+    @Column(length = 24)
+    private String seasonKey;
+
+    @Builder.Default private int seasonPoints = 0;
+    @Builder.Default private int seasonRewardTier = 0;
+
+    public EstateTheme getEstateTheme() {
+        return estateTheme == null ? EstateTheme.NORDIQUE : estateTheme;
+    }
 }

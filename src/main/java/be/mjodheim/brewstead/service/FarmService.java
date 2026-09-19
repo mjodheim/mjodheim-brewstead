@@ -79,7 +79,7 @@ public class FarmService {
                 new IngredientRequest(
                         field.getPlayer().getId(),
                         field.getCrop().getIngredient().getId(),
-                        field.getCrop().getYieldQuantity()
+                        progressionService.harvestYield(playerId, field.getCrop().getYieldQuantity())
                 )
         );
 

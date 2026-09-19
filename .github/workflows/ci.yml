@@ -73,3 +73,11 @@ jobs:
           node --check src/main/resources/static/js/brewstead-data.js
           node --check src/main/resources/static/js/brewstead-world.js
           node --check src/main/resources/static/js/brewstead-app.js
+
+      - name: Upload browser playtest captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brewstead-playtest
+          path: target/playtest/*.png
+          if-no-files-found: warn

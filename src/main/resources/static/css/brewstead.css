@@ -156,6 +156,12 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
 }
 .game[data-light="crepuscule"] .world__fx::after { background: rgba(72, 38, 45, .22); }
+.game[data-theme="automne"] .world__art { filter: saturate(1.12) sepia(.18) hue-rotate(-12deg); }
+.game[data-theme="hiver"] .world__art { filter: saturate(.7) brightness(1.08) hue-rotate(12deg); }
+.game[data-theme="solstice"] .world__art { filter: saturate(1.18) contrast(1.04) brightness(.92); }
+.game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
+.game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
+.game[data-theme="solstice"] .tavern-glow { width: 22%; height: 30%; opacity: .9; }
 .weather-chip {
     position: absolute; z-index: 8; left: 1.1em; top: 6.2em; display: flex; align-items: center; gap: .5em;
     padding: .45em .75em; color: var(--cream-dim); font: 500 .78em "Cinzel", serif; letter-spacing: .03em; pointer-events: none;
@@ -875,6 +881,29 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .achievement small { margin: .15em 0 .5em; color: var(--ink-soft); }
 .achievement .bar { height: .42em; }
 .achievement em { margin-top: .35em; font-size: .75em; color: var(--ink-soft); font-style: normal; }
+.season-card {
+    display: grid; grid-template-columns: 1fr auto; gap: .6em 1em; margin-bottom: .8em; padding: 1em;
+    color: #f8edda; border: 1px solid #9f772f; border-radius: .8em;
+    background: linear-gradient(135deg, #382414, #6b431b); box-shadow: inset 0 1px rgba(255,255,255,.13);
+}
+.season-card h3 { margin-top: .1em; font-size: 1.3em; }
+.season-card > strong { align-self: center; color: var(--gold-hi); }
+.season-card__track { grid-column: 1 / -1; height: .55em; overflow: hidden; border-radius: 99px; background: rgba(0,0,0,.45); }
+.season-card__track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #c18c30, #f2cf7d); }
+.season-card > small:last-child { grid-column: 1 / -1; color: #d8c39e; }
+.specializations { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6em; }
+.specialization {
+    padding: .8em; text-align: left; color: var(--ink); border: 1px solid rgba(92,62,28,.35);
+    border-radius: .7em; background: rgba(90,65,32,.07);
+}
+.specialization strong, .specialization small, .specialization em { display: block; }
+.specialization small { margin: .3em 0 .7em; color: var(--ink-soft); line-height: 1.3; }
+.specialization em { color: #8a6417; font-size: .76em; font-style: normal; }
+.specialization.is-selected { border-color: #a97924; background: rgba(215,170,70,.18); box-shadow: inset 0 0 0 1px rgba(169,121,36,.2); }
+.specialization:disabled:not(.is-selected) { opacity: .5; }
+.theme-picker { display: flex; flex-wrap: wrap; gap: .5em; }
+.theme-choice { padding: .45em .8em; color: var(--ink); border: 1px solid rgba(92,62,28,.4); border-radius: 99px; background: transparent; }
+.theme-choice.is-selected { color: #fff8e8; background: #6a451e; border-color: #9f772f; }
 
 .choices { display: flex; flex-wrap: wrap; gap: .5em; }
 
@@ -1250,6 +1279,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     .dock__tab { min-width: 0; flex: 1; padding: .7em .4em; }
     .screen__sheet { max-height: 92vh; }
     .achievements { grid-template-columns: 1fr; }
+    .specializations { grid-template-columns: 1fr; }
     .weather-chip { top: auto; bottom: 5.5em; left: .6em; }
 }
 

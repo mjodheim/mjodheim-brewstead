@@ -17,6 +17,7 @@
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
+    var recipeQuery = '';
     var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '', connectionError: '' };
     var refreshJob = null;
     var mutationPending = false;
@@ -293,7 +294,9 @@
 
                 function card(recipe) {
                     var can = brewability(s, recipe);
-                    var lack = can.missing.slice(0, 2).map(function (l) { return l.ingredientName; }).join(', ');
+                    var lack = can.missing.map(function (l) {
+                        return fmt.quantity(Number(l.quantity) - stockOf(s, l.ingredientName), l.unit) + ' ' + de(l.ingredientName);
+                    }).join(', ');
                     return '<button class="row row--pick" type="button"' +
                         (can.ok ? '' : ' disabled') +
                         ' data-action="pick-recipe" data-id="' + recipe.id + '">' +
@@ -344,11 +347,12 @@
                 if (!s.batches.length) return head + empty('Aucun brassin en cours.');
                 return head + s.batches.map(function (batch) {
                     var ready = batch.status === 'READY';
+                    var finished = batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED';
                     return row({
                         icon: 'i-barrel',
                         title: batch.recipeName,
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
-                        progress: !ready && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
+                        progress: !ready && !finished && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
                         side: ready
                             ? actionButton('taste-batch', 'Goûter', batch.id) +
                               actionButton('offer-batch', 'Au comptoir', batch.id)
@@ -362,7 +366,10 @@
             title: 'Grimoire des recettes',
             render: function (s) {
                 if (!s.recipes.length) return empty('Aucune recette au grimoire.');
-                return s.recipes.map(function (recipe) {
+                var recipes = s.recipes.filter(function (recipe) {
+                    return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
+                });
+                return searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
                     var ingredients = (recipe.ingredients || []).map(function (i) {
                         return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
                     }).join(' · ');
@@ -372,9 +379,10 @@
                         meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
                             ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
                             (ingredients ? ' — ' + ingredients : ''),
-                        side: chip(recipe.isPublic ? 'publique' : 'privée', recipe.isPublic ? 'gold' : null)
+                        side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
+                            chip(brewability(s, recipe).ok ? 'Ingrédients disponibles' : 'Ingrédients à réunir', brewability(s, recipe).ok ? 'ok' : 'warn')
                     });
-                }).join('');
+                }).join('') : empty('Aucune recette ne correspond.'));
             }
         },
 
@@ -439,8 +447,8 @@
                     'après un déplacement. Utile sur une machine modeste, ou si le mouvement te gêne.</p>' +
 
                     '<p class="section-title">Confort</p>' +
-                    toggle('ambiance', 'Lumière et vignettage',
-                        'La teinte dorée et l’assombrissement des bords du domaine.') +
+                    toggle('ambiance', 'Décor vivant et lumière',
+                        'Nuages, cascades, reflets et lumières des bâtiments. Désactive-les pour alléger l’affichage.') +
                     toggle('recentrage', 'Recentrer sur le lieu ouvert',
                         'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
@@ -603,7 +611,11 @@
                             return '<button type="button" class="theme-choice' + (theme.selected ? ' is-selected' : '') +
                                 '" data-action="choose-theme" data-id="' + theme.code + '">' + esc(theme.label) + '</button>';
                         }).join('') + '</div>';
-                    achievementBlock = seasonBlock + '<div class="progression-summary">' +
+                    var daily = progression.dailyQuest;
+                    var dailyBlock = daily ? '<section class="daily-card"><strong>Objectif du jour</strong>' +
+                        '<p>' + esc(daily.title) + ' · ' + daily.progress + '/' + daily.target + '</p>' +
+                        (daily.claimed ? chip('Récompense reçue', 'ok') : actionButton('daily-place', 'Poursuivre l’objectif', daily.place)) + '</section>' : '';
+                    achievementBlock = dailyBlock + seasonBlock + '<div class="progression-summary">' +
                         '<strong>' + progression.visitStreak + ' jour' + (progression.visitStreak > 1 ? 's' : '') + ' de série</strong>' +
                         '<span>' + unlocked + '/' + progression.achievements.length + ' hauts faits</span></div>' +
                         specializationBlock + themesBlock + '<p class="section-title">Hauts faits</p>' +
@@ -701,7 +713,7 @@
             (active.length >= 3 ? ' disabled' : '') + '>Faire venir un marchand</button></div>';
         if (!s.npcOrders.length) return head + empty('Le premier marchand attend ton invitation.');
         return head + s.npcOrders.map(function (order) {
-            var open = order.status === 'OPEN' || order.status === 'IN_PROGRESS';
+            var open = (order.status === 'OPEN' || order.status === 'IN_PROGRESS') && !fmt.isDone(order.expiresAt);
             var available = (order.lines || []).every(function (line) {
                 return s.batches.filter(function (batch) {
                     return batch.recipeId === line.recipeId && batch.status === 'READY' && batch.quality >= line.minQuality;
@@ -717,9 +729,10 @@
                 meta: lines + (open && order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
                 side: chip(ORDER_LABELS[order.status] || order.status, order.status === 'OPEN' ? 'ok' : 'info') +
                     chip(fmt.number(order.rewardCoins) + ' pièces · ' + order.rewardReputation + ' réputation', 'gold') +
-                    (order.status === 'OPEN' ? actionButton('npc-accept', 'Accepter', order.id) : '') +
+                    (open && order.status === 'OPEN' ? actionButton('npc-accept', 'Accepter', order.id) : '') +
                     (open ? (available ? actionButton('npc-complete', 'Livrer le brassin', order.id)
-                        : chip('Brassin requis en cave', 'warn')) : '')
+                        : chip('Brassin requis en cave', 'warn') +
+                          ((order.lines || []).length ? actionButton('prepare-recipe', 'Préparer la recette', order.lines[0].recipeId) : '')) : '')
             });
         }).join('');
     }
@@ -779,14 +792,6 @@
         var headers = { Accept: 'application/json' };
         if (token && header && token.content) headers[header.content] = token.content;
         return headers;
-    }
-
-    function post(url) {
-        return fetch(url, { method: 'POST', credentials: 'same-origin', headers: csrfHeaders() })
-            .then(function (response) {
-                if (!response.ok) throw new Error(String(response.status));
-                return response;
-            });
     }
 
     var ENDPOINTS = {
@@ -911,6 +916,14 @@
     }
 
     function runAction(action, id) {
+        if (action === 'daily-place') { openPlace(id); return; }
+        if (action === 'prepare-recipe') {
+            var prepared = state.recipes.find(function (recipe) { return recipe.id === Number(id); });
+            if (!prepared) return;
+            picker = { kind: 'recipe', query: prepared.name };
+            openScreen('brasser');
+            return;
+        }
         if (action && action.indexOf('set-') === 0) {
             settings[action.slice(4)] = id;
             saveSettings();
@@ -1061,7 +1074,7 @@
             var servings = Number(($('offerServings') || {}).value || 0);
             var price = Number(($('offerPrice') || {}).value || 0);
             var note = ($('offerNote') || {}).value || '';
-            if (!Number.isInteger(servings) || servings < 1 || servings > offerDraft.maxServings || !Number.isInteger(price) || price < 0) {
+            if (!Number.isInteger(servings) || servings < 1 || servings > offerDraft.maxServings || !Number.isInteger(price) || price < 0 || price > 5000) {
                 toast('Vérifie le nombre de services et le prix du verre.'); return;
             }
             send('/api/tavern/counter',
@@ -1245,12 +1258,14 @@
         var due = [];
 
         state.fields.forEach(function (field) {
+            if (field.status === 'EMPTY' || field.status === 'GROWING') delete readySeen['f' + field.id];
             if ((field.status === 'READY' || (field.readyAt && fmt.isDone(field.readyAt))) && !readySeen['f' + field.id]) {
                 readySeen['f' + field.id] = true;
                 due.push((field.cropName || 'Une parcelle') + ' est à récolter');
             }
         });
         state.hives.forEach(function (hive) {
+            if (hive.status === 'IDLE' || hive.status === 'PRODUCING') delete readySeen['h' + hive.id];
             if (hive.status === 'READY' && !readySeen['h' + hive.id]) {
                 readySeen['h' + hive.id] = true;
                 due.push('Le miel de la ruche n°' + hive.id + ' est prêt');
@@ -1437,6 +1452,7 @@
             if (event.target.id === 'chatInput') { tavern.draft = event.target.value; return; }
             if (event.target.id !== 'pickerSearch') return;
             if (activeView === 'commande') orders.query = event.target.value;
+            else if (activeView === 'recettes') recipeQuery = event.target.value;
             else if (picker) picker.query = event.target.value;
             else return;
             renderScreen();
@@ -1516,7 +1532,7 @@
 
         refresh().catch(function () { /* panneau de panne déjà affiché */ }).then(function () {
             setInterval(function () {
-                if (!state) return;
+                if (!state || document.hidden) return;
                 renderMarkers();
                 renderPlace();
                 // On ne réécrit que les écrans à minuterie : ailleurs cela

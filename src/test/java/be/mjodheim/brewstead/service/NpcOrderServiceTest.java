@@ -55,7 +55,7 @@ class NpcOrderServiceTest {
 
     @Test
     void generateOrderRequiresPublicRecipe() {
-        when(playerRepository.findById(1L)).thenReturn(Optional.of(player(1)));
+        when(playerRepository.findForUpdateById(1L)).thenReturn(Optional.of(player(1)));
         when(recipeRepository.findAllByIsPublicTrue()).thenReturn(List.of());
 
         assertThrows(IllegalStateException.class,
@@ -65,7 +65,7 @@ class NpcOrderServiceTest {
     @Test
     void generatingAnotherContractRequiresAnAvailableSlot() {
         PlayerProfile player = player(1);
-        when(playerRepository.findById(1L)).thenReturn(Optional.of(player));
+        when(playerRepository.findForUpdateById(1L)).thenReturn(Optional.of(player));
         when(orderRepository.findAllByPlayerIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(
                 order(1, player, OrderStatus.OPEN), order(2, player, OrderStatus.IN_PROGRESS),
                 order(3, player, OrderStatus.OPEN)));
@@ -78,9 +78,9 @@ class NpcOrderServiceTest {
         PlayerProfile player = player(1);
         Recipe first = recipe(10);
         Recipe second = recipe(20);
-        when(playerRepository.findById(1L)).thenReturn(Optional.of(player));
+        when(playerRepository.findForUpdateById(1L)).thenReturn(Optional.of(player));
         when(recipeRepository.findAllByIsPublicTrue()).thenReturn(List.of(second, first));
-        when(orderRepository.count()).thenReturn(5L);
+        when(orderRepository.countByPlayerId(1L)).thenReturn(5L);
         when(orderRepository.save(any(NpcOrder.class))).thenAnswer(invocation -> {
             NpcOrder saved = invocation.getArgument(0);
             saved.setId(99L);
@@ -108,12 +108,12 @@ class NpcOrderServiceTest {
     @Test
     void acceptOrderRequiresOwnerAndOpenStatus() {
         NpcOrder foreign = order(10, player(2), OrderStatus.OPEN);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(foreign));
+        when(orderRepository.findForUpdateById(10L)).thenReturn(Optional.of(foreign));
         assertThrows(AccessDeniedException.class,
                 () -> service.acceptOrder(1L, 10L));
 
         NpcOrder completed = order(11, player(1), OrderStatus.COMPLETED);
-        when(orderRepository.findById(11L)).thenReturn(Optional.of(completed));
+        when(orderRepository.findForUpdateById(11L)).thenReturn(Optional.of(completed));
         assertThrows(IllegalStateException.class,
                 () -> service.acceptOrder(1L, 11L));
     }
@@ -121,7 +121,7 @@ class NpcOrderServiceTest {
     @Test
     void acceptOrderMovesOpenOrderInProgress() {
         NpcOrder order = order(10, player(1), OrderStatus.OPEN);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findForUpdateById(10L)).thenReturn(Optional.of(order));
         when(lineRepository.findAllByOrderId(10L)).thenReturn(List.of());
 
         service.acceptOrder(1L, 10L);
@@ -138,7 +138,7 @@ class NpcOrderServiceTest {
         order.setRewardReputation(6);
         NpcOrderLine line = NpcOrderLine.builder()
                 .order(order).recipe(recipe).quantity(3).minQuality(70).build();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findForUpdateById(10L)).thenReturn(Optional.of(order));
         when(lineRepository.findAllByOrderId(10L)).thenReturn(List.of(line));
 
         when(progressionService.npcCoinReward(1L, 120)).thenReturn(120);
@@ -152,7 +152,7 @@ class NpcOrderServiceTest {
     @Test
     void completeOrderRequiresLines() {
         NpcOrder order = order(10, player(1), OrderStatus.OPEN);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findForUpdateById(10L)).thenReturn(Optional.of(order));
         when(lineRepository.findAllByOrderId(10L)).thenReturn(List.of());
 
         assertThrows(IllegalStateException.class,

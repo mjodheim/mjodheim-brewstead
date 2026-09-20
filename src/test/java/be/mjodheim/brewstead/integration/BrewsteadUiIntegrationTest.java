@@ -22,12 +22,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.logging.Level;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -47,6 +48,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired IngredientRepository ingredientRepository;
     @Autowired PlayerOrderRepository orderRepository;
     @Autowired NpcOrderRepository npcOrderRepository;
+    @Autowired NpcOrderLineRepository npcLineRepository;
     @Autowired TastingOfferRepository offerRepository;
     @Autowired PlayerAchievementRepository achievementRepository;
 
@@ -336,6 +338,174 @@ class BrewsteadUiIntegrationTest {
             alice.quit();
             bob.quit();
         }
+    }
+
+    @Test
+    void completeProductionDeliveryAndTastingJourneyWithAnimatedScenery() {
+        WebDriver brewer = newBrowser();
+        WebDriver guest = newBrowser();
+        WebDriverWait wait = new WebDriverWait(brewer, Duration.ofSeconds(35));
+        WebDriverWait visitor = new WebDriverWait(guest, Duration.ofSeconds(25));
+        try {
+            registerAndLogin(brewer, wait, "ui_full_brewer");
+            registerAndLogin(guest, visitor, "ui_full_guest");
+            var player = profile("ui_full_brewer");
+
+            // The decorative layers must really move, and leave the map clickable.
+            var falls = brewer.findElement(By.cssSelector(".fall--near .fall__flow"));
+            var cloud = brewer.findElement(By.cssSelector(".cloud-bank--near"));
+            String flowBefore = falls.getCssValue("transform");
+            String cloudBefore = cloud.getCssValue("transform");
+            new Actions(brewer).pause(Duration.ofMillis(650)).perform();
+            assertNotEquals(flowBefore, falls.getCssValue("transform"));
+            assertNotEquals(cloudBefore, cloud.getCssValue("transform"));
+            assertEquals("none", brewer.findElement(By.cssSelector(".world__life")).getCssValue("pointer-events"));
+            ((JavascriptExecutor) brewer).executeScript("document.getElementById('game').dataset.light='jour'; document.getElementById('game').dataset.weather='clair';");
+            screenshot(brewer, "07-living-domain-day.png");
+            ((JavascriptExecutor) brewer).executeScript("document.getElementById('game').dataset.light='nuit';");
+            screenshot(brewer, "08-living-domain-night.png");
+
+            // Sow and harvest through the UI. Only waiting time is accelerated in
+            // the isolated database: production, stock and rewards use real services.
+            openSection(brewer, wait, "champs");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='pick-crop']"));
+            waitForMutation(brewer, wait);
+            var field = fieldRepository.findAllByPlayerId(player.getId()).stream()
+                    .filter(value -> value.getStatus() == FieldStatus.GROWING).findFirst().orElseThrow();
+            field.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            fieldRepository.save(field);
+            openSection(brewer, wait, "champs");
+            By harvest = By.cssSelector("#screenBody [data-action='harvest-field'][data-id='" + field.getId() + "']");
+            click(brewer, wait, harvest);
+            waitForMutation(brewer, wait);
+            assertEquals(FieldStatus.EMPTY, fieldRepository.findById(field.getId()).orElseThrow().getStatus());
+            assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedFields());
+
+            openSection(brewer, wait, "rucher");
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive']"));
+            waitForMutation(brewer, wait);
+            var hive = hiveRepository.findAllByPlayerId(player.getId()).stream()
+                    .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
+            hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            hiveRepository.save(hive);
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-hive'][data-id='" + hive.getId() + "']"));
+            waitForMutation(brewer, wait);
+            assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedHives());
+
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
+            click(brewer, wait, By.cssSelector("[data-action='npc-generate']"));
+            waitForMutation(brewer, wait);
+            var order = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(player.getId()).getFirst();
+            var line = npcLineRepository.findAllByOrderId(order.getId()).getFirst();
+            click(brewer, wait, By.cssSelector("[data-action='npc-accept'][data-id='" + order.getId() + "']"));
+            waitForMutation(brewer, wait);
+            assertEquals(be.mjodheim.brewstead.enums.OrderStatus.IN_PROGRESS,
+                    npcOrderRepository.findById(order.getId()).orElseThrow().getStatus());
+            click(brewer, wait, By.cssSelector("[data-action='prepare-recipe']"));
+            waitForScreen(wait, "Choisir une recette");
+            click(brewer, wait, By.cssSelector("[data-action='pick-recipe']:not([disabled])"));
+            waitForMutation(brewer, wait);
+            var batch = batchRepository.findAllByPlayerIdOrderByStartedAtDesc(player.getId()).getFirst();
+            Long batchId = batch.getId();
+            BigDecimal brewed = batch.getVolume();
+            batch.setReadyAt(LocalDateTime.now().minusSeconds(1));
+            batchRepository.save(batch);
+            openSection(brewer, wait, "brasserie");
+            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("[data-action='taste-batch'][data-id='" + batchId + "']")));
+
+            int coinsBefore = profile("ui_full_brewer").getCoin();
+            int reputationBefore = profile("ui_full_brewer").getReputation();
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            click(brewer, wait, By.cssSelector("[data-action='npc-complete'][data-id='" + order.getId() + "']"));
+            waitForMutation(brewer, wait);
+            assertEquals(be.mjodheim.brewstead.enums.OrderStatus.COMPLETED,
+                    npcOrderRepository.findById(order.getId()).orElseThrow().getStatus());
+            assertTrue(profile("ui_full_brewer").getCoin() >= coinsBefore + order.getRewardCoins());
+            assertTrue(profile("ui_full_brewer").getReputation() >= reputationBefore + order.getRewardReputation());
+            assertEquals(0, brewed.subtract(BigDecimal.valueOf(line.getQuantity()))
+                    .compareTo(batchRepository.findById(batchId).orElseThrow().getVolume()));
+            assertTrue(brewer.findElements(By.cssSelector("[data-action='npc-complete']")).isEmpty());
+            screenshot(brewer, "09-merchant-delivery.png");
+
+            // The recipe book is searchable, uses the same duration as the brewery,
+            // and tells a new player precisely what ingredients are missing.
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='recettes']"));
+            brewer.findElement(By.id("pickerSearch")).sendKeys("Hydromel doré");
+            assertEquals(1, brewer.findElements(By.cssSelector("#screenBody .row")).size());
+            assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("45 min"));
+            brewer.findElement(By.id("pickerSearch")).clear();
+            brewer.findElement(By.id("pickerSearch")).sendKeys("Cervoise du fjord");
+            click(brewer, wait, By.cssSelector("[data-action='prepare-recipe']"));
+            assertFalse(brewer.findElement(By.cssSelector("[data-action='pick-recipe']")).isEnabled());
+            assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("10 L"));
+
+            openSection(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "']"));
+            assertFalse(brewer.findElement(By.id("screenBody")).getText().contains("undefined"));
+            WebElement services = brewer.findElement(By.id("offerServings"));
+            services.clear(); services.sendKeys("2");
+            WebElement price = brewer.findElement(By.id("offerPrice"));
+            price.clear(); price.sendKeys("7");
+            click(brewer, wait, By.cssSelector("[data-action='offer-confirm']"));
+            waitForMutation(brewer, wait);
+            var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batchId, 0).orElseThrow();
+            int guestCoins = profile("ui_full_guest").getCoin();
+            int sellerCoins = profile("ui_full_brewer").getCoin();
+            click(guest, visitor, By.cssSelector(".dock__tab[data-view='taverne']"));
+            click(guest, visitor, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
+            click(guest, visitor, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
+            waitForMutation(guest, visitor);
+            assertEquals(guestCoins - 7, profile("ui_full_guest").getCoin());
+            assertEquals(sellerCoins + 7, profile("ui_full_brewer").getCoin());
+            assertEquals(1, offerRepository.findById(offer.getId()).orElseThrow().getServings());
+            assertEquals(1, progressRepository.findByPlayerId(profile("ui_full_guest").getId()).orElseThrow().getTavernTastings());
+            screenshot(guest, "10-neighbour-tasting-new-domain.png");
+
+            brewer.manage().window().setSize(new Dimension(390, 844));
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            assertTrue(brewer.findElement(By.cssSelector(".daily-card")).isDisplayed());
+            assertTrue((Boolean) ((JavascriptExecutor) brewer).executeScript(
+                    "const e=document.getElementById('screenBody'); return e.scrollWidth <= e.clientWidth + 1;"));
+            screenshot(brewer, "11-daily-mobile.png");
+            click(brewer, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+            screenshot(brewer, "12-living-domain-mobile.png");
+
+            // Both the system preference and the in-game switch stop decoration.
+            ((ChromeDriver) brewer).executeCdpCommand("Emulation.setEmulatedMedia", Map.of(
+                    "features", List.of(Map.of("name", "prefers-reduced-motion", "value", "reduce"))));
+            assertEquals("none", falls.getCssValue("animation-name"));
+            assertEquals("none", cloud.getCssValue("animation-name"));
+            ((ChromeDriver) brewer).executeCdpCommand("Emulation.setEmulatedMedia", Map.of("features", List.of()));
+            click(brewer, wait, By.id("settingsBtn"));
+            click(brewer, wait, By.cssSelector("[data-action='open-settings']"));
+            click(brewer, wait, By.cssSelector("[data-action='set-mouvement'][data-id='sobre']"));
+            assertEquals("none", falls.getCssValue("animation-name"));
+            assertEquals("none", cloud.getCssValue("animation-name"));
+            click(brewer, wait, By.cssSelector("[data-action='toggle'][data-id='ambiance']"));
+            assertFalse(brewer.findElement(By.cssSelector(".world__life")).isDisplayed());
+            assertNoApplicationJavascriptErrors(brewer);
+            assertNoApplicationJavascriptErrors(guest);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(brewer, "failure-complete-journey.png");
+            screenshot(guest, "failure-complete-guest.png");
+            throw failure;
+        } finally {
+            brewer.quit(); guest.quit();
+        }
+    }
+
+    private void waitForMutation(WebDriver driver, WebDriverWait wait) {
+        wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+        assertEquals("true", driver.findElement(By.id("fault")).getDomAttribute("aria-hidden"));
+    }
+
+    private void openSection(WebDriver driver, WebDriverWait wait, String place) {
+        click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+        click(driver, wait, By.cssSelector("#markers [data-place='" + place + "']"));
+        click(driver, wait, By.id("placeAction"));
+        wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
     }
 
     private WebDriver newBrowser() {

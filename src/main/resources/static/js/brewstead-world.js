@@ -201,7 +201,8 @@
             if (self.pointers.size === 0) {
                 self.captured = false;
                 world.classList.remove('is-dragging');
-                var sobre = document.documentElement.dataset.mouvement === 'sobre';
+                var sobre = document.documentElement.dataset.mouvement === 'sobre' ||
+                    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                 if (self.dragged > TAP_TOLERANCE && !sobre) self.runMomentum();
             }
         }

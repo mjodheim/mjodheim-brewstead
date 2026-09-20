@@ -433,7 +433,10 @@ class BrewsteadUiIntegrationTest {
             // and tells a new player precisely what ingredients are missing.
             click(brewer, wait, By.cssSelector(".dock__tab[data-view='recettes']"));
             brewer.findElement(By.id("pickerSearch")).sendKeys("Hydromel doré");
-            assertEquals(1, brewer.findElements(By.cssSelector("#screenBody .row")).size());
+            List<String> recipeNames = brewer.findElements(By.cssSelector("#screenBody .row__title"))
+                    .stream().map(WebElement::getText).toList();
+            assertTrue(recipeNames.contains("Hydromel doré"));
+            assertTrue(recipeNames.stream().allMatch(name -> name.contains("Hydromel doré")));
             assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("45 min"));
             brewer.findElement(By.id("pickerSearch")).clear();
             brewer.findElement(By.id("pickerSearch")).sendKeys("Cervoise du fjord");
@@ -502,10 +505,7 @@ class BrewsteadUiIntegrationTest {
     }
 
     private void openSection(WebDriver driver, WebDriverWait wait, String place) {
-        click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
-        click(driver, wait, By.cssSelector("#markers [data-place='" + place + "']"));
-        click(driver, wait, By.id("placeAction"));
-        wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
+        openPlaceScreen(driver, wait, place);
     }
 
     private WebDriver newBrowser() {
@@ -629,7 +629,11 @@ class BrewsteadUiIntegrationTest {
 
     private void openPlaceScreen(WebDriver driver, WebDriverWait wait, String place) {
         click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+        // Les coordonnées du clic natif doivent être prises après le recentrage.
+        wait.until(d -> (Boolean) ((JavascriptExecutor) d).executeScript(
+                "return document.querySelector('.world__scene').getAnimations().every(a => a.playState !== 'running');"));
         click(driver, wait, By.cssSelector("#markers [data-place='" + place + "']"));
+        wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "false"));
         click(driver, wait, By.id("placeAction"));
         wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
     }

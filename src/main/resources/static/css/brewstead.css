@@ -141,18 +141,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 .game[data-weather="pluie"] .weather--rain,
 .game[data-weather="brume"] .weather--mist { opacity: 1; }
-.water-shimmer {
-    pointer-events: none;
-    position: absolute; left: 36%; right: 0; bottom: 0; height: 29%; opacity: .34;
-    background: repeating-radial-gradient(ellipse at 65% 120%, transparent 0 11px, rgba(205, 224, 213, .24) 12px 13px, transparent 14px 27px);
-    transform-origin: center bottom; animation: water-breathe 5.5s ease-in-out infinite alternate; mix-blend-mode: screen;
-}
-.tavern-glow {
-    pointer-events: none;
-    position: absolute; left: 52%; top: 46%; width: 16%; height: 24%; border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(255, 174, 64, .34), transparent 68%);
-    animation: hearth-flicker 3.8s ease-in-out infinite alternate; mix-blend-mode: screen;
-}
 .game[data-light="nuit"] .world__fx::after,
 .game[data-light="crepuscule"] .world__fx::after {
     content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
@@ -163,7 +151,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .game[data-theme="solstice"] .world__art { filter: saturate(1.18) contrast(1.04) brightness(.92); }
 .game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
-.game[data-theme="solstice"] .tavern-glow { width: 22%; height: 30%; opacity: .9; }
 .weather-chip.panel {
     position: absolute; z-index: 8; left: 1.1em; top: 6.2em; display: flex; align-items: center; gap: .5em;
     padding: .45em .75em; color: var(--cream-dim); font: 500 .78em "Cinzel", serif; letter-spacing: .03em; pointer-events: none;
@@ -174,8 +161,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 @keyframes rain-drift { to { transform: translate3d(-25px, 38px, 0); } }
 @keyframes mist-drift { to { transform: translate3d(8%, -2%, 0) scale(1.08); } }
-@keyframes water-breathe { to { transform: translateY(5px) scaleX(1.025); opacity: .52; } }
-@keyframes hearth-flicker { 35% { opacity: .55; transform: scale(.96); } 70% { opacity: .9; transform: scale(1.04); } }
 
 .world__hint {
     position: absolute;
@@ -870,6 +855,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     display: flex; justify-content: space-between; gap: 1em; padding: .85em 1em;
     border: 1px solid rgba(111, 80, 37, .35); border-radius: .7em; background: rgba(111, 80, 37, .08);
 }
+.daily-card { margin-bottom: 1em; padding: .85em 1em; border-left: 3px solid #9f782e; background: rgba(168, 122, 45, .09); }
+.daily-card > strong { font-family: "Cinzel", serif; color: #684816; }
+.daily-card > p { margin: .4em 0 .65em; }
 .progression-summary strong { color: #765019; }
 .progression-summary span { color: var(--ink-soft); }
 .achievements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65em; }
@@ -1276,6 +1264,10 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 @media (max-width: 560px) {
     .quest { display: none; }
+    .row { flex-wrap: wrap; }
+    .row__side { max-width: 100%; flex-direction: row; flex-wrap: wrap; }
+    .row__side .chip { white-space: normal; }
+
     .place { right: .6em; left: .6em; width: auto; }
     .dock { left: .6em; right: .6em; bottom: .6em; transform: none; max-width: none; }
     .dock__tab span { display: none; }
@@ -1287,5 +1279,5 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
 }

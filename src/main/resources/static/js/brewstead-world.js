@@ -112,6 +112,17 @@
         this.velocityY = 0;
     };
 
+    World.prototype.stopTransition = function () {
+        if (!this.scene.classList.contains('is-animated')) return;
+        // Conserver le cadrage visible sous le doigt, pas la destination du
+        // recentrage : un écriteau ne doit pas s'échapper pendant un appui.
+        var transform = new DOMMatrixReadOnly(getComputedStyle(this.scene).transform);
+        this.scale = transform.a;
+        this.x = transform.e;
+        this.y = transform.f;
+        this.apply(false);
+    };
+
     World.prototype.runMomentum = function () {
         var self = this;
         function step() {
@@ -147,6 +158,7 @@
         world.addEventListener('pointerdown', function (event) {
             if (event.button !== undefined && event.button > 0) return;
             self.stopMomentum();
+            self.stopTransition();
             self.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
             self.dragged = 0;
             self.lastMoveTime = event.timeStamp;
@@ -201,7 +213,8 @@
             if (self.pointers.size === 0) {
                 self.captured = false;
                 world.classList.remove('is-dragging');
-                var sobre = document.documentElement.dataset.mouvement === 'sobre';
+                var sobre = document.documentElement.dataset.mouvement === 'sobre' ||
+                    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                 if (self.dragged > TAP_TOLERANCE && !sobre) self.runMomentum();
             }
         }

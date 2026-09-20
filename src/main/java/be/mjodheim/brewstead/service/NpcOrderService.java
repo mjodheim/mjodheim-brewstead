@@ -21,6 +21,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,7 +56,17 @@ public class NpcOrderService {
 
     @Transactional
     public NpcOrderResponse generateOrder(Long playerId) {
-        PlayerProfile player = getPlayer(playerId);
+        // Invitations from two tabs must share the same three-contract limit.
+        PlayerProfile player = playerProfileRepository.findForUpdateById(playerId)
+                .orElseThrow(() -> new IllegalArgumentException("Player not found"));
+        LocalDateTime now = LocalDateTime.now();
+        long active = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(playerId).stream()
+                .filter(order -> order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
+                .filter(order -> now.isBefore(order.getExpiresAt()))
+                .count();
+        if (active >= 3) {
+            throw new IllegalStateException("Livre tes contrats en cours avant d’inviter un autre marchand (3 maximum).");
+        }
         List<Recipe> recipes = recipeRepository.findAllByIsPublicTrue().stream()
                 .sorted(Comparator.comparingLong(Recipe::getId))
                 .toList();
@@ -62,20 +74,27 @@ public class NpcOrderService {
             throw new IllegalStateException("No public recipe is available for NPC orders");
         }
 
-        long sequence = npcOrderRepository.count();
+        Set<Long> brewed = brewService.findPlayerBatches(playerId).stream()
+                .map(batch -> batch.recipeId()).collect(Collectors.toSet());
+        List<Recipe> familiar = recipes.stream().filter(recipe -> brewed.contains(recipe.getId())).toList();
+        recipes = familiar.isEmpty()
+                ? recipes.stream().limit(Math.max(2, (long) player.getLevel() * 2)).toList()
+                : familiar;
+        // A new domain starts with the introductory recipes, independently of
+        // how many contracts the other players have already generated.
+        long sequence = npcOrderRepository.countByPlayerId(playerId);
         Recipe recipe = recipes.get((int) (sequence % recipes.size()));
         int quantity = 2 + (int) (sequence % 4);
         int minQuality = 50 + (int) (sequence % 4) * 5;
         int rewardCoins = quantity * 40 + minQuality;
         int rewardReputation = 2 + quantity;
-        LocalDateTime now = LocalDateTime.now();
 
         NpcOrder order = npcOrderRepository.save(
                 NpcOrder.builder()
                         .player(player)
                         .customerName(CUSTOMERS.get((int) (sequence % CUSTOMERS.size())))
                         .createdAt(now)
-                        .expiresAt(now.plusMinutes(90))
+                        .expiresAt(now.plusMinutes(Math.max(90, recipe.getFermentationMinutes() + 30)))
                         .status(OrderStatus.OPEN)
                         .rewardCoins(rewardCoins)
                         .rewardReputation(rewardReputation)
@@ -157,7 +176,7 @@ public class NpcOrderService {
     }
 
     private NpcOrder getOrder(Long orderId) {
-        return npcOrderRepository.findById(orderId)
+        return npcOrderRepository.findForUpdateById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("NPC order not found"));
     }
 

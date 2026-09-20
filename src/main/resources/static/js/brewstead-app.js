@@ -17,11 +17,12 @@
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
+    var recipeQuery = '';
     var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '', connectionError: '' };
     var refreshJob = null;
     var mutationPending = false;
     var navigationVersion = 0;
-    var offerDraft = null;      // { batchId, recipeName }
+    var offerDraft = null;      // { batchId, recipeName, maxServings }
     var orders = { tab: 'marche', query: '', ingredient: null };
 
     /* Les préférences restent dans ce navigateur : elles ne décrivent que
@@ -293,7 +294,9 @@
 
                 function card(recipe) {
                     var can = brewability(s, recipe);
-                    var lack = can.missing.slice(0, 2).map(function (l) { return l.ingredientName; }).join(', ');
+                    var lack = can.missing.map(function (l) {
+                        return fmt.quantity(Number(l.quantity) - stockOf(s, l.ingredientName), l.unit) + ' ' + de(l.ingredientName);
+                    }).join(', ');
                     return '<button class="row row--pick" type="button"' +
                         (can.ok ? '' : ' disabled') +
                         ' data-action="pick-recipe" data-id="' + recipe.id + '">' +
@@ -344,15 +347,16 @@
                 if (!s.batches.length) return head + empty('Aucun brassin en cours.');
                 return head + s.batches.map(function (batch) {
                     var ready = batch.status === 'READY';
+                    var finished = batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED';
                     return row({
                         icon: 'i-barrel',
                         title: batch.recipeName,
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
-                        progress: !ready && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
+                        progress: !ready && !finished && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
                         side: ready
                             ? actionButton('taste-batch', 'Goûter', batch.id) +
                               actionButton('offer-batch', 'Au comptoir', batch.id)
-                            : chip(BATCH_LABELS[batch.status] || batch.status, 'warn')
+                            : chip(batch.status === 'SOLD_OUT' ? 'Fût épuisé' : (BATCH_LABELS[batch.status] || batch.status), batch.status === 'SOLD_OUT' ? 'info' : 'warn')
                     });
                 }).join('');
             }
@@ -362,7 +366,10 @@
             title: 'Grimoire des recettes',
             render: function (s) {
                 if (!s.recipes.length) return empty('Aucune recette au grimoire.');
-                return s.recipes.map(function (recipe) {
+                var recipes = s.recipes.filter(function (recipe) {
+                    return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
+                });
+                return searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
                     var ingredients = (recipe.ingredients || []).map(function (i) {
                         return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
                     }).join(' · ');
@@ -370,11 +377,12 @@
                         icon: 'i-recipe',
                         title: recipe.name,
                         meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
-                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationHours + ' h' +
+                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
                             (ingredients ? ' — ' + ingredients : ''),
-                        side: chip(recipe.isPublic ? 'publique' : 'privée', recipe.isPublic ? 'gold' : null)
+                        side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
+                            chip(brewability(s, recipe).ok ? 'Ingrédients disponibles' : 'Ingrédients à réunir', brewability(s, recipe).ok ? 'ok' : 'warn')
                     });
-                }).join('');
+                }).join('') : empty('Aucune recette ne correspond.'));
             }
         },
 
@@ -439,8 +447,8 @@
                     'après un déplacement. Utile sur une machine modeste, ou si le mouvement te gêne.</p>' +
 
                     '<p class="section-title">Confort</p>' +
-                    toggle('ambiance', 'Lumière et vignettage',
-                        'La teinte dorée et l’assombrissement des bords du domaine.') +
+                    toggle('ambiance', 'Décor vivant et lumière',
+                        'Nuages, cascades, reflets et lumières des bâtiments. Désactive-les pour alléger l’affichage.') +
                     toggle('recentrage', 'Recentrer sur le lieu ouvert',
                         'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
@@ -493,7 +501,8 @@
             render: function () {
                 if (!offerDraft) return empty('Choisis un fût prêt depuis la brasserie.');
                 return '<p class="section-title">' + esc(offerDraft.recipeName) + '</p>' +
-                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="40" value="6">' +
+                    '<p class="hint">Un service = 0,5 L. Ce fût permet encore ' + offerDraft.maxServings + ' services.</p>' +
+                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="' + offerDraft.maxServings + '" value="' + Math.min(6, offerDraft.maxServings) + '">' +
                     '<small>Nombre de services proposés. Un service, c’est un demi-litre.</small></label>' +
                     '<label class="account-field" style="margin-top:.7em">' +
                     '<input id="offerPrice" type="number" min="0" max="5000" value="0">' +
@@ -602,7 +611,11 @@
                             return '<button type="button" class="theme-choice' + (theme.selected ? ' is-selected' : '') +
                                 '" data-action="choose-theme" data-id="' + theme.code + '">' + esc(theme.label) + '</button>';
                         }).join('') + '</div>';
-                    achievementBlock = seasonBlock + '<div class="progression-summary">' +
+                    var daily = progression.dailyQuest;
+                    var dailyBlock = daily ? '<section class="daily-card"><strong>Objectif du jour</strong>' +
+                        '<p>' + esc(daily.title) + ' · ' + daily.progress + '/' + daily.target + '</p>' +
+                        (daily.claimed ? chip('Récompense reçue', 'ok') : actionButton('daily-place', 'Poursuivre l’objectif', daily.place)) + '</section>' : '';
+                    achievementBlock = dailyBlock + seasonBlock + '<div class="progression-summary">' +
                         '<strong>' + progression.visitStreak + ' jour' + (progression.visitStreak > 1 ? 's' : '') + ' de série</strong>' +
                         '<span>' + unlocked + '/' + progression.achievements.length + ' hauts faits</span></div>' +
                         specializationBlock + themesBlock + '<p class="section-title">Hauts faits</p>' +
@@ -694,18 +707,32 @@
     }
 
     function renderNpcOrders(s) {
-        if (!s.npcOrders.length) return empty('Aucun marchand ne te réclame quoi que ce soit.');
-        return s.npcOrders.map(function (order) {
+        var active = s.npcOrders.filter(function (order) { return order.status === 'OPEN' || order.status === 'IN_PROGRESS'; });
+        var head = '<p class="hint">Brasse, puis livre les marchands pour gagner des pièces, de la réputation et de l’expérience. Trois contrats actifs au maximum.</p>' +
+            '<div class="account-actions"><button class="btn btn--gold" type="button" data-action="npc-generate"' +
+            (active.length >= 3 ? ' disabled' : '') + '>Faire venir un marchand</button></div>';
+        if (!s.npcOrders.length) return head + empty('Le premier marchand attend ton invitation.');
+        return head + s.npcOrders.map(function (order) {
+            var open = (order.status === 'OPEN' || order.status === 'IN_PROGRESS') && !fmt.isDone(order.expiresAt);
+            var available = (order.lines || []).every(function (line) {
+                return s.batches.filter(function (batch) {
+                    return batch.recipeId === line.recipeId && batch.status === 'READY' && batch.quality >= line.minQuality;
+                }).reduce(function (total, batch) { return total + Number(batch.volume); }, 0) >= line.quantity;
+            });
             var lines = (order.lines || []).map(function (line) {
-                return line.quantity + ' × ' + line.recipeName +
+                return line.quantity + ' L de ' + line.recipeName +
                     (line.minQuality ? ' (qualité ≥ ' + line.minQuality + ')' : '');
             }).join(' · ');
             return row({
                 icon: 'i-orders',
                 title: order.customerName,
-                meta: lines + (order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
+                meta: lines + (open && order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
                 side: chip(ORDER_LABELS[order.status] || order.status, order.status === 'OPEN' ? 'ok' : 'info') +
-                    chip(fmt.number(order.rewardCoins) + ' pièces', 'gold')
+                    chip(fmt.number(order.rewardCoins) + ' pièces · ' + order.rewardReputation + ' réputation', 'gold') +
+                    (open && order.status === 'OPEN' ? actionButton('npc-accept', 'Accepter', order.id) : '') +
+                    (open ? (available ? actionButton('npc-complete', 'Livrer le brassin', order.id)
+                        : chip('Brassin requis en cave', 'warn') +
+                          ((order.lines || []).length ? actionButton('prepare-recipe', 'Préparer la recette', order.lines[0].recipeId) : '')) : '')
             });
         }).join('');
     }
@@ -765,14 +792,6 @@
         var headers = { Accept: 'application/json' };
         if (token && header && token.content) headers[header.content] = token.content;
         return headers;
-    }
-
-    function post(url) {
-        return fetch(url, { method: 'POST', credentials: 'same-origin', headers: csrfHeaders() })
-            .then(function (response) {
-                if (!response.ok) throw new Error(String(response.status));
-                return response;
-            });
     }
 
     var ENDPOINTS = {
@@ -897,6 +916,14 @@
     }
 
     function runAction(action, id) {
+        if (action === 'daily-place') { openPlace(id); return; }
+        if (action === 'prepare-recipe') {
+            var prepared = state.recipes.find(function (recipe) { return recipe.id === Number(id); });
+            if (!prepared) return;
+            picker = { kind: 'recipe', query: prepared.name };
+            openScreen('brasser');
+            return;
+        }
         if (action && action.indexOf('set-') === 0) {
             settings[action.slice(4)] = id;
             saveSettings();
@@ -912,6 +939,16 @@
         }
 
         if (action === 'orders-tab') { orders.tab = id; renderScreen(); return; }
+
+        if (action === 'npc-generate') {
+            send('/api/npc-orders/players/' + state.player.id + '/generate', undefined, function () { toast('Un marchand te propose un contrat.'); });
+            return;
+        }
+        if (action === 'npc-accept' || action === 'npc-complete') {
+            send('/api/npc-orders/' + Number(id) + (action === 'npc-accept' ? '/accept' : '/complete'), undefined,
+                function () { toast(action === 'npc-accept' ? 'Contrat accepté. Prépare ta livraison.' : 'Brassin livré. Pièces, expérience et réputation reçues.'); });
+            return;
+        }
 
         if (action === 'choose-specialization') {
             send('/api/progression/specialization', { specialization: id }, function () {
@@ -1027,7 +1064,8 @@
         if (action === 'offer-batch') {
             var batch = state.batches.find(function (b) { return b.id === Number(id); });
             if (!batch) return;
-            offerDraft = { batchId: batch.id, recipeName: batch.recipeName };
+            offerDraft = { batchId: batch.id, recipeName: batch.recipeName, maxServings: Math.min(40, Math.floor(Number(batch.volume) * 2)) };
+            if (!offerDraft.maxServings) { toast('Il faut au moins un demi-litre pour ouvrir un fût au comptoir.'); return; }
             openScreen('comptoir');
             return;
         }
@@ -1036,6 +1074,9 @@
             var servings = Number(($('offerServings') || {}).value || 0);
             var price = Number(($('offerPrice') || {}).value || 0);
             var note = ($('offerNote') || {}).value || '';
+            if (!Number.isInteger(servings) || servings < 1 || servings > offerDraft.maxServings || !Number.isInteger(price) || price < 0 || price > 5000) {
+                toast('Vérifie le nombre de services et le prix du verre.'); return;
+            }
             send('/api/tavern/counter',
                 { batchId: offerDraft.batchId, servings: servings, price: price, note: note },
                 function (payload, stillHere) {
@@ -1136,10 +1177,7 @@
 
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
-        post(endpoint(Number(id)))
-            .then(function () { return refresh(); })
-            .then(function () { toast('Action enregistrée.'); })
-            .catch(function () { toast('L’action n’a pas pu être enregistrée.'); });
+        send(endpoint(Number(id)), undefined, function () { toast('Récolte rentrée à l’entrepôt.'); });
     }
 
     /* --------------------------------------------------------------- Rendu */
@@ -1204,6 +1242,7 @@
         dom.game.dataset.light = light;
         dom.weatherLabel.textContent = weather.label;
         dom.weatherChip.title = 'Météo du domaine · ' + (light === 'jour' ? 'jour' : light);
+        dom.game.dataset.paused = document.hidden ? 'true' : 'false';
     }
 
     function renderFeed() {
@@ -1219,12 +1258,14 @@
         var due = [];
 
         state.fields.forEach(function (field) {
+            if (field.status === 'EMPTY' || field.status === 'GROWING') delete readySeen['f' + field.id];
             if ((field.status === 'READY' || (field.readyAt && fmt.isDone(field.readyAt))) && !readySeen['f' + field.id]) {
                 readySeen['f' + field.id] = true;
                 due.push((field.cropName || 'Une parcelle') + ' est à récolter');
             }
         });
         state.hives.forEach(function (hive) {
+            if (hive.status === 'IDLE' || hive.status === 'PRODUCING') delete readySeen['h' + hive.id];
             if (hive.status === 'READY' && !readySeen['h' + hive.id]) {
                 readySeen['h' + hive.id] = true;
                 due.push('Le miel de la ruche n°' + hive.id + ' est prêt');
@@ -1411,6 +1452,7 @@
             if (event.target.id === 'chatInput') { tavern.draft = event.target.value; return; }
             if (event.target.id !== 'pickerSearch') return;
             if (activeView === 'commande') orders.query = event.target.value;
+            else if (activeView === 'recettes') recipeQuery = event.target.value;
             else if (picker) picker.query = event.target.value;
             else return;
             renderScreen();
@@ -1490,7 +1532,7 @@
 
         refresh().catch(function () { /* panneau de panne déjà affiché */ }).then(function () {
             setInterval(function () {
-                if (!state) return;
+                if (!state || document.hidden) return;
                 renderMarkers();
                 renderPlace();
                 // On ne réécrit que les écrans à minuterie : ailleurs cela
@@ -1500,9 +1542,11 @@
                 }
             }, 1000);
             setInterval(function () {
+                if (!document.hidden) initAtmosphere();
                 if (!document.hidden && !mutationPending) refresh().catch(function () {});
             }, 15000);
             document.addEventListener('visibilitychange', function () {
+                dom.game.dataset.paused = document.hidden ? 'true' : 'false';
                 if (!document.hidden && !mutationPending) {
                     refresh().catch(function () {});
                     if (activeView === 'taverne') loadTavern(false);

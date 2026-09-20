@@ -99,6 +99,7 @@
         var left = new Date(iso).getTime() - Date.now();
         if (isNaN(left)) return '';
         if (left <= 0) return 'prêt';
+        if (left < 60000) return Math.ceil(left / 1000) + ' s';
         var minutes = Math.floor(left / 60000);
         if (minutes < 60) return minutes + ' min';
         var hours = Math.floor(minutes / 60);
@@ -254,7 +255,9 @@
         else if (readyFields.length) items.push({ tone: 'ok', text: 'Récolte prête aux champs' });
         if (readyHives.length) items.push({ tone: 'ok', text: 'Miel à récolter au rucher' });
         if (readyBatches.length) items.push({ tone: 'info', text: readyBatches[0].recipeName + ' est prêt en cave' });
-        items.push({ tone: 'info', text: 'Un visiteur est à la taverne' });
+        var neighbours = (state.tavern.notablePlayers || []).filter(function (player) { return player.id !== state.player.id; }).length;
+        if (neighbours) items.push({ tone: 'info', text: neighbours + ' autre' + (neighbours > 1 ? 's domaines au classement' : ' domaine au classement') });
+        else items.push({ tone: 'info', text: 'Invite tes amis à rejoindre le fjord' });
 
         return items.slice(0, 4);
     }

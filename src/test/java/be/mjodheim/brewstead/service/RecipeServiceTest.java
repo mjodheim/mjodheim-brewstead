@@ -7,7 +7,9 @@ import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.RecipeIngredient;
 import be.mjodheim.brewstead.enums.DrinkType;
+import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.IngredientType;
+import be.mjodheim.brewstead.enums.Rarity;
 import be.mjodheim.brewstead.mapper.RecipeMapper;
 import be.mjodheim.brewstead.repository.IngredientRepository;
 import be.mjodheim.brewstead.repository.PlayerProfileRepository;
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -39,6 +42,7 @@ class RecipeServiceTest {
     @Mock IngredientRepository ingredientRepository;
     @Mock PlayerProfileRepository playerRepository;
     @Mock RecipeMapper mapper;
+    @Spy RecipeAlchemyService alchemy = new RecipeAlchemyService();
     @InjectMocks RecipeService service;
 
     @Test
@@ -78,7 +82,7 @@ class RecipeServiceTest {
         Ingredient water = ingredient(2, IngredientType.WATER);
         CreateRecipeRequest request = new CreateRecipeRequest(
                 7L, "  Mon Hydromel  ", DrinkType.values()[0],
-                new BigDecimal("10.00"), 12,
+                new BigDecimal("10.00"), 12, null,
                 List.of(
                         new RecipeIngredientRequest(1L, new BigDecimal("2.000")),
                         new RecipeIngredientRequest(2L, new BigDecimal("8.000"))
@@ -116,31 +120,136 @@ class RecipeServiceTest {
 
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(null, valid.name(), valid.drinkType(), valid.baseVolume(),
-                        valid.fermentationDurationHours(), valid.ingredients())));
+                        valid.fermentationDurationHours(), null, valid.ingredients())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, " ", valid.drinkType(), valid.baseVolume(),
-                        valid.fermentationDurationHours(), valid.ingredients())));
+                        valid.fermentationDurationHours(), null, valid.ingredients())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, "X", null, valid.baseVolume(),
-                        valid.fermentationDurationHours(), valid.ingredients())));
+                        valid.fermentationDurationHours(), null, valid.ingredients())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, "X", valid.drinkType(), BigDecimal.ZERO,
-                        valid.fermentationDurationHours(), valid.ingredients())));
+                        valid.fermentationDurationHours(), null, valid.ingredients())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
-                        0, valid.ingredients())));
+                        0, null, valid.ingredients())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
-                        1, List.of())));
+                        1, null, List.of())));
         assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
                 new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
-                        1, List.of(new RecipeIngredientRequest(1L, BigDecimal.ZERO)))));
+                        1, null, List.of(new RecipeIngredientRequest(1L, BigDecimal.ZERO)))));
+    }
+
+    /** Un laboratoire n'est pas une porte ouverte sur la base de données. */
+    @Test
+    void createRecipeRefusesOversizedRequests() {
+        CreateRecipeRequest valid = validRequest();
+        List<RecipeIngredientRequest> nine = java.util.stream.IntStream.rangeClosed(1, 9)
+                .mapToObj(i -> new RecipeIngredientRequest((long) i, BigDecimal.ONE))
+                .toList();
+
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X".repeat(61), valid.drinkType(), valid.baseVolume(),
+                        1, null, valid.ingredients())), "nom trop long");
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X", valid.drinkType(), new BigDecimal("201"),
+                        1, null, valid.ingredients())), "cuve trop grande");
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
+                        null, 4, valid.ingredients())), "fermentation trop courte");
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
+                        null, 10081, valid.ingredients())), "fermentation trop longue");
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
+                        1, null, nine)), "trop d'ingrédients");
+        assertThrows(IllegalArgumentException.class, () -> service.createRecipe(
+                new CreateRecipeRequest(1L, "X", valid.drinkType(), valid.baseVolume(),
+                        1, null, List.of(new RecipeIngredientRequest(1L, new BigDecimal("501"))))),
+                "dose démesurée");
+    }
+
+    @Test
+    void createRecipeRefusesAFullGrimoireOrADuplicateName() {
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player(1)));
+        when(recipeRepository.countByOwnerId(1L)).thenReturn(60L);
+        assertThrows(IllegalStateException.class, () -> service.createRecipe(validRequest()));
+
+        reset(recipeRepository);
+        when(recipeRepository.countByOwnerId(1L)).thenReturn(3L);
+        when(recipeRepository.existsByOwnerIdAndNameIgnoreCase(1L, "Test")).thenReturn(true);
+        assertThrows(IllegalStateException.class, () -> service.createRecipe(validRequest()));
+    }
+
+    /**
+     * Le mélange décide : un ajout d'épice révèle un effet, et deux fois le
+     * même dosage donne deux fois le même breuvage.
+     */
+    @Test
+    void createRecipeDerivesRarityAndEffectFromTheMix() {
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player(1)));
+        when(recipeRepository.save(any(Recipe.class))).thenAnswer(invocation -> {
+            Recipe saved = invocation.getArgument(0);
+            saved.setId(42L);
+            return saved;
+        });
+        when(ingredientRepository.findById(1L)).thenReturn(Optional.of(ingredient(1, IngredientType.HONEY)));
+        when(ingredientRepository.findById(2L)).thenReturn(Optional.of(ingredient(2, IngredientType.WATER)));
+        when(ingredientRepository.findById(3L)).thenReturn(Optional.of(ingredient(3, IngredientType.SPICE)));
+        when(ingredientRepository.findById(4L)).thenReturn(Optional.of(ingredient(4, IngredientType.HERB)));
+
+        Recipe plain = saveAndCapture(mix(1L, 2L));
+        assertEquals(Rarity.COMMUNE, plain.getRarity());
+        assertEquals(EffectKind.AUCUN, plain.getEffectKind());
+        assertNotNull(plain.getFlavour(), "même sans effet, la fiche se lit");
+
+        Recipe spiced = saveAndCapture(mix(1L, 2L, 3L, 4L));
+        assertNotEquals(Rarity.COMMUNE, spiced.getRarity());
+        assertNotEquals(EffectKind.AUCUN, spiced.getEffectKind());
+        assertTrue(spiced.getEffectMagnitude() > 0 && spiced.getEffectMagnitude() <= 50);
+        assertTrue(spiced.getEffectDurationMinutes() > 0);
+
+        Recipe again = saveAndCapture(mix(1L, 2L, 3L, 4L));
+        assertEquals(spiced.getEffectKind(), again.getEffectKind(), "la recherche est reproductible");
+        assertEquals(spiced.getEffectMagnitude(), again.getEffectMagnitude());
+        assertEquals(spiced.getFlavour(), again.getFlavour());
+    }
+
+    /** La durée fine prime sur les heures, et l'entière reste cohérente. */
+    @Test
+    void createRecipeKeepsMinutesAndRoundsHoursUp() {
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player(1)));
+        when(recipeRepository.save(any(Recipe.class))).thenAnswer(i -> i.getArgument(0));
+        when(ingredientRepository.findById(1L)).thenReturn(Optional.of(ingredient(1, IngredientType.HONEY)));
+
+        Recipe saved = saveAndCapture(new CreateRecipeRequest(
+                1L, "Vite fait", DrinkType.values()[0], BigDecimal.TEN, null, 25,
+                List.of(new RecipeIngredientRequest(1L, BigDecimal.ONE))));
+
+        assertEquals(25, saved.getFermentationMinutes());
+        assertEquals(1, saved.getFermentationDurationHours());
+    }
+
+    private CreateRecipeRequest mix(Long... ingredientIds) {
+        return new CreateRecipeRequest(
+                1L, "Essai " + List.of(ingredientIds), DrinkType.values()[0], BigDecimal.TEN, null, 60,
+                java.util.Arrays.stream(ingredientIds)
+                        .map(id -> new RecipeIngredientRequest(id, new BigDecimal("2.0")))
+                        .toList());
+    }
+
+    private Recipe saveAndCapture(CreateRecipeRequest request) {
+        service.createRecipe(request);
+        ArgumentCaptor<Recipe> captor = ArgumentCaptor.forClass(Recipe.class);
+        verify(recipeRepository, atLeastOnce()).save(captor.capture());
+        return captor.getValue();
     }
 
     @Test
     void createRecipeRejectsDuplicateIngredient() {
         CreateRecipeRequest request = new CreateRecipeRequest(
-                1L, "X", DrinkType.values()[0], BigDecimal.TEN, 1,
+                1L, "X", DrinkType.values()[0], BigDecimal.TEN, 1, null,
                 List.of(
                         new RecipeIngredientRequest(1L, BigDecimal.ONE),
                         new RecipeIngredientRequest(1L, new BigDecimal("2"))
@@ -153,7 +262,6 @@ class RecipeServiceTest {
     @Test
     void createRecipeRejectsMissingIngredientEntity() {
         when(playerRepository.findById(1L)).thenReturn(Optional.of(player(1)));
-        when(recipeRepository.save(any(Recipe.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(ingredientRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(IllegalArgumentException.class,
@@ -162,7 +270,7 @@ class RecipeServiceTest {
 
     private CreateRecipeRequest validRequest() {
         return new CreateRecipeRequest(
-                1L, "Test", DrinkType.values()[0], BigDecimal.TEN, 1,
+                1L, "Test", DrinkType.values()[0], BigDecimal.TEN, 1, null,
                 List.of(new RecipeIngredientRequest(1L, BigDecimal.ONE)));
     }
 }

@@ -13,4 +13,8 @@ public interface RecipeRepository extends JpaRepository<Recipe, Long> {
     List<Recipe> findAllByIsPublicTrue();
 
     Optional<Recipe> findFirstByNameIgnoreCaseAndOwnerIsNull(String name);
+
+    long countByOwnerId(Long ownerId);
+
+    boolean existsByOwnerIdAndNameIgnoreCase(Long ownerId, String name);
 }

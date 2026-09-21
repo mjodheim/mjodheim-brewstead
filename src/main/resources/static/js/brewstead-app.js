@@ -24,6 +24,7 @@
     var navigationVersion = 0;
     var offerDraft = null;      // { batchId, recipeName, maxServings }
     var orders = { tab: 'marche', query: '', ingredient: null };
+    var lab = null;             // brouillon de recette au laboratoire
 
     /* Les préférences restent dans ce navigateur : elles ne décrivent que
        l'affichage, jamais l'état du domaine. */
@@ -177,6 +178,13 @@
 
     var RARITY_LABELS = { COMMUNE: 'commune', CURIEUSE: 'curieuse', RARE: 'rare', LEGENDAIRE: 'légendaire' };
 
+    /* Le type d'un ingrédient oriente l'effet d'une recette inventée :
+       autant que le joueur le voie au moment de le choisir. */
+    var TYPE_LABELS = {
+        CEREAL: 'céréale', HONEY: 'miel', HOP: 'houblon', YEAST: 'levure', FRUIT: 'fruit',
+        HERB: 'plante', SPICE: 'épice', WATER: 'eau', OTHER: 'divers'
+    };
+
     /** Ce que le joueur a en réserve, par nom d'ingrédient. */
     function stockOf(s, name) {
         var line = s.inventory.find(function (item) { return item.ingredientName === name; });
@@ -197,6 +205,31 @@
         return 'aeiouyéèêëàâîïôûùhAEIOUYÉÈÊËÀÂÎÏÔÛÙH'.indexOf(low.charAt(0)) !== -1
             ? 'd’' + low
             : 'de ' + low;
+    }
+
+    /* ------------------------------------------------------- Laboratoire */
+
+    function newLab() {
+        return { name: '', drinkType: 'MEAD', volume: 20, minutes: 60, lines: [], query: '' };
+    }
+
+    /**
+     * Les champs libres du laboratoire sont relus avant chaque réaffichage :
+     * sans cela, ajouter un ingrédient effacerait le nom déjà tapé.
+     */
+    function captureLab() {
+        if (!lab) lab = newLab();
+        var name = $('labName');
+        var volume = $('labVolume');
+        var minutes = $('labMinutes');
+        if (name) lab.name = name.value;
+        if (volume && volume.value) lab.volume = volume.value;
+        if (minutes && minutes.value) lab.minutes = minutes.value;
+        return lab;
+    }
+
+    function labLine(id) {
+        return lab.lines.find(function (line) { return line.id === Number(id); });
     }
 
     function matches(text, query) {
@@ -365,11 +398,15 @@
         recettes: {
             title: 'Grimoire des recettes',
             render: function (s) {
-                if (!s.recipes.length) return empty('Aucune recette au grimoire.');
+                var head = '<div class="account-actions" style="margin:0 0 .8em">' +
+                    '<button class="btn btn--gold" type="button" data-action="open-lab">' +
+                    icon('i-plus') + 'Composer une recette</button></div>';
+
+                if (!s.recipes.length) return head + empty('Aucune recette au grimoire.');
                 var recipes = s.recipes.filter(function (recipe) {
                     return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
                 });
-                return searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
+                return head + searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
                     var ingredients = (recipe.ingredients || []).map(function (i) {
                         return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
                     }).join(' · ');
@@ -380,9 +417,92 @@
                             ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
                             (ingredients ? ' — ' + ingredients : ''),
                         side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
+                            (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
+                            (recipe.effectKind && recipe.effectKind !== 'AUCUN'
+                                ? chip(recipe.effectLabel, 'info') : '') +
                             chip(brewability(s, recipe).ok ? 'Ingrédients disponibles' : 'Ingrédients à réunir', brewability(s, recipe).ok ? 'ok' : 'warn')
                     });
                 }).join('') : empty('Aucune recette ne correspond.'));
+            }
+        },
+
+        atelier: {
+            title: 'Composer une recette',
+            render: function (s) {
+                var draft = lab || (lab = newLab());
+                var taken = draft.lines.map(function (line) { return line.id; });
+                var shelf = s.ingredients.filter(function (item) {
+                    return taken.indexOf(item.id) === -1 && matches(item.name, draft.query);
+                });
+
+                var types = '<div class="choices">' + ['MEAD', 'BEER', 'CIDER', 'OTHER'].map(function (key) {
+                    return '<button class="choices__item' + (draft.drinkType === key ? ' is-chosen' : '') + '"' +
+                        ' type="button" data-action="lab-type" data-id="' + key + '">' +
+                        esc(DRINK_LABELS[key]) + '</button>';
+                }).join('') + '</div>';
+
+                var mix = draft.lines.length
+                    ? draft.lines.map(function (line) {
+                        return row({
+                            icon: 'i-pouch',
+                            title: line.name,
+                            meta: esc(TYPE_LABELS[line.type] || 'divers') +
+                                ' · en réserve : ' + fmt.number(stockOf(s, line.name)),
+                            side: '<span class="dose">' +
+                                '<button class="btn btn--sm" type="button" data-action="lab-less"' +
+                                ' data-id="' + line.id + '" aria-label="Diminuer la dose">−</button>' +
+                                '<span class="dose__value">' +
+                                esc(fmt.quantity(line.quantity, line.unit)) + '</span>' +
+                                '<button class="btn btn--sm" type="button" data-action="lab-more"' +
+                                ' data-id="' + line.id + '" aria-label="Augmenter la dose">+</button>' +
+                                '<button class="btn btn--sm" type="button" data-action="lab-remove"' +
+                                ' data-id="' + line.id + '" aria-label="Retirer cet ingrédient">×</button>' +
+                                '</span>'
+                        });
+                    }).join('')
+                    : empty('Rien dans la cuve. C’est le mélange qui fait la recette.');
+
+                return '<p class="hint">Tu choisis le mélange, jamais l’effet : c’est lui qui décide. ' +
+                    'Un même dosage donne toujours le même résultat, alors note ce qui marche. ' +
+                    'Les épices et les plantes réveillent les breuvages plus sûrement que l’orge.</p>' +
+
+                    '<label class="account-field"><input id="labName" type="text" maxlength="60"' +
+                    ' placeholder="Le nom de ton breuvage" value="' + esc(draft.name) + '" autocomplete="off">' +
+                    '<small>Il figurera au grimoire, à la brasserie et au comptoir.</small></label>' +
+
+                    '<p class="section-title">Type</p>' + types +
+
+                    '<div class="lab-grid">' +
+                    '<label class="account-field">' +
+                    '<input id="labVolume" type="number" min="1" max="200" step="1" value="' + esc(draft.volume) + '">' +
+                    '<small>Litres par brassin.</small></label>' +
+                    '<label class="account-field">' +
+                    '<input id="labMinutes" type="number" min="5" max="10080" step="5" value="' + esc(draft.minutes) + '">' +
+                    '<small>Minutes de fermentation.</small></label>' +
+                    '</div>' +
+
+                    '<p class="section-title">Le mélange — ' + draft.lines.length + ' sur 8</p>' + mix +
+
+                    (draft.lines.length < 8
+                        ? searchField('Ajouter un ingrédient…', draft.query) +
+                            (shelf.length
+                                ? '<div class="grid">' + shelf.slice(0, 24).map(function (item) {
+                                    return '<button class="row row--pick" type="button"' +
+                                        ' data-action="lab-add" data-id="' + item.id + '">' +
+                                        icon('i-pouch', 'row__icon') +
+                                        '<span class="row__body"><span class="row__title">' + esc(item.name) + '</span>' +
+                                        '<small class="row__meta">' + esc(TYPE_LABELS[item.type] || 'divers') +
+                                        ' · en réserve : ' + esc(fmt.number(stockOf(s, item.name))) +
+                                        '</small></span></button>';
+                                }).join('') + '</div>'
+                                : empty('Aucun ingrédient ne correspond.'))
+                        : '<p class="hint">Huit ingrédients, c’est déjà beaucoup pour une seule cuve.</p>') +
+
+                    '<div class="account-actions">' +
+                    '<button class="btn" type="button" data-action="lab-reset">Repartir de zéro</button>' +
+                    '<button class="btn btn--gold" type="button" data-action="lab-save">' +
+                    icon('i-check') + 'Inscrire au grimoire</button>' +
+                    '</div>';
             }
         },
 
@@ -1089,6 +1209,14 @@
             return;
         }
 
+        if (action === 'open-lab') {
+            if (!lab) lab = newLab();
+            openScreen('atelier');
+            return;
+        }
+
+        if (action && action.indexOf('lab-') === 0) { runLabAction(action, id); return; }
+
         if (action === 'open-brew') { openPicker('recipe'); return; }
         if (action === 'sow-field') { openPicker('crop', Number(id)); return; }
 
@@ -1178,6 +1306,68 @@
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
         send(endpoint(Number(id)), undefined, function () { toast('Récolte rentrée à l’entrepôt.'); });
+    }
+
+    /** Le laboratoire : tout passe par le brouillon, jamais par le DOM seul. */
+    function runLabAction(action, id) {
+        captureLab();
+
+        if (action === 'lab-type') { lab.drinkType = id; renderScreen(); return; }
+
+        if (action === 'lab-add') {
+            var item = state.ingredients.find(function (i) { return i.id === Number(id); });
+            if (!item || lab.lines.length >= 8) return;
+            lab.lines.push({ id: item.id, name: item.name, unit: item.unit, type: item.type, quantity: 1 });
+            lab.query = '';
+            renderScreen();
+            return;
+        }
+
+        if (action === 'lab-remove') {
+            lab.lines = lab.lines.filter(function (line) { return line.id !== Number(id); });
+            renderScreen();
+            return;
+        }
+
+        if (action === 'lab-more' || action === 'lab-less') {
+            var line = labLine(id);
+            if (!line) return;
+            var step = line.quantity >= 10 ? 1 : 0.5;
+            line.quantity = action === 'lab-more'
+                ? Math.min(500, line.quantity + step)
+                : Math.max(0.5, line.quantity - step);
+            line.quantity = Math.round(line.quantity * 10) / 10;
+            renderScreen();
+            return;
+        }
+
+        if (action === 'lab-reset') { lab = newLab(); renderScreen(); return; }
+
+        if (action === 'lab-save') {
+            if (!lab.name.trim()) { toast('Il lui faut un nom.'); return; }
+            if (!lab.lines.length) { toast('Il lui faut au moins un ingrédient.'); return; }
+            var volume = Number(lab.volume);
+            var minutes = Number(lab.minutes);
+            if (!(volume > 0) || volume > 200) { toast('Le volume tient entre 1 et 200 litres.'); return; }
+            if (!(minutes >= 5) || minutes > 10080) { toast('La fermentation tient entre 5 minutes et 7 jours.'); return; }
+
+            send('/api/recipes', {
+                name: lab.name.trim(),
+                drinkType: lab.drinkType,
+                baseVolume: volume,
+                fermentationDurationMinutes: Math.round(minutes),
+                ingredients: lab.lines.map(function (line) {
+                    return { ingredientId: line.id, quantity: line.quantity };
+                })
+            }, function (recipe) {
+                lab = null;
+                openScreen('recettes');
+                if (!recipe) { toast('Recette inscrite.'); return; }
+                toast(recipe.effectKind && recipe.effectKind !== 'AUCUN'
+                    ? recipe.name + ' — ' + recipe.effectLabel + ' (' + recipe.effectMagnitude + '%)'
+                    : recipe.name + ' — ' + (recipe.flavour || 'rien de spectaculaire, mais ça se boit.'));
+            });
+        }
     }
 
     /* --------------------------------------------------------------- Rendu */
@@ -1453,6 +1643,7 @@
             if (event.target.id !== 'pickerSearch') return;
             if (activeView === 'commande') orders.query = event.target.value;
             else if (activeView === 'recettes') recipeQuery = event.target.value;
+            else if (activeView === 'atelier') { captureLab(); lab.query = event.target.value; }
             else if (picker) picker.query = event.target.value;
             else return;
             renderScreen();
@@ -1480,6 +1671,11 @@
         });
 
         dom.settingsBtn.addEventListener('click', function () {
+            openScreen('compte');
+        });
+
+        // Le portrait est le raccourci que tout le monde essaie en premier.
+        dom.playerCard.addEventListener('click', function () {
             openScreen('compte');
         });
 
@@ -1520,7 +1716,7 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
+            'playerCard', 'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
             'weatherChip', 'weatherLabel'].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();

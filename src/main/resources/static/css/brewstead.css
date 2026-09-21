@@ -465,7 +465,29 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 /* Carte joueur */
 
-.player { display: flex; align-items: center; gap: .8em; padding: .6em .95em; }
+/* Le portrait ouvre le compte : c'est le geste attendu, autant l'offrir. */
+.player {
+    display: flex;
+    align-items: center;
+    gap: .8em;
+    padding: .6em .95em;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease;
+}
+
+.player:hover { transform: translateY(-1px); border-color: rgba(233, 188, 85, .55); }
+.player:active { transform: translateY(0); }
+
+.player:focus-visible {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(233, 188, 85, .3);
+}
+
+.player:hover .player__avatar { border-color: var(--gold); }
 
 .player__avatar {
     display: grid;
@@ -1280,4 +1302,35 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+}
+
+/* Laboratoire : volume et durée se lisent côte à côte. */
+
+.lab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: .8em;
+    margin-bottom: .2em;
+}
+
+.lab-grid .account-field { margin: 0; }
+
+/* Le réglage d'une dose : moins, la valeur, plus, et on retire.
+   Une ligne, jamais une colonne — la pile verticale rendait les rangées
+   hautes comme des immeubles. */
+
+.dose { display: flex; align-items: center; gap: .35em; }
+
+.dose__value {
+    min-width: 4.2em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.dose .btn {
+    min-width: 2.1em;
+    padding: .3em .5em;
+    justify-content: center;
+    font-size: 1em;
+    line-height: 1;
 }

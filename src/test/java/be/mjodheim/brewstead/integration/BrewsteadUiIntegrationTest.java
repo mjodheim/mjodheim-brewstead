@@ -1,6 +1,7 @@
 package be.mjodheim.brewstead.integration;
 
 import be.mjodheim.brewstead.entity.PlayerProfile;
+import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.User;
 import be.mjodheim.brewstead.enums.BehiveStatus;
 import be.mjodheim.brewstead.enums.FieldStatus;
@@ -51,6 +52,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired NpcOrderLineRepository npcLineRepository;
     @Autowired TastingOfferRepository offerRepository;
     @Autowired PlayerAchievementRepository achievementRepository;
+    @Autowired RecipeRepository recipeRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -625,6 +627,100 @@ class BrewsteadUiIntegrationTest {
             brewer.quit();
             guest.quit();
         }
+    }
+
+    /**
+     * Le laboratoire : on assemble un mélange, on l'inscrit au grimoire, et la
+     * recette obtenue est aussitôt brassable. Au passage, le portrait du HUD
+     * doit ouvrir le compte — c'est le premier geste que tente un joueur.
+     */
+    @Test
+    void laboratoryTurnsAMixIntoAPrivateRecipeAndThePortraitOpensTheAccount() {
+        WebDriver driver = newBrowser();
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        String username = "ui_lab_" + System.nanoTime() % 100000;
+
+        try {
+            registerAndLogin(driver, wait, username);
+            PlayerProfile profile = profile(username);
+
+            // Le portrait est un bouton, pas un simple panneau décoratif.
+            click(driver, wait, By.id("playerCard"));
+            waitForScreen(wait, "Mon compte");
+            assertFalse(driver.findElements(By.cssSelector(".avatar-pick")).isEmpty());
+            click(driver, wait, By.id("screenClose"));
+
+            openPlaceScreen(driver, wait, "laboratoire");
+            waitForScreen(wait, "Grimoire des recettes");
+            long before = recipeRepository.countByOwnerId(profile.getId());
+
+            click(driver, wait, By.cssSelector("[data-action='open-lab']"));
+            waitForScreen(wait, "Composer une recette");
+
+            String name = "Cuvée " + username;
+            WebElement labName = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("labName")));
+            labName.sendKeys(name);
+
+            // Changer de type puis ajouter un ingrédient ne doit rien effacer.
+            click(driver, wait, By.cssSelector("[data-action='lab-type'][data-id='BEER']"));
+            assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"));
+
+            addIngredient(driver, wait, "miel");
+            addIngredient(driver, wait, "eau");
+            assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"),
+                    "Le nom saisi doit survivre aux ajouts d'ingrédients.");
+            assertEquals(2, driver.findElements(By.cssSelector("[data-action='lab-remove']")).size());
+
+            // La dose se règle sans champ de saisie : rien à perdre au réaffichage.
+            click(driver, wait, By.cssSelector("[data-action='lab-more']"));
+
+            WebElement minutes = driver.findElement(By.id("labMinutes"));
+            minutes.clear();
+            minutes.sendKeys("15");
+            screenshot(driver, "07-laboratory-mix.png");
+
+            click(driver, wait, By.cssSelector("[data-action='lab-save']"));
+            waitForScreen(wait, "Grimoire des recettes");
+            wait.until(d -> recipeRepository.countByOwnerId(profile.getId()) == before + 1);
+
+            Recipe created = recipeRepository.findAllByIsPublicTrueOrOwnerId(profile.getId()).stream()
+                    .filter(recipe -> name.equals(recipe.getName()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("La recette n'a pas rejoint le grimoire."));
+            assertFalse(created.isPublic(), "Une invention reste privée.");
+            assertEquals(15, created.getFermentationMinutes());
+            assertNotNull(created.getRarity());
+            assertNotNull(created.getFlavour(), "Le mélange doit produire une ligne de dégustation.");
+
+            wait.until(d -> d.findElement(By.id("screenBody")).getText().contains(name));
+
+            // Et elle est immédiatement proposée au moment de lancer un brassin.
+            openPlaceScreen(driver, wait, "brasserie");
+            waitForScreen(wait, "Brasserie");
+            click(driver, wait, By.cssSelector("[data-action='open-brew']"));
+            waitForScreen(wait, "Choisir une recette");
+            WebElement search = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")));
+            search.sendKeys(name);
+            wait.until(d -> d.findElement(By.id("screenBody")).getText().contains(name));
+
+            assertNoApplicationJavascriptErrors(driver);
+            screenshot(driver, "08-laboratory-brewable.png");
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-laboratory.png");
+            throw failure;
+        } finally {
+            driver.quit();
+        }
+    }
+
+    private void addIngredient(WebDriver driver, WebDriverWait wait, String query) {
+        WebElement search = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")));
+        search.clear();
+        search.sendKeys(query);
+        click(driver, wait, By.cssSelector("[data-action='lab-add']"));
     }
 
     private void openPlaceScreen(WebDriver driver, WebDriverWait wait, String place) {

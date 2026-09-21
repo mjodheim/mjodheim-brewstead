@@ -239,11 +239,13 @@ class BrewsteadUiIntegrationTest {
             click(alice, a, By.id("placeAction"));
             waitForScreen(a, "Taverne");
             assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
-            WebElement draft = alice.findElement(By.id("chatInput"));
+            WebElement draft = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             draft.sendKeys("Un message rédigé lentement");
 
             click(bob, b, By.cssSelector(".dock__tab[data-view='taverne']"));
-            bob.findElement(By.id("chatInput")).sendKeys("Bonjour Alice");
+            waitForScreen(b, "Taverne");
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")))
+                    .sendKeys("Bonjour Alice");
             click(bob, b, By.cssSelector("[data-action='chat-send']"));
             a.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Bonjour Alice"));
             new Actions(alice).pause(Duration.ofSeconds(5)).perform();
@@ -286,7 +288,8 @@ class BrewsteadUiIntegrationTest {
             alice.manage().window().setSize(new Dimension(1440, 1000));
             click(alice, a, By.cssSelector(".dock__tab[data-view='commandes']"));
             click(alice, a, By.cssSelector("[data-action='new-order']"));
-            alice.findElement(By.id("pickerSearch")).sendKeys("Eau de source");
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")))
+                    .sendKeys("Eau de source");
             var water = ingredientRepository.findByNameIgnoreCase("Eau de source").orElseThrow();
             click(alice, a, By.cssSelector("[data-action='pick-order-ingredient'][data-id='" + water.getId() + "']"));
             WebElement quantity = alice.findElement(By.id("orderQty"));

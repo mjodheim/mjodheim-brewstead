@@ -142,9 +142,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 .weather { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
+/* La pluie a été réduite : à pleine force elle masquait les lueurs et les
+   cascades, qui sont ce qu'on veut voir du domaine. */
 .weather--rain {
     inset: -25%;
-    background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .28) 14px 15px, transparent 16px 28px);
+    background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .16) 14px 15px, transparent 16px 28px);
     background-size: 38px 38px;
     animation: rain-drift .7s linear infinite;
 }
@@ -885,6 +887,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 .screen.is-open .screen__sheet { transform: none; }
+
+/* Un décor a besoin de place : on élargit la feuille quand on entre dans
+   un lieu plutôt que d'y écraser une scène. */
+.screen--wide .screen__sheet { width: min(72em, 100%); }
+.screen--wide .screen__body { overflow: hidden; }
 
 .screen__head {
     display: flex;

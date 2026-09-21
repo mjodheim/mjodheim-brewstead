@@ -165,7 +165,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Champs");
-            click(driver, wait, By.cssSelector("[data-action='sow-field']"));
+            click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
             waitForScreen(wait, "Choisir une culture");
             click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
@@ -176,7 +176,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Rucher"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive']"));
+            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
 
@@ -185,8 +185,8 @@ class BrewsteadUiIntegrationTest {
             hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
             hiveRepository.save(hive);
             new WebDriverWait(driver, Duration.ofSeconds(30)).until(
-                    ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive']")));
-            click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive']"));
+                    ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']")));
+            click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']"));
             wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getStatus() == BehiveStatus.IDLE);
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
@@ -371,7 +371,7 @@ class BrewsteadUiIntegrationTest {
             // Sow and harvest through the UI. Only waiting time is accelerated in
             // the isolated database: production, stock and rewards use real services.
             openSection(brewer, wait, "champs");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field'] .sc-node__hit, #screenBody [data-action='sow-field']"));
             click(brewer, wait, By.cssSelector("#screenBody [data-action='pick-crop']"));
             waitForMutation(brewer, wait);
             var field = fieldRepository.findAllByPlayerId(player.getId()).stream()
@@ -386,7 +386,7 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedFields());
 
             openSection(brewer, wait, "rucher");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive'] .sc-node__hit, #screenBody [data-action='start-hive']"));
             waitForMutation(brewer, wait);
             var hive = hiveRepository.findAllByPlayerId(player.getId()).stream()
                     .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
@@ -448,7 +448,8 @@ class BrewsteadUiIntegrationTest {
             assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("10 L"));
 
             openSection(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "']"));
+            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "'] .sc-node__hit, " +
+                    "[data-action='offer-batch'][data-id='" + batchId + "']"));
             assertFalse(brewer.findElement(By.id("screenBody")).getText().contains("undefined"));
             WebElement services = brewer.findElement(By.id("offerServings"));
             services.clear(); services.sendKeys("2");
@@ -548,7 +549,7 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(brewer, wait, "champs");
             assertEquals("paused", flow.getCssValue("animation-play-state"), "L'animation repose pendant la lecture des menus");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field'] .sc-node__hit, #screenBody [data-action='sow-field']"));
             click(brewer, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream().anyMatch(f -> f.getStatus() == FieldStatus.GROWING));
             var field = fieldRepository.findAllByPlayerId(profile.getId()).stream().filter(f -> f.getStatus() == FieldStatus.GROWING).findFirst().orElseThrow();
@@ -557,7 +558,7 @@ class BrewsteadUiIntegrationTest {
             fieldRepository.save(field);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             openPlaceScreen(brewer, wait, "champs");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-field'] .sc-node__hit, #screenBody [data-action='harvest-field']"));
             wait.until(d -> achievementRepository.existsByPlayerIdAndCode(profile.getId(), "FIRST_HARVEST"));
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
@@ -571,7 +572,7 @@ class BrewsteadUiIntegrationTest {
             batchRepository.save(batch);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch'] .sc-node__hit, #screenBody [data-action='taste-batch']"));
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
@@ -593,7 +594,8 @@ class BrewsteadUiIntegrationTest {
             screenshot(brewer, "09-merchant-delivered.png");
 
             openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch'] .sc-node__hit, " +
+                    "#screenBody [data-action='offer-batch']"));
             WebElement servings = brewer.findElement(By.id("offerServings"));
             assertTrue(Integer.parseInt(servings.getDomAttribute("max")) <= batchRepository.findById(batch.getId()).orElseThrow().getVolume().multiply(BigDecimal.valueOf(2)).intValue());
             servings.clear();
@@ -736,7 +738,7 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(driver, wait, "champs");
             waitForScreen(wait, "Champs");
-            click(driver, wait, By.cssSelector("[data-action='sow-field']"));
+            click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
             waitForScreen(wait, "Choisir une culture");
             click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
@@ -744,7 +746,7 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(driver, wait, "rucher");
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive']"));
+            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
             click(driver, wait, By.id("screenClose"));

@@ -25,6 +25,9 @@
     var offerDraft = null;      // { batchId, recipeName, maxServings }
     var orders = { tab: 'marche', query: '', ingredient: null };
     var lab = null;             // brouillon de recette au laboratoire
+    var Scenes = global.BrewsteadScenes;
+    var sceneSignature = {};    // par lieu : la composition déjà dessinée
+    var listMode = {};          // par lieu : le joueur a demandé la liste
 
     /* Les préférences restent dans ce navigateur : elles ne décrivent que
        l'affichage, jamais l'état du domaine. */
@@ -254,6 +257,7 @@
     var SECTIONS = {
         rucher: {
             live: true,
+            scene: 'rucher',
             title: 'Rucher',
             render: function (s) {
                 if (!s.hives.length) return empty('Aucune ruche installée pour l’instant.');
@@ -276,6 +280,7 @@
 
         champs: {
             live: true,
+            scene: 'champs',
             title: 'Champs',
             render: function (s) {
                 if (!s.fields.length) return empty('Aucune parcelle cultivée pour l’instant.');
@@ -381,6 +386,7 @@
 
         brasserie: {
             live: true,
+            scene: 'brasserie',
             title: 'Brasserie',
             render: function (s) {
                 var head = '<div class="account-actions" style="margin:0 0 .8em">' +
@@ -1233,6 +1239,9 @@
             return;
         }
 
+        if (action === 'show-list') { listMode[id] = true; renderScreen(); return; }
+        if (action === 'show-scene') { listMode[id] = false; renderScreen(); return; }
+
         if (action === 'open-lab') {
             if (!lab) lab = newLab();
             openScreen('atelier');
@@ -1548,11 +1557,84 @@
             : (section ? section.render(state) : ''));
     }
 
+    /**
+     * Les actions proposées sous une scène.
+     *
+     * <p>Ce qui vise un objet précis se fait sur l'objet ; ici ne restent que
+     * les gestes qui portent sur le lieu entier.
+     */
+    function sceneBar(view) {
+        var hint = {
+            champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
+            rucher: 'Touche une ruche endormie pour la lancer, une ruche pleine pour la vider.',
+            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.'
+        }[view] || '';
+
+        var actions = '';
+        if (view === 'champs' || view === 'rucher') {
+            var waiting = Data.placeCount(view, state);
+            if (waiting >= 2) {
+                actions += '<button class="btn btn--gold" type="button" data-action="harvest-all">' +
+                    icon('i-basket') + 'Tout récolter (' + waiting + ')</button>';
+            }
+        }
+        if (view === 'brasserie') {
+            actions += '<button class="btn btn--gold" type="button" data-action="open-brew">' +
+                icon('i-plus') + 'Lancer un brassin</button>';
+        }
+        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + view + '">' +
+            'Voir la liste</button>';
+
+        return '<div class="scene__bar">' +
+            '<p class="scene__hint">' + esc(hint) + '</p>' + actions + '</div>';
+    }
+
+    /**
+     * Dessine le lieu, ou le remet à l'heure.
+     *
+     * <p>Reconstruire la scène à chaque battement de seconde relancerait
+     * toutes les animations : tant que la composition du lieu n'a pas changé,
+     * on ne retouche que ce qui avance.
+     */
+    function renderSceneScreen(section) {
+        var place = section.scene;
+        var fresh = Scenes.signature(place, state);
+        var drawn = dom.screenBody.querySelector('.sc-stage, .sc-empty');
+
+        if (drawn && sceneSignature[place] === fresh) {
+            Scenes.tick(dom.screenBody, place, state);
+            return;
+        }
+
+        sceneSignature[place] = fresh;
+        // innerHTML direct : updateMarkup réconcilie nœud par nœud, ce qui
+        // n'a aucun sens pour un décor entier qu'on redessine.
+        dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
+            Scenes.markup(place, state) + sceneBar(place) + '</div>';
+        dom.screenBody._markup = null;
+    }
+
     function renderScreen() {
         var section = SECTIONS[activeView];
         if (!section) return;
         dom.screenTitle.textContent = section.title;
-        updateMarkup(dom.screenBody, section.render(state));
+
+        var drawable = !!section.scene && !!Scenes && Scenes.has(section.scene);
+        dom.screen.classList.toggle('screen--wide', drawable && !listMode[activeView]);
+
+        if (drawable && !listMode[activeView]) {
+            renderSceneScreen(section);
+            return;
+        }
+
+        var html = section.render(state);
+        if (drawable) {
+            html = '<div class="account-actions" style="margin:0 0 .8em">' +
+                '<button class="btn" type="button" data-action="show-scene" data-id="' +
+                activeView + '">Revenir au décor</button></div>' + html;
+            sceneSignature[section.scene] = null;
+        }
+        updateMarkup(dom.screenBody, html);
     }
 
     function render() {
@@ -1746,7 +1828,15 @@
             if (event.target.id === 'chatInput' && event.key === 'Enter' && !event.isComposing) {
                 event.preventDefault();
                 runAction('chat-send');
+                return;
             }
+            // Un objet de la scène n'est pas un <button> : c'est un groupe SVG
+            // rendu focalisable, il faut lui rendre Entrée et Espace.
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            var node = event.target.closest && event.target.closest('.sc-node[data-action]');
+            if (!node) return;
+            event.preventDefault();
+            runAction(node.dataset.action, node.dataset.id);
         });
 
         dom.screenBody.addEventListener('input', function (event) {

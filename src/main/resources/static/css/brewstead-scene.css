@@ -1,0 +1,248 @@
+/* ==========================================================================
+   Brewstead — les scènes des lieux
+
+   Le décor est dessiné, pas peint : il doit donc bouger un peu tout seul,
+   sinon il a l'air mort. Rien n'anime autre chose que des transformations
+   et de l'opacité, pour que le tout reste fluide sur une machine modeste.
+   ========================================================================== */
+
+.scene {
+    position: relative;
+    margin: -1.1em -1.3em -1.4em;
+    border-radius: 0 0 calc(var(--radius) - .1em) calc(var(--radius) - .1em);
+    overflow: hidden;
+    background: #23180c;
+}
+
+.sc-stage {
+    display: block;
+    width: 100%;
+    height: clamp(17rem, 46vh, 30rem);
+    /* La feuille principale pose `svg { stroke: currentColor }` pour le jeu
+       d'icônes. Sans cette remise à zéro, chaque halo et chaque ombre de la
+       scène héritait d'un contour brun et se dessinait en anneau. */
+    stroke: none;
+    fill: none;
+}
+
+.sc-empty {
+    margin: 0;
+    padding: 3.5em 1.5em;
+    text-align: center;
+    font-style: italic;
+    color: var(--ink-soft);
+    background: rgba(255, 252, 240, .35);
+}
+
+/* Décor de fond ------------------------------------------------------------ */
+
+/* Le tableau du domaine, agrandi et hors mise au point. Le flou n'est pas un
+   pis-aller : il envoie le décor à l'arrière-plan et fait ressortir ce qu'on
+   vient manipuler. */
+.sc-far { filter: blur(5px) saturate(1.05) brightness(.94); }
+.sc-far image { transform-origin: center; transform: scale(1.06); }
+
+.sc-floor-plate { fill: url(#sc-grass); }
+.sc-floor-lip { fill: none; stroke: rgba(255, 236, 186, .2); stroke-width: 2.5; }
+.sc-meadow path { fill: none; stroke: rgba(196, 214, 138, .13); stroke-width: 9; stroke-linecap: round; }
+
+/* Le plancher d'une cave : des lames qui fuient vers le fond. */
+.sc-floor-plate--cellar { fill: url(#sc-boards); }
+.sc-planks path { fill: none; stroke: rgba(26, 16, 6, .3); stroke-width: 2; }
+.sc-contact { fill: rgba(18, 11, 3, .38); filter: blur(4px); }
+
+.sc-warm { fill: url(#sc-warmth); mix-blend-mode: screen; pointer-events: none; }
+.sc-vignette { fill: url(#sc-dark); pointer-events: none; }
+.sc-dusk { fill: rgba(26, 15, 5, .52); }
+
+.sc-tufts path { stroke: #86a455; stroke-width: 2; stroke-linecap: round; fill: none; opacity: .7; }
+.sc-blossoms circle { fill: #f6e7ae; opacity: .5; }
+
+.sc-lanterns ellipse { animation: sc-breathe 5.4s ease-in-out infinite; }
+.sc-lanterns ellipse:last-child { animation-duration: 7.1s; animation-delay: -2.4s; }
+
+@keyframes sc-breathe {
+    0%, 100% { opacity: 1; }
+    45% { opacity: .68; }
+}
+
+/* Objets du lieu ----------------------------------------------------------- */
+
+.sc-shadow { fill: rgba(20, 12, 4, .34); }
+
+.sc-node { transform-box: fill-box; }
+
+/* La zone sensible : invisible, mais c'est elle qui prend le clic et le
+   doigt. Sans elle il fallait viser un brin de blé. */
+.sc-node__hit { fill: #000; fill-opacity: 0; pointer-events: all; }
+
+/* Un second geste sur le même objet : sa pastille se soulève pour elle seule. */
+.sc-act { cursor: pointer; transition: transform .2s cubic-bezier(.2, .8, .3, 1); }
+.sc-act:hover, .sc-act:focus-visible { transform: translateY(-4px); }
+.sc-act:focus-visible { outline: none; }
+.sc-act:focus-visible .sc-badge__disc { stroke: #fff6da; stroke-width: 3; }
+/* Le geste secondaire reste doré : le vert est réservé à « c'est prêt ». */
+.sc-node .sc-act .sc-badge__disc { fill: rgba(30, 20, 6, .92); stroke: var(--gold); }
+.sc-node .sc-act .sc-badge__mark { stroke: var(--gold-hi); fill: none; }
+.sc-node:not([data-action]) .sc-node__hit { pointer-events: none; }
+.sc-node[data-action] { cursor: pointer; }
+
+/* Un objet sur lequel on peut agir se soulève à l'approche. */
+.sc-node[data-action] { transition: transform .2s cubic-bezier(.2, .8, .3, 1); }
+.sc-node[data-action]:hover,
+.sc-node[data-action]:focus-visible { transform: translateY(-5px); }
+.sc-node[data-action]:focus-visible { outline: none; }
+.sc-node[data-action]:focus-visible .sc-badge__disc { stroke: #fff6da; stroke-width: 3; }
+
+.sc-node__glow { animation: sc-breathe 2.8s ease-in-out infinite; }
+
+.sc-plot__soil { fill: url(#sc-earth); filter: url(#sc-drop); }
+.sc-plot__edge { fill: none; stroke: rgba(22, 13, 4, .5); stroke-width: 2; }
+.sc-plot__lip { fill: #3d2a13; }
+.sc-furrows path { fill: none; stroke: rgba(30, 19, 7, .45); stroke-width: 3.4; stroke-linecap: round; }
+.sc-furrows--lit path { stroke: rgba(224, 186, 124, .3); stroke-width: 1.6; }
+
+.sc-plot[data-state="empty"] .sc-plot__edge {
+    stroke: rgba(255, 216, 130, .9);
+    stroke-width: 2.5;
+    stroke-dasharray: 14 10;
+    animation: sc-march 3.2s linear infinite;
+}
+
+@keyframes sc-march { to { stroke-dashoffset: -42; } }
+
+/* Les rangées plantées : une touffe pleine, un liseré chaud sur le dessus. */
+
+.sc-row__tufts path { fill: url(#sc-crop); }
+.sc-ears ellipse { fill: #ffeeb0; opacity: .7; }
+
+.sc-plot[data-state="growing"] .sc-row__tufts path { fill: url(#sc-sprout); }
+
+/* Les rangées du fond sont plus sombres : c'est ce qui creuse la parcelle. */
+.sc-row { opacity: calc(.78 + var(--row, 3) * .045); }
+
+/* Les blés mûrs ondulent, chaque rangée avec un temps de retard. */
+.sc-plot[data-state="ready"] .sc-row {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: sc-sway 4.8s ease-in-out infinite;
+    animation-delay: calc(var(--row, 0) * -.45s);
+}
+
+@keyframes sc-sway {
+    0%, 100% { transform: skewX(0deg); }
+    35% { transform: skewX(2.2deg); }
+    70% { transform: skewX(-1.6deg); }
+}
+
+.sc-plot__time, .sc-vat__name {
+    text-anchor: middle;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: 15px;
+    fill: #f6e9cd;
+    paint-order: stroke;
+    stroke: rgba(14, 9, 3, .8);
+    stroke-width: 3.5;
+    stroke-linejoin: round;
+}
+
+.sc-vat__name { font-size: 16px; fill: #ffe6b4; }
+
+/* Ruches ------------------------------------------------------------------- */
+
+.sc-hive__stand { fill: #5b4126; }
+.sc-hive__dome { fill: #d8a64a; }
+.sc-hive__rings { fill: none; stroke: #8a6136; stroke-width: 3; stroke-linecap: round; }
+.sc-hive__door { fill: #3a2611; }
+.sc-hive[data-state="empty"] .sc-hive__dome { fill: #9a8360; }
+
+.sc-bees circle { fill: #2e2208; }
+
+/* Les abeilles tournent autour de la ruche : chacune sur son propre rayon. */
+.sc-bee {
+    transform-box: view-box;
+    animation: sc-orbit 3.4s linear infinite;
+    animation-delay: var(--bee-delay, 0s);
+}
+
+@keyframes sc-orbit {
+    from { transform: rotate(0deg) translateX(var(--bee-r, 30px)) rotate(0deg); }
+    to { transform: rotate(360deg) translateX(var(--bee-r, 30px)) rotate(-360deg); }
+}
+
+/* Cuves -------------------------------------------------------------------- */
+
+.sc-vat__wood { fill: #6b4a28; }
+.sc-vat__liquid { fill: #b5762a; opacity: .95; }
+.sc-vat[data-state="ready"] .sc-vat__liquid { fill: #d8a03a; }
+.sc-vat__surface { fill: rgba(255, 236, 178, .34); }
+.sc-vat[data-state="ready"] .sc-vat__surface { fill: rgba(255, 246, 206, .55); }
+.sc-vat__staves path { fill: none; stroke: rgba(38, 24, 10, .34); stroke-width: 2.4; }
+.sc-vat__hoop { fill: none; stroke: #caa35e; stroke-width: 6; stroke-linecap: round; }
+.sc-vat__rim { fill: #4a3218; stroke: #8a6136; stroke-width: 3; }
+
+.sc-bubble {
+    fill: rgba(255, 248, 220, .7);
+    animation: sc-rise 3.1s ease-in infinite;
+    animation-delay: var(--bub-delay, 0s);
+}
+
+@keyframes sc-rise {
+    0% { transform: translateY(var(--bub-from, 0px)); opacity: 0; }
+    12% { opacity: .8; }
+    100% { transform: translateY(var(--bub-to, -60px)); opacity: 0; }
+}
+
+/* Pastille d'action -------------------------------------------------------- */
+
+.sc-badge__disc { fill: rgba(22, 14, 5, .82); stroke: rgba(233, 188, 85, .55); stroke-width: 2; }
+.sc-badge__mark { fill: none; stroke: var(--gold-hi); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+.sc-node[data-state="ready"] .sc-badge__disc { fill: rgba(28, 54, 18, .9); stroke: var(--ok); }
+.sc-node[data-state="ready"] .sc-badge__mark { fill: #b9e9a6; stroke: #d8ffc4; }
+.sc-node[data-state="ready"] .sc-badge__bob { animation: sc-call 2.2s ease-in-out infinite; }
+
+@keyframes sc-call {
+    0%, 100% { transform: translateY(0); }
+    45% { transform: translateY(-5px); }
+}
+
+.sc-node[data-state="growing"] .sc-badge__mark { stroke: #f0d28a; }
+.sc-node[data-state="growing"] .sc-badge__disc { stroke: rgba(233, 188, 85, .35); }
+
+/* Barre d'actions sous la scène --------------------------------------------- */
+
+.scene__bar .btn { white-space: nowrap; }
+
+.scene__bar {
+    display: flex;
+    align-items: center;
+    gap: .6em;
+    flex-wrap: wrap;
+    padding: .8em 1.3em;
+    background: linear-gradient(180deg, rgba(24, 16, 6, .9), rgba(16, 10, 3, .96));
+    border-top: 1px solid rgba(233, 188, 85, .22);
+}
+
+.scene__hint {
+    flex: 1;
+    min-width: 12em;
+    margin: 0;
+    font-size: .92em;
+    color: var(--cream-dim);
+}
+
+/* Le mode sobre coupe tout ce qui bouge, sans rien casser du décor. */
+:root[data-mouvement="sobre"] .sc-row,
+:root[data-mouvement="sobre"] .sc-bee,
+:root[data-mouvement="sobre"] .sc-bubble,
+:root[data-mouvement="sobre"] .sc-node__glow,
+:root[data-mouvement="sobre"] .sc-lanterns ellipse,
+:root[data-mouvement="sobre"] .sc-plot[data-state="empty"] .sc-plot__edge,
+:root[data-mouvement="sobre"] .sc-plot[data-state="ready"] .sc-row,
+:root[data-mouvement="sobre"] .sc-node[data-state="ready"] .sc-badge__bob { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .sc-bee, .sc-bubble, .sc-node__glow, .sc-lanterns ellipse,
+    .sc-plot__edge, .sc-row, .sc-badge__bob { animation: none !important; }
+}

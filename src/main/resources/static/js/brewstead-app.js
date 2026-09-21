@@ -1677,19 +1677,6 @@
         }).join('');
     }
 
-    /**
-     * La hauteur réelle du bandeau, publiée en variable CSS.
-     *
-     * <p>Elle change avec la largeur de l'écran — la carte du joueur passe
-     * sous les ressources, la quête disparaît. Deviner un décalage fixe
-     * faisait chevaucher la barre des lieux ; on la mesure.
-     */
-    function measureHud() {
-        var header = document.querySelector('.hud--top');
-        if (!header) return;
-        dom.game.style.setProperty('--hud-hauteur', header.getBoundingClientRect().height + 'px');
-    }
-
     function buildMarkers() {
         dom.markers.innerHTML = Data.PLACES.map(function (place) {
             return '<button class="marker" type="button" data-place="' + place.id + '" data-state="idle"' +
@@ -1929,11 +1916,6 @@
 
         loadSettings();
         buildPlaces();
-        measureHud();
-        window.addEventListener('resize', measureHud);
-        if (global.ResizeObserver) {
-            new ResizeObserver(measureHud).observe(document.querySelector('.hud--top'));
-        }
         initAtmosphere();
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();

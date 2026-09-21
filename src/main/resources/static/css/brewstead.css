@@ -471,6 +471,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     left: 0;
     right: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--gap);
     padding: .9em 1.1em;
@@ -1494,11 +1495,12 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .places {
     display: none;
-    left: .6em;
-    right: .6em;
+    flex-basis: 100%;
     gap: .45em;
+    margin-top: -.2em;
     overflow-x: auto;
     padding: .2em .1em;
+    font-size: calc(var(--ui) * var(--ui-facteur));
     scrollbar-width: none;
     pointer-events: auto;
 }
@@ -1552,7 +1554,12 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .place-chip:focus-visible { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 188, 85, .35); }
 
 @media (max-width: 1200px) {
-    /* Calée sur la hauteur mesurée du bandeau : celle-ci change selon que la
-       carte du joueur passe sous les ressources ou reste à côté. */
-    .places { display: flex; top: calc(var(--hud-hauteur, 9em) + .5em); }
+    /* Dans le flux du bandeau, sur sa propre ligne. Une version précédente la
+       positionnait d'après une hauteur mesurée en JavaScript : au moindre
+       changement de fenêtre, elle se posait sur le bandeau le temps que la
+       mesure suive. Ici rien à mesurer, donc rien à rattraper.
+
+       L'ordre est explicite : sous 860 px, .hud__center passe en `order: 3`
+       et la barre, restée à zéro, se retrouvait au-dessus des ressources. */
+    .places { display: flex; order: 4; }
 }

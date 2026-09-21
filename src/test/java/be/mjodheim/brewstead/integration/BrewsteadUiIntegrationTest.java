@@ -791,15 +791,20 @@ class BrewsteadUiIntegrationTest {
             click(driver, wait, By.id("screenClose"));
 
             // Sur un téléphone la carte ne montre qu'un lieu sur sept : la
-            // barre prend le relais, et elle doit tenir sous le bandeau.
+            // barre prend le relais. Elle vit dans le bandeau, sur sa propre
+            // ligne, et ne doit donc jamais recouvrir les ressources.
             driver.manage().window().setSize(new Dimension(390, 844));
             WebElement bar = wait.until(
                     ExpectedConditions.visibilityOfElementLocated(By.id("places")));
             assertEquals(7, driver.findElements(By.cssSelector(".place-chip")).size());
-            int headerBottom = driver.findElement(By.cssSelector(".hud--top")).getRect().getY()
-                    + driver.findElement(By.cssSelector(".hud--top")).getSize().getHeight();
-            assertTrue(bar.getRect().getY() >= headerBottom,
-                    "La barre des lieux ne doit pas chevaucher le bandeau.");
+            wait.until(d -> {
+                Rectangle resources = d.findElement(By.id("resources")).getRect();
+                return d.findElement(By.id("places")).getRect().getY()
+                        >= resources.getY() + resources.getHeight();
+            });
+            assertTrue(bar.getRect().getY()
+                            >= driver.findElement(By.id("playerCard")).getRect().getY(),
+                    "La barre des lieux ne doit pas recouvrir la carte du joueur.");
 
             click(driver, wait, By.cssSelector(".place-chip[data-place='champs']"));
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));

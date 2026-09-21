@@ -2,6 +2,7 @@ package be.mjodheim.brewstead.controller;
 
 import be.mjodheim.brewstead.dto.brew.StartBatchRequest;
 import be.mjodheim.brewstead.dto.farm.PlantCropRequest;
+import be.mjodheim.brewstead.dto.game.HarvestAllResponse;
 import be.mjodheim.brewstead.dto.order.CreatePlayerOrderRequest;
 import be.mjodheim.brewstead.dto.order.PlayerOrderLineRequest;
 import be.mjodheim.brewstead.dto.tavern.OpenOfferRequest;
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
 import java.security.Principal;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
 class OwnedResourceControllersTest {
@@ -93,8 +95,19 @@ class OwnedResourceControllersTest {
         verify(players).getPlayer(7L);
 
         GameStateService state = mock(GameStateService.class);
-        new GameStateController(state, current).getState(principal, 7L);
+        FarmService farm = mock(FarmService.class);
+        ApiaryService apiary = mock(ApiaryService.class);
+        GameStateController stateController = new GameStateController(state, farm, apiary, current);
+        stateController.getState(principal, 7L);
         verify(state).getState(7L);
+
+        // La tournée de récolte passe par la même vérification de session.
+        when(farm.harvestAll(7L)).thenReturn(2);
+        when(apiary.harvestAll(7L)).thenReturn(1);
+        HarvestAllResponse report = stateController.harvestAll(principal, 7L);
+        assertEquals(2, report.fields());
+        assertEquals(1, report.hives());
+        assertEquals(3, report.total());
     }
 
     @Test

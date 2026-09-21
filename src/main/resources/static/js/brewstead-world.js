@@ -44,11 +44,13 @@
         var box = this.world.getBoundingClientRect();
         this.viewWidth = box.width;
         this.viewHeight = box.height;
-        // Cadrage de repos : tout le domaine visible tant que les marges
-        // restent raisonnables, sinon on remplit davantage la fenêtre.
+        // Cadrage de repos : tout le domaine reste visible — l'onglet s'appelle
+        // « Vue d'ensemble », les sept lieux doivent y tenir. Le tableau est
+        // plus large que les écrans courants, donc il reste des marges : le
+        // hors-champ les remplit avec le même décor, hors mise au point.
         var contain = Math.min(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
         var cover = Math.max(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
-        this.fit = Math.max(contain, cover * 0.85);
+        this.fit = Math.max(contain, cover * 0.88);
         this.scale = Math.max(this.scale, this.fit);
         this.apply(false);
     };
@@ -73,6 +75,9 @@
         this.y = clamp(this.y, bounds.minY, bounds.maxY);
         this.scene.classList.toggle('is-animated', !!animated);
         this.scene.style.transform = 'translate3d(' + this.x + 'px,' + this.y + 'px,0) scale(' + this.scale + ')';
+        // Les écriteaux se contre-échelonnent là-dessus : un panneau indicateur
+        // ne grossit pas parce qu'on s'approche.
+        this.scene.style.setProperty('--zoom', this.scale);
         this.onMove(this);
     };
 

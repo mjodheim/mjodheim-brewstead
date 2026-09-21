@@ -131,4 +131,47 @@ class ApiaryServiceTest {
 
         assertThrows(IllegalStateException.class, () -> service.harvest(1L, 5L));
     }
+
+    /** La tournée vide les ruches mûres et laisse travailler les autres. */
+    @Test
+    void harvestAllEmptiesOnlyTheReadyHives() {
+        PlayerProfile owner = player(1);
+        Beehive ready = Beehive.builder()
+                .id(5L).player(owner).level(1).status(BehiveStatus.READY).build();
+        Beehive justDone = Beehive.builder()
+                .id(6L).player(owner).level(1).status(BehiveStatus.PRODUCING)
+                .startedAt(LocalDateTime.now().minusHours(1))
+                .readyAt(LocalDateTime.now().minusSeconds(1)).build();
+        Beehive working = Beehive.builder()
+                .id(7L).player(owner).level(1).status(BehiveStatus.PRODUCING)
+                .startedAt(LocalDateTime.now().minusMinutes(1))
+                .readyAt(LocalDateTime.now().plusMinutes(20)).build();
+        Beehive asleep = Beehive.builder()
+                .id(8L).player(owner).level(1).status(BehiveStatus.IDLE).build();
+
+        when(beehiveRepository.findAllByPlayerId(1L))
+                .thenReturn(List.of(ready, justDone, working, asleep));
+        when(beehiveRepository.findById(5L)).thenReturn(Optional.of(ready));
+        when(beehiveRepository.findById(6L)).thenReturn(Optional.of(justDone));
+        when(ingredientRepository.findFirstByType(IngredientType.HONEY))
+                .thenReturn(Optional.of(ingredient(8, IngredientType.HONEY)));
+        when(progressionService.harvestYield(eq(1L), any(BigDecimal.class)))
+                .thenAnswer(call -> call.getArgument(1));
+
+        assertEquals(2, service.harvestAll(1L));
+
+        verify(inventoryService, times(2)).addIngredient(any());
+        assertEquals(BehiveStatus.IDLE, ready.getStatus());
+        assertEquals(BehiveStatus.IDLE, justDone.getStatus());
+        assertEquals(BehiveStatus.PRODUCING, working.getStatus(), "une ruche au travail n'est pas dérangée");
+        assertEquals(BehiveStatus.IDLE, asleep.getStatus());
+    }
+
+    @Test
+    void harvestAllOnAnIdleApiaryTakesNothing() {
+        when(beehiveRepository.findAllByPlayerId(1L)).thenReturn(List.of());
+
+        assertEquals(0, service.harvestAll(1L));
+        verifyNoInteractions(inventoryService);
+    }
 }

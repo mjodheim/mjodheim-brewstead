@@ -53,6 +53,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired TastingOfferRepository offerRepository;
     @Autowired PlayerAchievementRepository achievementRepository;
     @Autowired RecipeRepository recipeRepository;
+    @Autowired PlayerInventoryRepository inventoryRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -709,6 +710,100 @@ class BrewsteadUiIntegrationTest {
             screenshot(driver, "08-laboratory-brewable.png");
         } catch (RuntimeException | AssertionError failure) {
             screenshot(driver, "failure-laboratory.png");
+            throw failure;
+        } finally {
+            driver.quit();
+        }
+    }
+
+    /**
+     * La tournée de récolte : le bouton n'apparaît que lorsqu'il y a de quoi
+     * ramasser, il annonce combien, et un seul clic vide champs et ruches.
+     */
+    @Test
+    void theReapButtonAppearsOnlyWhenSomethingIsRipeAndEmptiesTheDomainAtOnce() {
+        WebDriver driver = newBrowser();
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        String username = "ui_reap_" + System.nanoTime() % 100000;
+
+        try {
+            registerAndLogin(driver, wait, username);
+            PlayerProfile profile = profile(username);
+
+            // Domaine au repos : rien à ramasser, donc pas de bouton.
+            assertFalse(driver.findElement(By.id("reapBtn")).isDisplayed(),
+                    "Un domaine au repos n'affiche pas la tournée.");
+
+            openPlaceScreen(driver, wait, "champs");
+            waitForScreen(wait, "Champs");
+            click(driver, wait, By.cssSelector("[data-action='sow-field']"));
+            waitForScreen(wait, "Choisir une culture");
+            click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
+            wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .anyMatch(field -> field.getStatus() == FieldStatus.GROWING));
+
+            openPlaceScreen(driver, wait, "rucher");
+            waitForScreen(wait, "Rucher");
+            click(driver, wait, By.cssSelector("[data-action='start-hive']"));
+            wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
+            click(driver, wait, By.id("screenClose"));
+
+            // On avance le temps plutôt que de l'attendre.
+            LocalDateTime past = LocalDateTime.now().minusMinutes(1);
+            fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .filter(field -> field.getStatus() == FieldStatus.GROWING)
+                    .forEach(field -> { field.setReadyAt(past); fieldRepository.save(field); });
+            hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .filter(hive -> hive.getStatus() == BehiveStatus.PRODUCING)
+                    .forEach(hive -> { hive.setReadyAt(past); hiveRepository.save(hive); });
+
+            driver.navigate().refresh();
+            wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("reapBtn")));
+            assertEquals("2", driver.findElement(By.id("reapCount")).getText(),
+                    "Une parcelle et une ruche font deux.");
+
+            // Les écriteaux disent aussi ce qui attend, sans ouvrir le lieu.
+            WebElement fields = driver.findElement(By.cssSelector("#markers [data-place='champs']"));
+            assertEquals("ready", fields.getAttribute("data-state"));
+            assertEquals("1", fields.findElement(By.cssSelector(".marker__count")).getText());
+            screenshot(driver, "09-reap-call.png");
+
+            click(driver, wait, By.id("reapBtn"));
+            wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .noneMatch(field -> field.getStatus() == FieldStatus.READY)
+                    && hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .noneMatch(hive -> hive.getStatus() == BehiveStatus.READY));
+            wait.until(ExpectedConditions.invisibilityOfElementLocated(By.id("reapBtn")));
+
+            // Le miel et la céréale sont bien rentrés.
+            assertFalse(inventoryRepository.findAllByPlayerId(profile.getId()).isEmpty());
+
+            // Un compteur de ressource est un raccourci, pas un cul-de-sac.
+            click(driver, wait, By.cssSelector("#resources .resource"));
+            wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
+            click(driver, wait, By.id("screenClose"));
+
+            // Sur un téléphone la carte ne montre qu'un lieu sur sept : la
+            // barre prend le relais, et elle doit tenir sous le bandeau.
+            driver.manage().window().setSize(new Dimension(390, 844));
+            WebElement bar = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("places")));
+            assertEquals(7, driver.findElements(By.cssSelector(".place-chip")).size());
+            int headerBottom = driver.findElement(By.cssSelector(".hud--top")).getRect().getY()
+                    + driver.findElement(By.cssSelector(".hud--top")).getSize().getHeight();
+            assertTrue(bar.getRect().getY() >= headerBottom,
+                    "La barre des lieux ne doit pas chevaucher le bandeau.");
+
+            click(driver, wait, By.cssSelector(".place-chip[data-place='champs']"));
+            wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));
+            screenshot(driver, "10-places-mobile.png");
+            driver.manage().window().setSize(new Dimension(1440, 1000));
+
+            assertNoApplicationJavascriptErrors(driver);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-reap.png");
             throw failure;
         } finally {
             driver.quit();

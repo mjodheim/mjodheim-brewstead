@@ -242,13 +242,22 @@
             ' value="' + esc(value || '') + '" autocomplete="off"></label>';
     }
 
+    /** Une tournée en tête d'écran quand plusieurs choses attendent. */
+    function reapHeader(s, kind) {
+        var waiting = Data.placeCount(kind, s);
+        if (waiting < 2) return '';
+        return '<div class="account-actions" style="margin:0 0 .8em">' +
+            '<button class="btn btn--gold" type="button" data-action="harvest-all">' +
+            icon('i-basket') + 'Tout récolter (' + waiting + ')</button></div>';
+    }
+
     var SECTIONS = {
         rucher: {
             live: true,
             title: 'Rucher',
             render: function (s) {
                 if (!s.hives.length) return empty('Aucune ruche installée pour l’instant.');
-                return s.hives.map(function (hive) {
+                return reapHeader(s, 'rucher') + s.hives.map(function (hive) {
                     var ready = hive.status === 'READY';
                     return row({
                         icon: 'i-honey',
@@ -270,7 +279,7 @@
             title: 'Champs',
             render: function (s) {
                 if (!s.fields.length) return empty('Aucune parcelle cultivée pour l’instant.');
-                return s.fields.map(function (field) {
+                return reapHeader(s, 'champs') + s.fields.map(function (field) {
                     var ready = field.status === 'READY' || (field.readyAt && fmt.isDone(field.readyAt));
                     return row({
                         icon: 'i-grain',
@@ -1209,6 +1218,21 @@
             return;
         }
 
+        if (action === 'open-view') { openScreen(id); return; }
+
+        if (action === 'harvest-all') {
+            var waiting = Data.harvestableCount(state);
+            if (!waiting) { toast('Rien n’est mûr pour l’instant.'); return; }
+            send('/api/players/' + state.player.id + '/harvest-all', undefined, function (report) {
+                if (!report || !(report.fields + report.hives)) { toast('Rien à ramasser.'); return; }
+                var parts = [];
+                if (report.fields) parts.push(report.fields + (report.fields > 1 ? ' parcelles' : ' parcelle'));
+                if (report.hives) parts.push(report.hives + (report.hives > 1 ? ' ruches' : ' ruche'));
+                toast('Tournée faite : ' + parts.join(' et ') + '.');
+            });
+            return;
+        }
+
         if (action === 'open-lab') {
             if (!lab) lab = newLab();
             openScreen('atelier');
@@ -1382,15 +1406,30 @@
         dom.xpLabel.textContent = fmt.number(xp) + ' / ' + fmt.number(Data.XP_PER_LEVEL) + ' XP';
     }
 
+    /* Chaque ressource mène là où elle se range : on clique sur « Miel » pour
+       voir son miel, pas pour admirer un compteur. */
+    var RESOURCE_TARGET = { cellar: 'brasserie', coins: 'commandes' };
+
     function renderResources() {
         dom.resources.innerHTML = Data.RESOURCES.map(function (resource) {
-            return '<div class="resource" role="listitem">' +
+            var view = RESOURCE_TARGET[resource.key] || 'inventaire';
+            return '<button class="resource" type="button" role="listitem"' +
+                ' data-action="open-view" data-id="' + view + '"' +
+                ' title="' + esc(resource.label) + ' — ouvrir">' +
                 icon(resource.icon, 'resource__icon') +
                 '<span class="resource__text">' +
                 '<span class="resource__value">' + esc(fmt.number(resource.read(state))) + '</span>' +
                 '<span class="resource__label">' + esc(resource.label) + '</span>' +
-                '</span></div>';
+                '</span></button>';
         }).join('');
+    }
+
+    /** La tournée ne s'affiche que s'il y a vraiment de quoi la faire. */
+    function renderReap() {
+        var waiting = Data.harvestableCount(state);
+        dom.reapCount.textContent = waiting > 99 ? '99+' : String(waiting);
+        // Masquée dès qu'un écran est ouvert : elle viserait par-dessus.
+        dom.reapBtn.hidden = waiting === 0 || activeView !== 'monde';
     }
 
     function renderEffects() {
@@ -1474,7 +1513,30 @@
     function renderMarkers() {
         Data.PLACES.forEach(function (place) {
             var marker = dom.markers.querySelector('[data-place="' + place.id + '"]');
-            if (marker) marker.dataset.state = Data.placeState(place.id, state);
+            if (!marker) return;
+
+            var placeState = Data.placeState(place.id, state);
+            marker.dataset.state = placeState;
+
+            // Le chiffre ne s'affiche que s'il appelle une action : un « 3 »
+            // permanent à côté de chaque lieu ne veut plus rien dire.
+            var count = placeState === 'idle' ? 0 : Data.placeCount(place.id, state);
+            var badge = marker.querySelector('.marker__count');
+            if (badge) {
+                badge.textContent = count > 9 ? '9+' : String(count);
+                badge.hidden = count === 0;
+            }
+            marker.setAttribute('aria-label', count > 0
+                ? 'Ouvrir : ' + place.label + ' — ' + count + ' à voir'
+                : 'Ouvrir : ' + place.label);
+
+            var chip = dom.places.querySelector('[data-place="' + place.id + '"]');
+            if (!chip) return;
+            chip.dataset.state = placeState;
+            chip.classList.toggle('is-active', !!activePlace && activePlace.id === place.id);
+            var chipCount = chip.querySelector('.place-chip__count');
+            chipCount.textContent = count > 9 ? '9+' : String(count);
+            chipCount.hidden = count === 0;
         });
     }
 
@@ -1498,6 +1560,7 @@
         renderPlayer();
         applyProgressionStyle();
         renderResources();
+        renderReap();
         renderEffects();
         renderQuest();
         renderFeed();
@@ -1514,12 +1577,47 @@
 
     /* --------------------------------------------------------- Navigation */
 
+    /**
+     * La barre des lieux, pour les écrans où la carte ne les montre pas tous.
+     *
+     * <p>Sur un téléphone, un seul écriteau sur sept tient à l'écran au repos :
+     * il fallait faire glisser la carte à l'aveugle pour retrouver ses propres
+     * champs. Cette rangée donne les sept lieux d'un coup, avec le même état et
+     * le même compte que les écriteaux.
+     */
+    function buildPlaces() {
+        dom.places.innerHTML = Data.PLACES.map(function (place) {
+            return '<button class="place-chip" type="button" data-place="' + place.id + '" data-state="idle">' +
+                icon(place.icon, 'place-chip__icon') +
+                '<span class="place-chip__label">' + esc(place.label) + '</span>' +
+                '<span class="place-chip__count" hidden></span>' +
+                '</button>';
+        }).join('');
+    }
+
+    /**
+     * La hauteur réelle du bandeau, publiée en variable CSS.
+     *
+     * <p>Elle change avec la largeur de l'écran — la carte du joueur passe
+     * sous les ressources, la quête disparaît. Deviner un décalage fixe
+     * faisait chevaucher la barre des lieux ; on la mesure.
+     */
+    function measureHud() {
+        var header = document.querySelector('.hud--top');
+        if (!header) return;
+        dom.game.style.setProperty('--hud-hauteur', header.getBoundingClientRect().height + 'px');
+    }
+
     function buildMarkers() {
         dom.markers.innerHTML = Data.PLACES.map(function (place) {
             return '<button class="marker" type="button" data-place="' + place.id + '" data-state="idle"' +
                 ' style="left:' + place.x + 'px;top:' + place.y + 'px"' +
                 ' aria-label="Ouvrir : ' + esc(place.label) + '">' +
-                '<span class="marker__plate"><span class="marker__dot"></span>' + esc(place.label) + '</span>' +
+                '<span class="marker__plate">' +
+                icon(place.icon, 'marker__icon') +
+                '<span class="marker__label">' + esc(place.label) + '</span>' +
+                '<span class="marker__count" hidden></span>' +
+                '</span>' +
                 '<span class="marker__pin"></span>' +
                 '</button>';
         }).join('');
@@ -1533,6 +1631,9 @@
 
         dom.markers.querySelectorAll('.marker').forEach(function (marker) {
             marker.classList.toggle('is-active', marker.dataset.place === id);
+        });
+        dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
+            chip.classList.toggle('is-active', chip.dataset.place === id);
         });
 
         dom.placeKicker.textContent = place.kicker;
@@ -1563,6 +1664,9 @@
         dom.markers.querySelectorAll('.marker').forEach(function (marker) {
             marker.classList.remove('is-active');
         });
+        dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
+            chip.classList.remove('is-active');
+        });
     }
 
     function openScreen(view) {
@@ -1578,6 +1682,7 @@
         dom.screen.classList.add('is-open');
         dom.screen.setAttribute('aria-hidden', 'false');
         dom.screen.focus({ preventScroll: true });
+        if (state) renderReap();
     }
 
     function closeScreen() {
@@ -1588,6 +1693,7 @@
         dom.screen.classList.remove('is-open');
         dom.screen.setAttribute('aria-hidden', 'true');
         syncDock();
+        if (state) renderReap();
     }
 
     function syncDock() {
@@ -1618,6 +1724,11 @@
         dom.markers.addEventListener('click', function (event) {
             var marker = event.target.closest('.marker');
             if (marker) openPlace(marker.dataset.place);
+        });
+
+        dom.places.addEventListener('click', function (event) {
+            var chip = event.target.closest('.place-chip');
+            if (chip) { selectView('monde'); openPlace(chip.dataset.place); }
         });
 
         dom.placeClose.addEventListener('click', closePlace);
@@ -1674,6 +1785,13 @@
             openScreen('compte');
         });
 
+        dom.reapBtn.addEventListener('click', function () { runAction('harvest-all'); });
+
+        dom.resources.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-action]');
+            if (button) runAction(button.dataset.action, button.dataset.id);
+        });
+
         // Le portrait est le raccourci que tout le monde essaie en premier.
         dom.playerCard.addEventListener('click', function () {
             openScreen('compte');
@@ -1716,10 +1834,16 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'playerCard', 'settingsBtn', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
+            'playerCard', 'settingsBtn', 'reapBtn', 'reapCount', 'places', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
             'weatherChip', 'weatherLabel'].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
+        buildPlaces();
+        measureHud();
+        window.addEventListener('resize', measureHud);
+        if (global.ResizeObserver) {
+            new ResizeObserver(measureHud).observe(document.querySelector('.hud--top'));
+        }
         initAtmosphere();
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });
         buildMarkers();

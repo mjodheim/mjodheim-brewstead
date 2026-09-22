@@ -259,13 +259,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .game[data-theme="solstice"] .world__art { filter: saturate(1.18) contrast(1.04) brightness(.92); }
 .game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
-.weather-chip.panel {
-    position: absolute; z-index: 8; left: 1.1em; top: 6.2em; display: flex; align-items: center; gap: .5em;
-    padding: .45em .75em; color: var(--cream-dim); font: 500 .78em "Cinzel", serif; letter-spacing: .03em; pointer-events: none;
-}
-.weather-chip__symbol { width: .65em; height: .65em; border-radius: 50%; background: #d6c58e; box-shadow: 0 0 .8em #e9bc55; }
-.game[data-weather="pluie"] .weather-chip__symbol { border-radius: 60% 40% 60% 40%; background: #8eb5c7; box-shadow: 0 0 .7em #75a9c2; transform: rotate(45deg); }
-.game[data-weather="brume"] .weather-chip__symbol { width: 1em; height: .35em; border-radius: 99px; background: #bac1b7; box-shadow: 0 .35em 0 rgba(186, 193, 183, .6); }
 
 @keyframes rain-drift { to { transform: translate3d(-25px, 38px, 0); } }
 @keyframes mist-drift { to { transform: translate3d(8%, -2%, 0) scale(1.08); } }
@@ -275,7 +268,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .world__guide {
     position: absolute;
     left: 50%;
-    bottom: 20%;
+    bottom: 3.2em;
     transform: translateX(-50%);
     display: grid;
     grid-template-columns: 1fr auto;
@@ -327,7 +320,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 @media (max-width: 720px) {
-    .world__guide { bottom: 7.4em; padding: .6em .85em .65em 1em; }
+    .world__guide { bottom: 2.6em; padding: .6em .85em .65em 1em; }
     .world__guide-text { font-size: .95em; }
 }
 
@@ -594,304 +587,193 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
    Barre supérieure
    -------------------------------------------------------------------------- */
 
-.hud--top {
+/* Le bandeau. Une seule ligne, du bord gauche au bord droit : qui tu es,
+   ce que tu possèdes, ce qu'on te demande aujourd'hui. Avant, ces trois
+   choses vivaient dans trois panneaux séparés, avec un blason décoratif et
+   une pastille de météo par-dessus. */
+.bandeau {
+    /* Au-dessus des écrans : depuis la disparition des onglets du bas, c'est
+       le seul chemin d'un lieu à l'autre. Un écran ouvert ne doit pas le
+       masquer, sinon il faut fermer avant d'aller ailleurs. */
+    z-index: 45;
     top: 0;
     left: 0;
     right: 0;
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--gap);
-    padding: .9em 1.1em;
+    gap: .55em;
+    padding: .5em .7em .6em;
+    background: linear-gradient(180deg, rgba(18, 12, 5, .9), rgba(18, 12, 5, .6) 82%, transparent);
 }
 
-.crest {
+.bandeau > * { pointer-events: auto; }
+
+.bandeau__joueur {
     display: flex;
     align-items: center;
-    gap: .7em;
-    padding: .6em 1em .6em .7em;
-    text-decoration: none;
-    color: var(--gold-hi);
-    background: linear-gradient(180deg, #4a3320, #1d1208), var(--grain);
-    background-blend-mode: normal, overlay;
-    border: 1px solid var(--edge);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(255, 220, 160, .25);
+    gap: .55em;
     flex: none;
-}
-
-.crest__mark {
-    display: grid;
-    place-items: center;
-    width: 2.5em;
-    height: 2.5em;
-    border-radius: .5em;
-    color: #2a1a06;
-    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
-    box-shadow: inset 0 -.3em .6em rgba(0, 0, 0, .25);
-}
-
-.crest__mark svg { width: 1.5em; height: 1.5em; stroke-width: 1.8; }
-.crest__text { display: flex; flex-direction: column; line-height: 1.1; }
-
-.crest__text strong {
-    font-family: "Cinzel", Georgia, serif;
-    font-size: 1.45em;
-    font-weight: 700;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    background: linear-gradient(180deg, #ffeec2, #c9922f);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-}
-
-.crest__text em {
-    font-style: normal;
-    font-size: .66em;
-    letter-spacing: .28em;
-    text-transform: uppercase;
-    color: var(--cream-dim);
-}
-
-.hud__center {
-    flex: 1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: center;
-    gap: .8em;
-    min-width: 0;
-}
-
-.hud__right { display: flex; align-items: flex-start; gap: .7em; flex: none; }
-
-/* Carte joueur */
-
-/* Le portrait ouvre le compte : c'est le geste attendu, autant l'offrir. */
-.player {
-    display: flex;
-    align-items: center;
-    gap: .8em;
-    padding: .6em .95em;
-    font: inherit;
-    text-align: left;
-    color: inherit;
+    padding: .3em .7em .3em .35em;
+    background: linear-gradient(180deg, var(--wood-1), var(--wood-3)), var(--grain);
+    background-blend-mode: normal, overlay;
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
     cursor: pointer;
-    transition: transform .18s ease, border-color .18s ease;
+    transition: border-color .2s ease, transform .2s ease;
 }
 
-.player:hover { transform: translateY(-1px); border-color: rgba(233, 188, 85, .55); }
-.player:active { transform: translateY(0); }
-
-.player:focus-visible {
-    outline: none;
-    border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(233, 188, 85, .3);
-}
-
-.player:hover .player__avatar { border-color: var(--gold); }
+.bandeau__joueur:hover { transform: translateY(-1px); border-color: var(--gold); }
+.bandeau__joueur:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 .player__avatar {
     display: grid;
     place-items: center;
-    width: 2.9em;
-    height: 2.9em;
-    border-radius: 50%;
-    font-family: "Cinzel", serif;
-    font-size: 1.1em;
-    color: #2a1a06;
-    background: radial-gradient(circle at 35% 30%, var(--gold-hi), var(--gold-lo));
-    border: 2px solid #7d5a33;
-    box-shadow: inset 0 -.3em .7em rgba(0, 0, 0, .3), 0 .2em .5em rgba(0, 0, 0, .5);
+    width: 2.1em;
+    height: 2.1em;
     flex: none;
+    color: var(--gold-hi);
+    background: radial-gradient(circle at 40% 30%, #4d3619, #241708);
+    border: 1px solid var(--edge-soft);
+    border-radius: 50%;
+    transition: border-color .2s ease;
 }
 
-.player__avatar svg { width: 1.75em; height: 1.75em; stroke-width: 1.7; }
+.player__avatar svg { width: 1.25em; height: 1.25em; }
+.bandeau__joueur:hover .player__avatar { border-color: var(--gold); }
 
-.player__body { display: flex; flex-direction: column; gap: .15em; min-width: 10.5em; }
-.player__name { font-family: "Cinzel", serif; font-size: 1.15em; color: #fbf1dc; }
-.player__level { font-size: .82em; color: var(--cream-dim); }
-.player__xp { display: flex; align-items: center; gap: .55em; margin-top: .2em; }
-.player__xp small { font-size: .74em; color: var(--cream-dim); white-space: nowrap; }
+.player__body { display: flex; flex-direction: column; align-items: flex-start; gap: .12em; line-height: 1.1; }
 
-/* Ressources */
+.player__name {
+    max-width: 9em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: .95em;
+    color: var(--cream);
+}
 
-.resources {
+.player__xp { display: flex; align-items: center; gap: .45em; }
+.player__xp .bar { width: 4.5em; height: .3em; }
+.player__xp small { font-size: .68em; letter-spacing: .04em; color: var(--cream-dim); }
+
+/* Les biens. Ils défilent plutôt que de pousser le reste hors du bandeau. */
+.bandeau__biens {
     display: flex;
     align-items: stretch;
-    padding: .35em .5em;
-    max-width: 100%;
+    gap: .15em;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: .25em .4em;
     overflow-x: auto;
     scrollbar-width: none;
+    background: linear-gradient(180deg, var(--wood-1), var(--wood-3)), var(--grain);
+    background-blend-mode: normal, overlay;
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
 }
 
-.resources::-webkit-scrollbar { display: none; }
+.bandeau__biens::-webkit-scrollbar { display: none; }
 
-/* Un compteur qu'on ne peut pas ouvrir est un cul-de-sac : chaque ressource
-   emmène là où elle se range. */
+/* Chaque bien est un bouton : il mène là où il se range. */
 .resource {
     display: flex;
     align-items: center;
-    gap: .5em;
-    padding: .35em 1em;
+    gap: .45em;
+    flex: none;
+    padding: .25em .75em;
     font: inherit;
     color: inherit;
     text-align: left;
     background: none;
     border: 0;
-    border-right: 1px solid rgba(0, 0, 0, .45);
+    border-right: 1px solid rgba(0, 0, 0, .4);
     border-radius: .3em;
-    box-shadow: 1px 0 0 rgba(255, 220, 160, .07);
     cursor: pointer;
     transition: background .18s ease;
 }
 
-.resource:hover { background: rgba(255, 210, 140, .09); }
+.resource:hover { background: rgba(255, 210, 140, .1); }
 .resource:hover .resource__icon { color: var(--gold-hi); }
+.resource:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(233, 188, 85, .55); }
+.resource:last-child { border-right: 0; }
+.resource__icon { width: 1.5em; height: 1.5em; color: var(--gold); flex: none; }
+.resource__text { display: flex; flex-direction: column; line-height: 1.12; }
+.resource__value { font-family: "Cinzel", serif; font-size: 1em; color: #fbf1dc; white-space: nowrap; }
+.resource__label { font-size: .68em; color: var(--cream-dim); white-space: nowrap; }
 
-.resource:focus-visible {
-    outline: none;
-    box-shadow: 1px 0 0 rgba(255, 220, 160, .07), inset 0 0 0 2px rgba(233, 188, 85, .55);
-}
-
-.resource:last-child { border-right: 0; box-shadow: none; }
-.resource:last-child:focus-visible { box-shadow: inset 0 0 0 2px rgba(233, 188, 85, .55); }
-.resource__icon { width: 1.9em; height: 1.9em; color: var(--gold); flex: none; }
-.resource__text { display: flex; flex-direction: column; line-height: 1.15; }
-.resource__value { font-family: "Cinzel", serif; font-size: 1.1em; color: #fbf1dc; white-space: nowrap; }
-.resource__label { font-size: .74em; color: var(--cream-dim); white-space: nowrap; }
-
-/* Objectif du jour */
-
-.quest { width: 15.5em; padding: .75em .9em .8em; }
-.quest h2 { font-size: 1.05em; margin-bottom: .45em; }
-
-.quest__row {
-    display: flex;
-    align-items: center;
-    gap: .55em;
-    width: 100%;
-    padding: 0;
-    text-align: left;
-    color: inherit;
-}
-
-.quest__box {
+/* L'objectif du jour. Une pastille, pas un parchemin — et elle n'existe
+   que tant qu'il reste quelque chose à faire. */
+.bandeau__objectif {
     position: relative;
-    width: 1.15em;
-    height: 1.15em;
-    border: 2px solid var(--ink-soft);
-    border-radius: .2em;
-    flex: none;
-}
-
-.quest__box.is-done::after {
-    content: "";
-    position: absolute;
-    inset: .1em;
-    border-radius: .1em;
-    background: var(--ink);
-}
-
-.quest__text { flex: 1; font-size: .92em; line-height: 1.25; }
-.quest__go { width: 1.1em; height: 1.1em; opacity: .55; flex: none; }
-.quest__row:hover .quest__go { opacity: 1; }
-.quest__progress { display: flex; align-items: center; gap: .6em; margin-top: .6em; }
-.quest__progress small { font-size: .8em; color: var(--ink-soft); }
-
-/* --------------------------------------------------------------------------
-   Événements
-   -------------------------------------------------------------------------- */
-
-.feed {
-    position: absolute;
-    left: 1.1em;
-    bottom: 8.4em;
-    width: 17em;
-    padding: .8em .95em;
-}
-
-.feed h2 { display: flex; align-items: center; gap: .45em; font-size: 1.05em; color: var(--gold-hi); }
-.feed h2 svg { width: 1.1em; height: 1.1em; }
-.feed ul { list-style: none; margin: .6em 0 0; padding: 0; display: flex; flex-direction: column; gap: .45em; }
-.feed li { display: flex; align-items: flex-start; gap: .55em; font-size: .88em; color: #e6d7ba; line-height: 1.3; }
-
-.feed li::before {
-    content: "";
-    width: .6em;
-    height: .6em;
-    margin-top: .35em;
-    border-radius: 50%;
-    background: var(--tone, var(--gold));
-    box-shadow: 0 0 .5em var(--tone, var(--gold));
-    flex: none;
-}
-
-.feed li[data-tone="ok"] { --tone: var(--ok); }
-.feed li[data-tone="warn"] { --tone: var(--warn); }
-.feed li[data-tone="info"] { --tone: var(--info); }
-
-/* --------------------------------------------------------------------------
-   Barre de navigation
-   -------------------------------------------------------------------------- */
-
-.dock {
-    left: 50%;
-    bottom: 1.1em;
-    transform: translateX(-50%);
     display: flex;
-    max-width: calc(100vw - 2em);
-    padding: .3em;
-    background: linear-gradient(180deg, #46301c, #1b1108), var(--grain);
-    background-blend-mode: normal, overlay;
-    border: 1px solid var(--edge);
-    border-radius: .9em;
-    box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(255, 220, 160, .22);
-    overflow-x: auto;
-    scrollbar-width: none;
-    pointer-events: auto;
-    z-index: 45;
-}
-
-.dock::-webkit-scrollbar { display: none; }
-
-.dock__tab {
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: .3em;
-    padding: .6em 1.15em .55em;
-    min-width: 6.4em;
-    color: var(--cream-dim);
+    gap: .5em;
+    flex: none;
+    padding: .45em .8em;
+    overflow: hidden;
     font-family: "Cinzel", Georgia, serif;
-    font-size: .92em;
-    border-radius: .65em;
-    border-right: 1px solid rgba(0, 0, 0, .4);
-    box-shadow: 1px 0 0 rgba(255, 220, 160, .06);
-    transition: color .2s ease, background .2s ease;
+    font-size: .88em;
+    color: var(--cream);
+    background: linear-gradient(180deg, var(--wood-1), var(--wood-3)), var(--grain);
+    background-blend-mode: normal, overlay;
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: border-color .2s ease, transform .2s ease;
 }
 
-.dock__tab:last-child { border-right: 0; box-shadow: none; }
-.dock__tab svg { width: 1.6em; height: 1.6em; }
-.dock__tab:hover { color: var(--gold-hi); background: rgba(255, 210, 140, .07); }
-
-.dock__tab.is-active {
-    color: #ffe6b4;
-    background: linear-gradient(180deg, rgba(255, 206, 122, .22), rgba(255, 190, 90, .06));
-    box-shadow: inset 0 0 0 1px rgba(255, 214, 140, .45), 0 0 1.4em rgba(233, 188, 85, .28);
+/* L'avancement passe derrière le texte plutôt qu'en dessous : une barre de
+   plus aurait fait une ligne de plus. */
+.bandeau__objectif::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--avance, 0%);
+    background: rgba(233, 188, 85, .22);
+    transition: width .4s ease;
 }
 
-/* --------------------------------------------------------------------------
-   Panneau de lieu
-   -------------------------------------------------------------------------- */
+.bandeau__objectif > * { position: relative; }
+.bandeau__objectif:hover { transform: translateY(-1px); border-color: var(--gold); }
+.bandeau__objectif:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.bandeau__objectif[hidden] { display: none; }
+.bandeau__objectif svg { width: 1.1em; height: 1.1em; flex: none; color: var(--gold); }
+
+.bandeau__objectif-texte {
+    max-width: 11em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bandeau__objectif-compte {
+    font-family: system-ui, sans-serif;
+    font-size: .82em;
+    font-weight: 700;
+    color: var(--gold-hi);
+}
+
+.bandeau__reglages { flex: none; }
+
+/* La barre des lieux, sous le bandeau et à toutes les tailles : c'est
+   désormais le chemin vers les sept lieux, avec la carte elle-même. */
+.places {
+    flex: 1 1 100%;
+    display: flex;
+    gap: .45em;
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: calc(var(--ui) * var(--ui-facteur) * .95);
+}
 
 .place {
     position: absolute;
     z-index: 30;
-    top: 8.6em;
+    top: 6.2em;
     right: 1.1em;
-    max-height: calc(100% - 17em);
+    max-height: calc(100% - 9em);
     width: min(25em, 36vw);
     display: flex;
     flex-direction: column;
@@ -1014,7 +896,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     z-index: 40;
     display: grid;
     place-items: center;
-    padding: 1.2em 1.2em 7em;
+    padding: 6.4em 1.2em 1.6em;
     font-size: var(--ui);
     background: rgba(8, 5, 2, .62);
     backdrop-filter: blur(6px);
@@ -1508,7 +1390,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     position: absolute;
     z-index: 50;
     left: 50%;
-    bottom: 7.4em;
+    bottom: 1.4em;
     transform: translate(-50%, 1em);
     padding: .7em 1.4em;
     font-size: var(--ui);
@@ -1530,40 +1412,52 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
    Adaptations
    -------------------------------------------------------------------------- */
 
-@media (max-width: 1280px) {
-    .quest { width: 13.5em; }
-    .feed { width: 15em; }
-}
-
 @media (max-width: 1080px) {
-    .crest__text { display: none; }
-    .crest { padding: .55em; }
-    .place { top: auto; bottom: 8.4em; width: min(26em, calc(100vw - 2.2em)); max-height: 60vh; }
+    .place { top: auto; bottom: 1.2em; width: min(26em, calc(100vw - 2.2em)); max-height: 58vh; }
 }
 
 @media (max-width: 860px) {
-    .hud--top { flex-wrap: wrap; padding: .7em; gap: .6em; }
-    .hud__center { order: 3; flex: 1 1 100%; justify-content: flex-start; }
-    .hud__right { margin-left: auto; }
-    .quest { width: 12.5em; }
-    .feed { display: none; }
-    .dock__tab { min-width: 4.6em; padding: .55em .7em .5em; font-size: .82em; }
+    .bandeau { padding: .45em .5em .5em; gap: .4em; }
+
+    /* Sept pastilles repliées sur trois lignes mangeaient le tiers d'un
+       téléphone. Sur une seule ligne, elles défilent du doigt. */
+    .places {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .places::-webkit-scrollbar { display: none; }
+    .place-chip { flex: none; }
+
+    /* Trois lignes nettes plutôt que quatre lignes au hasard du repli :
+       qui je suis et mes boutons, puis mes biens, puis les lieux. */
+    .bandeau__joueur { order: 1; }
+    .bandeau__joueur + .bandeau__biens { order: 3; }
+    #renownBtn { order: 2; margin-left: auto; }
+    #settingsBtn { order: 2; }
+    .bandeau__biens { order: 3; flex: 1 1 100%; }
+    .bandeau__objectif { order: 3; }
+    .places { order: 4; }
+
+    .bandeau__objectif-texte { max-width: 6.5em; }
+    .player__name { max-width: 5.5em; }
 }
 
 @media (max-width: 560px) {
-    .quest { display: none; }
+    /* L'objectif cède la place aux biens : savoir ce qu'on possède prime sur
+       savoir ce qu'on nous demande. Il reste lisible dans la renommée. */
+    .bandeau__objectif { display: none; }
     .row { flex-wrap: wrap; }
     .row__side { max-width: 100%; flex-direction: row; flex-wrap: wrap; }
     .row__side .chip { white-space: normal; }
 
     .place { right: .6em; left: .6em; width: auto; }
-    .dock { left: .6em; right: .6em; bottom: .6em; transform: none; max-width: none; }
-    .dock__tab span { display: none; }
-    .dock__tab { min-width: 0; flex: 1; padding: .7em .4em; }
     .screen__sheet { max-height: calc(100dvh - 8.2em); }
     .achievements { grid-template-columns: 1fr; }
     .specializations { grid-template-columns: 1fr; }
-    .weather-chip.panel { top: auto; bottom: 5.5em; left: .6em; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1671,21 +1565,8 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
    sert à rien. Sur un téléphone, un seul tient à l'écran : il fallait faire
    glisser la carte à l'aveugle pour retrouver ses propres champs. */
 
-.places {
-    display: none;
-    flex-basis: 100%;
-    gap: .45em;
-    margin-top: -.2em;
-    overflow-x: auto;
-    padding: .2em .1em;
-    font-size: calc(var(--ui) * var(--ui-facteur));
-    scrollbar-width: none;
-    pointer-events: auto;
-}
-
-.places::-webkit-scrollbar { display: none; }
-
 .place-chip {
+    pointer-events: auto;
     display: inline-flex;
     align-items: center;
     gap: .4em;
@@ -1730,17 +1611,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .place-chip.is-active { color: #ffe6b4; border-color: var(--gold); }
 .place-chip:focus-visible { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 188, 85, .35); }
-
-@media (max-width: 1200px) {
-    /* Dans le flux du bandeau, sur sa propre ligne. Une version précédente la
-       positionnait d'après une hauteur mesurée en JavaScript : au moindre
-       changement de fenêtre, elle se posait sur le bandeau le temps que la
-       mesure suive. Ici rien à mesurer, donc rien à rattraper.
-
-       L'ordre est explicite : sous 860 px, .hud__center passe en `order: 3`
-       et la barre, restée à zéro, se retrouvait au-dessus des ressources. */
-    .places { display: flex; order: 4; }
-}
 
 /* La fanfare d'un haut fait ------------------------------------------------
    Elle couvre l'écran une poignée de secondes. C'est le seul moment du jeu

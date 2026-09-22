@@ -106,8 +106,20 @@ class BrewsteadUiIntegrationTest {
             assertEquals("true", driver.findElement(By.id("fault")).getAttribute("aria-hidden"));
             assertEquals(5, driver.findElements(By.cssSelector("#resources .resource")).size());
             assertEquals(7, driver.findElements(By.cssSelector("#markers .marker")).size());
-            assertEquals("absolute", driver.findElement(By.id("weatherChip")).getCssValue("position"));
-            assertTrue(driver.findElement(By.id("weatherChip")).getSize().width < 400);
+            // Le bandeau reste un bandeau : deux lignes, pas un empilement
+            // qui grignote la carte.
+            Rectangle bandeau = driver.findElement(By.id("bandeau")).getRect();
+            assertTrue(bandeau.getHeight() < driver.manage().window().getSize().getHeight() / 5,
+                    "Le bandeau occupe " + bandeau.getHeight() + " px de haut : c'est un empilement.");
+            assertEquals(7, driver.findElements(By.cssSelector("#places .place-chip")).size(),
+                    "Les sept lieux sont toujours à portée.");
+
+            // Chaque rangée sous la précédente : c'est ce qui avait cassé
+            // la dernière fois qu'une position était calculée en « em ».
+            Rectangle biens = driver.findElement(By.id("resources")).getRect();
+            Rectangle lieux = driver.findElement(By.id("places")).getRect();
+            assertTrue(lieux.getY() >= biens.getY() + biens.getHeight(),
+                    "La barre des lieux ne doit pas recouvrir les biens.");
             screenshot(driver, "01-domain-desktop.png");
 
             PlayerProfile profile = profile(username);
@@ -116,7 +128,7 @@ class BrewsteadUiIntegrationTest {
             driver.navigate().refresh();
             wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            ouvrirVue(driver, wait, "classement");
             waitForScreen(wait, "Renommée");
 
             // L'écran s'ouvre sur les hauts faits : c'est ce qu'on vient y voir.
@@ -144,15 +156,17 @@ class BrewsteadUiIntegrationTest {
                     .getCssValue("animation-name");
             assertEquals("none", animation);
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            ouvrirVue(driver, wait, "classement");
 
             driver.manage().window().setSize(new Dimension(390, 844));
+            // Sur un téléphone, l'objectif cède la place aux biens ; les lieux
+            // restent accessibles, eux.
             assertFalse(driver.findElement(By.id("quest")).isDisplayed());
-            assertTrue(driver.findElement(By.id("dock")).isDisplayed());
+            assertTrue(driver.findElement(By.cssSelector("#places .place-chip")).isDisplayed());
             screenshot(driver, "03-progression-mobile.png");
             driver.manage().window().setSize(new Dimension(1440, 1000));
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='inventaire']"));
+            ouvrirVue(driver, wait, "inventaire");
             waitForScreen(wait, "Entrepôt");
             assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
 
@@ -166,7 +180,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("playerName"), "Eirik UI"));
             assertEquals("Eirik UI", playerRepository.findById(profile.getId()).orElseThrow().getDisplayName());
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+            ouvrirVue(driver, wait, "monde");
             click(driver, wait, By.cssSelector("#markers [data-place='champs']"));
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));
             click(driver, wait, By.id("placeAction"));
@@ -177,7 +191,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(field -> field.getStatus() == FieldStatus.GROWING));
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+            ouvrirVue(driver, wait, "monde");
             click(driver, wait, By.cssSelector("#markers [data-place='rucher']"));
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Rucher"));
             click(driver, wait, By.id("placeAction"));
@@ -195,7 +209,7 @@ class BrewsteadUiIntegrationTest {
             click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']"));
             wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getReadyAt().isAfter(LocalDateTime.now()));
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+            ouvrirVue(driver, wait, "monde");
             click(driver, wait, By.cssSelector("#markers [data-place='brasserie']"));
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Brasserie"));
             click(driver, wait, By.id("placeAction"));
@@ -209,11 +223,11 @@ class BrewsteadUiIntegrationTest {
             click(driver, brewable);
             wait.until(d -> !batchRepository.findAllByPlayerIdOrderByStartedAtDesc(profile.getId()).isEmpty());
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='recettes']"));
+            ouvrirVue(driver, wait, "recettes");
             waitForScreen(wait, "Grimoire des recettes");
             assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
 
-            click(driver, wait, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(driver, wait, "taverne");
             waitForScreen(wait, "Taverne");
             WebElement chat = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             chat.sendKeys("Skål depuis Chromium");
@@ -241,14 +255,15 @@ class BrewsteadUiIntegrationTest {
         try {
             registerAndLogin(alice, a, "ui_chat_alice");
             registerAndLogin(bob, b, "ui_chat_bob");
+            // La taverne n'a pas de décor à explorer : son repère ouvre
+            // directement la salle, sans tiroir intermédiaire.
             click(alice, a, By.cssSelector("#markers [data-place='taverne']"));
-            click(alice, a, By.id("placeAction"));
             waitForScreen(a, "Taverne");
             assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
             WebElement draft = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             draft.sendKeys("Un message rédigé lentement");
 
-            click(bob, b, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(bob, b, "taverne");
             waitForScreen(b, "Taverne");
             b.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")))
                     .sendKeys("Bonjour Alice");
@@ -292,7 +307,7 @@ class BrewsteadUiIntegrationTest {
 
             // Une vraie commande entre joueurs, publiée et livrée par l'interface.
             alice.manage().window().setSize(new Dimension(1440, 1000));
-            click(alice, a, By.cssSelector(".dock__tab[data-view='commandes']"));
+            ouvrirVue(alice, a, "commandes");
             click(alice, a, By.cssSelector("[data-action='new-order']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")))
                     .sendKeys("Eau de source");
@@ -317,25 +332,25 @@ class BrewsteadUiIntegrationTest {
                     };
                     """);
             click(alice, a, By.cssSelector("[data-action='order-confirm']"));
-            click(alice, a, By.cssSelector(".dock__tab[data-view='inventaire']"));
+            ouvrirVue(alice, a, "inventaire");
             a.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             waitForScreen(a, "Entrepôt");
             a.until(d -> !orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).isEmpty());
             var order = orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).getFirst();
             assertEquals(coins - 20, profile("ui_chat_alice").getCoin());
-            click(bob, b, By.cssSelector(".dock__tab[data-view='commandes']"));
+            ouvrirVue(bob, b, "commandes");
             By deliver = By.cssSelector("[data-action='fulfill-order'][data-id='" + order.getId() + "']");
             new WebDriverWait(bob, Duration.ofSeconds(30)).until(ExpectedConditions.elementToBeClickable(deliver));
             click(bob, b, deliver);
             b.until(d -> orderRepository.findById(order.getId()).orElseThrow().getStatus()
                     == be.mjodheim.brewstead.enums.OrderStatus.COMPLETED);
             screenshot(bob, "06-market-delivered.png");
-            click(alice, a, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(alice, a, "taverne");
 
             alice.findElement(By.id("chatInput")).sendKeys("Brouillon à conserver");
-            click(alice, a, By.cssSelector(".dock__tab[data-view='monde']"));
+            ouvrirVue(alice, a, "monde");
             assertTrue(alice.findElements(By.id("chatInput")).isEmpty());
-            click(alice, a, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(alice, a, "taverne");
             assertEquals("Brouillon à conserver", alice.findElement(By.id("chatInput")).getDomProperty("value"));
             alice.manage().deleteCookieNamed("JSESSIONID");
             click(alice, a, By.cssSelector("[data-action='chat-send']"));
@@ -403,10 +418,10 @@ class BrewsteadUiIntegrationTest {
             waitForMutation(brewer, wait);
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedHives());
 
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            ouvrirVue(brewer, wait, "commandes");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
-            click(brewer, wait, By.cssSelector("[data-action='npc-generate']"));
-            waitForMutation(brewer, wait);
+            // Le marchand se présente de lui-même dès qu'on ouvre le comptoir.
+            wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(player.getId()).isEmpty());
             var order = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(player.getId()).getFirst();
             var line = npcLineRepository.findAllByOrderId(order.getId()).getFirst();
             click(brewer, wait, By.cssSelector("[data-action='npc-accept'][data-id='" + order.getId() + "']"));
@@ -427,7 +442,7 @@ class BrewsteadUiIntegrationTest {
 
             int coinsBefore = profile("ui_full_brewer").getCoin();
             int reputationBefore = profile("ui_full_brewer").getReputation();
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            ouvrirVue(brewer, wait, "commandes");
             click(brewer, wait, By.cssSelector("[data-action='npc-complete'][data-id='" + order.getId() + "']"));
             waitForMutation(brewer, wait);
             assertEquals(be.mjodheim.brewstead.enums.OrderStatus.COMPLETED,
@@ -441,7 +456,7 @@ class BrewsteadUiIntegrationTest {
 
             // The recipe book is searchable, uses the same duration as the brewery,
             // and tells a new player precisely what ingredients are missing.
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='recettes']"));
+            ouvrirVue(brewer, wait, "recettes");
             brewer.findElement(By.id("pickerSearch")).sendKeys("Hydromel doré");
             List<String> recipeNames = brewer.findElements(By.cssSelector("#screenBody .row__title"))
                     .stream().map(WebElement::getText).toList();
@@ -467,7 +482,7 @@ class BrewsteadUiIntegrationTest {
             var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batchId, 0).orElseThrow();
             int guestCoins = profile("ui_full_guest").getCoin();
             int sellerCoins = profile("ui_full_brewer").getCoin();
-            click(guest, visitor, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(guest, visitor, "taverne");
             click(guest, visitor, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, visitor, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             waitForMutation(guest, visitor);
@@ -478,13 +493,13 @@ class BrewsteadUiIntegrationTest {
             screenshot(guest, "10-neighbour-tasting-new-domain.png");
 
             brewer.manage().window().setSize(new Dimension(390, 844));
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            ouvrirVue(brewer, wait, "classement");
             click(brewer, wait, By.cssSelector("[data-action='renom-tab'][data-id='domaine']"));
             assertTrue(brewer.findElement(By.cssSelector(".daily-card")).isDisplayed());
             assertTrue((Boolean) ((JavascriptExecutor) brewer).executeScript(
                     "const e=document.getElementById('screenBody'); return e.scrollWidth <= e.clientWidth + 1;"));
             screenshot(brewer, "11-daily-mobile.png");
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+            ouvrirVue(brewer, wait, "monde");
             screenshot(brewer, "12-living-domain-mobile.png");
 
             // Both the system preference and the in-game switch stop decoration.
@@ -584,9 +599,8 @@ class BrewsteadUiIntegrationTest {
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='commandes']"));
+            ouvrirVue(brewer, wait, "commandes");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
-            click(brewer, wait, By.cssSelector("[data-action='npc-generate']"));
             wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).isEmpty());
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             var order = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).getFirst();
@@ -615,18 +629,18 @@ class BrewsteadUiIntegrationTest {
             click(brewer, wait, By.cssSelector("[data-action='offer-confirm']"));
             wait.until(d -> offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).isPresent());
             var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).orElseThrow();
-            click(guest, guestWait, By.cssSelector(".dock__tab[data-view='taverne']"));
+            ouvrirVue(guest, guestWait, "taverne");
             click(guest, guestWait, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, guestWait, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             guestWait.until(d -> offerRepository.findById(offer.getId()).orElseThrow().getServings() == 1);
             assertEquals(1, progressRepository.findByPlayerId(profile("ui_loop_guest").getId()).orElseThrow().getTavernTastings());
             screenshot(guest, "10-neighbour-tasting.png");
 
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            ouvrirVue(brewer, wait, "classement");
             assertTrue(brewer.findElements(By.cssSelector(".achievement.is-unlocked")).size() >= 2);
             brewer.navigate().refresh();
             wait.until(ExpectedConditions.textToBe(By.id("playerName"), "ui_loop_brewer"));
-            click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            ouvrirVue(brewer, wait, "classement");
             assertTrue(brewer.findElements(By.cssSelector(".achievement.is-unlocked")).size() >= 2);
             screenshot(brewer, "11-persistent-rewards.png");
             assertNoApplicationJavascriptErrors(brewer);
@@ -834,14 +848,23 @@ class BrewsteadUiIntegrationTest {
         click(driver, wait, By.cssSelector("[data-action='lab-add']"));
     }
 
+    /**
+     * Ouvre l'écran d'un lieu depuis la carte.
+     *
+     * <p>Les lieux qui ont un décor passent par leur tiroir ; les autres
+     * ouvrent leur écran directement, sans porte intermédiaire.
+     */
     private void openPlaceScreen(WebDriver driver, WebDriverWait wait, String place) {
-        click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
+        ouvrirVue(driver, wait, "monde");
         // Les coordonnées du clic natif doivent être prises après le recentrage.
         wait.until(d -> (Boolean) ((JavascriptExecutor) d).executeScript(
                 "return document.querySelector('.world__scene').getAnimations().every(a => a.playState !== 'running');"));
         click(driver, wait, By.cssSelector("#markers [data-place='" + place + "']"));
-        wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "false"));
-        click(driver, wait, By.id("placeAction"));
+        boolean avecTiroir = List.of("champs", "rucher", "brasserie").contains(place);
+        if (avecTiroir) {
+            wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "false"));
+            click(driver, wait, By.id("placeAction"));
+        }
         wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
     }
 
@@ -866,6 +889,30 @@ class BrewsteadUiIntegrationTest {
     private void waitForScreen(WebDriverWait wait, String title) {
         wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
         wait.until(ExpectedConditions.textToBe(By.id("screenTitle"), title));
+    }
+
+    /**
+     * Ouvre une vue comme le ferait une personne : par la barre des lieux,
+     * ou par le trophée du bandeau. Les onglets du bas ont disparu — quatre
+     * d'entre eux menaient au même endroit que quatre lieux.
+     */
+    private void ouvrirVue(WebDriver driver, WebDriverWait wait, String view) {
+        switch (view) {
+            case "monde" -> {
+                fermerLaFanfare(driver);
+                ((JavascriptExecutor) driver).executeScript(
+                        "document.getElementById('screenClose')?.click();"
+                                + "document.getElementById('placeClose')?.click();");
+                wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "true"));
+                wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "true"));
+            }
+            case "classement" -> click(driver, wait, By.id("renownBtn"));
+            case "inventaire" -> click(driver, wait, By.cssSelector("#places [data-place='entrepot']"));
+            case "recettes" -> click(driver, wait, By.cssSelector("#places [data-place='laboratoire']"));
+            case "commandes" -> click(driver, wait, By.cssSelector("#places [data-place='commandes']"));
+            case "taverne" -> click(driver, wait, By.cssSelector("#places [data-place='taverne']"));
+            default -> throw new IllegalArgumentException("Vue inconnue : " + view);
+        }
     }
 
     private void click(WebDriver driver, WebDriverWait wait, By locator) {

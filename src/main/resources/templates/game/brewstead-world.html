@@ -132,10 +132,6 @@
             <span class="weather weather--rain"></span>
             <span class="weather weather--mist"></span>
         </div>
-        <div class="weather-chip panel" id="weatherChip" aria-label="Ambiance du domaine">
-            <span class="weather-chip__symbol" aria-hidden="true"></span>
-            <span id="weatherLabel">Éclaircies</span>
-        </div>
         <!-- « Glisse pour explorer » disait comment bouger la carte, jamais
              quoi faire du domaine. Cette place, la plus visible de l'écran,
              sert maintenant à dérouler la boucle du jeu une étape à la fois. -->
@@ -146,60 +142,50 @@
         </button>
     </div>
 
-    <header class="hud hud--top">
-        <a class="crest" href="/" aria-label="Brewstead, accueil">
-            <span class="crest__mark" aria-hidden="true">
-                <svg viewBox="0 0 24 24"><use href="#i-grain"/></svg>
-            </span>
-            <span class="crest__text">
-                <strong>Brewstead</strong>
-                <em>Craft · Farm · Brew · Trade</em>
-            </span>
-        </a>
-
-        <div class="hud__center">
-            <button class="panel player" id="playerCard" type="button"
-                    aria-label="Ouvrir mon compte">
-                <span class="player__avatar" id="playerAvatar" aria-hidden="true"></span>
-                <span class="player__body">
-                    <span class="player__name" id="playerName">—</span>
-                    <span class="player__level" id="playerLevel">Niveau —</span>
-                    <span class="player__xp">
-                        <span class="bar"><i id="xpBar" style="width:0%"></i></span>
-                        <small id="xpLabel">— / — XP</small>
-                    </span>
+    <!-- Un seul bandeau. Il y avait auparavant un blason, une carte de
+         joueur, une barre de ressources, un parchemin d'objectif, une
+         pastille de météo et un journal d'événements : six panneaux
+         flottants pour dire qui tu es et ce que tu possèdes. Tout tient
+         maintenant sur une ligne, et chaque élément y fait quelque chose. -->
+    <header class="hud bandeau" id="bandeau">
+        <button class="bandeau__joueur" id="playerCard" type="button" aria-label="Ouvrir mon compte">
+            <span class="player__avatar" id="playerAvatar" aria-hidden="true"></span>
+            <span class="player__body">
+                <span class="player__name" id="playerName">—</span>
+                <span class="player__xp">
+                    <span class="bar"><i id="xpBar" style="width:0%"></i></span>
+                    <small id="playerLevel">Niveau —</small>
                 </span>
-            </button>
+            </span>
+        </button>
 
-            <div class="panel resources" id="resources" role="list"></div>
-            <div class="effects" id="effects" hidden aria-live="polite"></div>
-        </div>
+        <div class="bandeau__biens" id="resources" role="list"></div>
 
-        <div class="hud__right">
-            <section class="parchment quest" id="quest" aria-labelledby="questTitle">
-                <h2 id="questTitle">Objectif du jour</h2>
-                <button class="quest__row" type="button" id="questRow">
-                    <span class="quest__box" id="questBox" aria-hidden="true"></span>
-                    <span class="quest__text" id="questText">—</span>
-                    <svg class="quest__go" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"/></svg>
-                </button>
-                <div class="quest__progress">
-                    <span class="bar bar--gold"><i id="questBar" style="width:0%"></i></span>
-                    <small id="questCount">0/0</small>
-                </div>
-            </section>
-            <button class="round-btn" id="settingsBtn" type="button" aria-label="Mon compte">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>
-            </button>
-        </div>
+        <!-- L'objectif du jour tenait un parchemin entier dans le coin le
+             plus précieux de l'écran, et y restait mort une fois rempli.
+             Réduit à une pastille, il disparaît dès qu'il est acquis. -->
+        <button class="bandeau__objectif" id="quest" type="button" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-compass"/></svg>
+            <span class="bandeau__objectif-texte" id="questText">—</span>
+            <span class="bandeau__objectif-compte" id="questCount">0/0</span>
+        </button>
 
+        <div class="effects" id="effects" hidden aria-live="polite"></div>
+
+        <button class="round-btn bandeau__reglages" id="renownBtn" type="button" aria-label="Renommée et hauts faits">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg>
+        </button>
+        <button class="round-btn bandeau__reglages" id="settingsBtn" type="button" aria-label="Mon compte">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-gear"/></svg>
+        </button>
+
+        <!-- Les sept lieux, toujours à portée, quelle que soit la taille de
+             l'écran : c'est le seul chemin vers eux, avec la carte. Dans le
+             flux du bandeau, sur sa propre ligne : une position calculée en
+             « em » finissait par recouvrir les ressources dès que la taille
+             du texte changeait. -->
         <nav class="places" id="places" aria-label="Les lieux du domaine"></nav>
     </header>
-
-    <aside class="hud panel feed" id="feed" aria-label="Événements">
-        <h2><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-compass"/></svg> Événements</h2>
-        <ul id="feedList"></ul>
-    </aside>
 
     <!-- La fanfare d'un haut fait. Elle passe devant tout le reste : un haut
          fait se gagne une fois, il mérite qu'on lève les yeux. -->
@@ -221,26 +207,6 @@
         <span class="reap__count" id="reapCount">0</span>
     </button>
 
-    <nav class="hud dock" id="dock" aria-label="Navigation principale">
-        <button class="dock__tab is-active" type="button" data-view="monde">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-home"/></svg><span>Vue d'ensemble</span>
-        </button>
-        <button class="dock__tab" type="button" data-view="inventaire">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-pouch"/></svg><span>Inventaire</span>
-        </button>
-        <button class="dock__tab" type="button" data-view="recettes">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-recipe"/></svg><span>Recettes</span>
-        </button>
-        <button class="dock__tab" type="button" data-view="commandes">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-orders"/></svg><span>Commandes</span>
-        </button>
-        <button class="dock__tab" type="button" data-view="taverne">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tavern"/></svg><span>Taverne</span>
-        </button>
-        <button class="dock__tab" type="button" data-view="classement">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg><span>Renommée</span>
-        </button>
-    </nav>
 
 
     <section class="place" id="place" aria-live="polite" aria-hidden="true" tabindex="-1">

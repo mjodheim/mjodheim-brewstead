@@ -262,53 +262,7 @@
 
     /* ---------------------------------------------------------- Journal & but */
 
-    function feed(state) {
-        var items = [];
-        var readyFields = state.fields.filter(function (f) { return f.status === 'READY' || (f.readyAt && isDone(f.readyAt)); });
-        var nextField = state.fields
-            .filter(function (f) { return f.readyAt && !isDone(f.readyAt); })
-            .sort(function (a, b) { return new Date(a.readyAt) - new Date(b.readyAt); })[0];
-        var readyHives = state.hives.filter(function (h) { return h.status === 'READY'; });
-        var readyBatches = state.batches.filter(function (b) { return b.status === 'READY'; });
-        var openOrders = state.npcOrders.filter(function (o) { return o.status === 'OPEN'; });
 
-        if (openOrders.length) items.push({ tone: 'ok', text: openOrders.length > 1 ? openOrders.length + ' nouvelles commandes' : 'Nouvelle commande disponible' });
-        if (nextField) items.push({ tone: 'warn', text: 'Récolte prête dans ' + countdown(nextField.readyAt) });
-        else if (readyFields.length) items.push({ tone: 'ok', text: 'Récolte prête aux champs' });
-        if (readyHives.length) items.push({ tone: 'ok', text: 'Miel à récolter au rucher' });
-        if (readyBatches.length) items.push({ tone: 'info', text: readyBatches[0].recipeName + ' est prêt en cave' });
-        var neighbours = (state.tavern.notablePlayers || []).filter(function (player) { return player.id !== state.player.id; }).length;
-        if (neighbours) items.push({ tone: 'info', text: neighbours + ' autre' + (neighbours > 1 ? 's domaines au classement' : ' domaine au classement') });
-        else items.push({ tone: 'info', text: 'Invite tes amis à rejoindre le fjord' });
-
-        return items.slice(0, 4);
-    }
-
-    function goal(state) {
-        if (state.progression && state.progression.dailyQuest) {
-            var daily = state.progression.dailyQuest;
-            return {
-                text: daily.title + (daily.claimed ? ' — récompense reçue' : ''),
-                done: daily.progress,
-                total: daily.target,
-                place: daily.place
-            };
-        }
-        var order = state.npcOrders.filter(function (o) { return o.status === 'OPEN' || o.status === 'IN_PROGRESS'; })[0];
-        if (!order || !order.lines.length) {
-            return { text: 'Lancer un brassin à la brasserie', done: 0, total: 1, place: 'brasserie' };
-        }
-        var line = order.lines[0];
-        var brewed = state.batches.filter(function (b) {
-            return b.status === 'READY' && b.recipeName === line.recipeName;
-        }).length;
-        return {
-            text: 'Livrer ' + line.quantity + ' tonneau' + (line.quantity > 1 ? 'x' : '') + ' de ' + line.recipeName,
-            done: Math.min(brewed, line.quantity),
-            total: line.quantity,
-            place: 'commandes'
-        };
-    }
 
 
     /* ------------------------------------------------------- Fil conducteur */
@@ -470,8 +424,6 @@
         get: getJson,
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
-        feed: feed,
-        goal: goal,
         guide: guide,
         placeState: placeState,
         placeCount: placeCount,

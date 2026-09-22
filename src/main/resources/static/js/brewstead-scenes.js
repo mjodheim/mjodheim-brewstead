@@ -132,7 +132,8 @@
     var CROPS = {
         champs: { x: 241, y: 262, width: 470 },
         rucher: { x: 285, y: 150, width: 430 },
-        brasserie: { x: 841, y: 232, width: 400 }
+        brasserie: { x: 841, y: 232, width: 400 },
+        taverne: { x: 1020, y: 470, width: 420 }
     };
 
     var ART = '/images/brewstead-domaine.webp';
@@ -645,12 +646,207 @@
             '</g>';
     }
 
+
+    /* ------------------------------------------------------------ Taverne */
+
+    /**
+     * La salle.
+     *
+     * <p>Le comptoir était une liste de lignes : « Cervoise du fjord · servi
+     * par Untel · 2 services ». On entre maintenant dans la pièce. Chaque fût
+     * qu'un voisin a mis au comptoir est une chope posée sur le zinc, qu'on
+     * vise et qu'on boit ; les siennes portent une marque au lieu d'un geste.
+     * Les tables du premier plan ne servent à rien, et c'est exactement leur
+     * rôle : une salle vide n'est pas une taverne.
+     */
+    function taverne(state) {
+        var offres = state.tavernCounter || [];
+
+        var zinc = comptoir();
+        var chopes = '';
+        if (offres.length) {
+            var largeur = Math.min(150, 620 / offres.length);
+            offres.slice(0, 6).forEach(function (offre, i) {
+                var n = Math.min(offres.length, 6);
+                var x = STAGE_WIDTH / 2 + (i - (n - 1) / 2) * largeur;
+                chopes += chopeNode(offre, x, 342, Math.min(1.15, largeur / 118));
+            });
+        }
+
+        return defs() + painted('taverne') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            floor(336, 'cellar') +
+            '<g class="sc-lanterns">' +
+            '<ellipse cx="150" cy="150" rx="104" ry="92" fill="url(#sc-halo)"/>' +
+            '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
+            '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
+            '</g>' +
+            zinc + chopes + tables() + light() +
+            (offres.length ? '' :
+                '<text class="sc-salle__vide" x="' + (STAGE_WIDTH / 2) + '" y="300">' +
+                'Le comptoir est vide. Mets un fût en vente depuis la brasserie.</text>');
+    }
+
+    /**
+     * Le zinc, et le rack de fûts derrière.
+     *
+     * <p>Un premier essai posait les fûts en simples ellipses : ils
+     * flottaient comme des jetons. Un fût couché se reconnaît à trois
+     * choses — le galbe des douves, les deux cercles de fer, et la bonde.
+     * C'est peu, mais il faut les trois.
+     */
+    function comptoir() {
+        var out = '<g class="sc-bar">';
+
+        // L'étagère qui porte les fûts, sinon ils lévitent.
+        out += '<path class="sc-bar__etagere" d="M18 226h924v16H18Z"/>' +
+            '<path class="sc-bar__console" d="M96 242h16v26H96ZM440 242h16v26h-16ZM848 242h16v26h-16Z"/>';
+
+        for (var i = 0; i < 5; i++) {
+            var x = 128 + i * 176;
+            out += futCouche(x, 222, 0.92);
+        }
+
+        // Le plateau. Le liseré clair sur l'arête est ce qui fait « zinc ».
+        out += '<path class="sc-bar__front" d="M34 344h892v112H34Z"/>';
+        for (var j = 1; j < 9; j++) {
+            var px = 34 + j * 99;
+            out += '<path class="sc-bar__planche" d="M' + px + ' 348v104"/>';
+        }
+        out += '<path class="sc-bar__moulure" d="M34 430h892"/>' +
+            '<path class="sc-bar__top" d="M22 326h916l-12 20H34Z"/>' +
+            '<path class="sc-bar__edge" d="M22 326h916"/>' +
+            '</g>';
+        return out;
+    }
+
+    /** Un fût couché sur l'étagère, vu de face. */
+    function futCouche(x, y, k) {
+        var rx = 58 * k;
+        var ry = 42 * k;
+        var out = '<g class="sc-fut">';
+        // Le galbe : plus large au milieu qu'aux extrémités.
+        out += '<path class="sc-fut__corps" d="M' + (x - rx) + ' ' + (y - ry * 0.74) +
+            'q' + (-9 * k) + ' ' + (ry * 0.74) + ' 0 ' + (ry * 1.48) +
+            'h' + (rx * 2) + 'q' + (9 * k) + ' ' + (-ry * 0.74) + ' 0 ' + (-ry * 1.48) + 'Z"/>';
+        out += '<ellipse class="sc-fut__fond" cx="' + (x - rx - 3 * k) + '" cy="' + y +
+            '" rx="' + (11 * k) + '" ry="' + (ry * 0.78) + '"/>';
+        for (var d = -2; d <= 2; d++) {
+            var dx = x + d * rx * 0.36;
+            out += '<path class="sc-fut__douve" d="M' + dx.toFixed(1) + ' ' + (y - ry * 0.7) +
+                'q' + (d * 2.5 * k) + ' ' + (ry * 0.7) + ' 0 ' + (ry * 1.4) + '"/>';
+        }
+        out += '<path class="sc-fut__cercle" d="M' + (x - rx * 0.56) + ' ' + (y - ry * 0.78) +
+            'q' + (-6 * k) + ' ' + (ry * 0.78) + ' 0 ' + (ry * 1.56) +
+            'M' + (x + rx * 0.56) + ' ' + (y - ry * 0.78) +
+            'q' + (6 * k) + ' ' + (ry * 0.78) + ' 0 ' + (ry * 1.56) + '"/>' +
+            '<circle class="sc-fut__bonde" cx="' + x + '" cy="' + (y + ry * 0.12) + '" r="' + (6 * k) + '"/>' +
+            '</g>';
+        return out;
+    }
+
+    /** Une chope sur le zinc : un fût qu'un voisin propose à la dégustation. */
+    function chopeNode(offre, x, y, scale) {
+        var mienne = !!offre.mine;
+        var h = 64 * scale;
+        var w = 42 * scale;
+        var top = y - h;
+
+        return '<g class="sc-node sc-chope" data-state="' + (mienne ? 'mine' : 'ready') + '"' +
+            ' data-id="' + offre.id + '"' +
+            (mienne ? '' : ' data-action="serve-offer" tabindex="0" role="button"') +
+            ' aria-label="' + esc(offre.recipeName || 'Une chope') +
+            (mienne ? ' — ton fût' : ', servi par ' + esc(offre.seller || '')) + '">' +
+
+            (mienne ? '' :
+                '<ellipse class="sc-node__glow" cx="' + x.toFixed(1) + '" cy="' + (y - h * 0.5).toFixed(1) +
+                '" rx="' + (w * 1.5).toFixed(1) + '" ry="' + (h * 0.9).toFixed(1) + '" fill="url(#sc-halo)"/>') +
+
+            '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (y + 2).toFixed(1) +
+            '" rx="' + (w * 0.62).toFixed(1) + '" ry="' + (5 * scale).toFixed(1) + '"/>' +
+
+            '<path class="sc-chope__body" d="M' + (x - w / 2).toFixed(1) + ' ' + top.toFixed(1) +
+            'h' + w.toFixed(1) + 'l' + (-w * 0.08).toFixed(1) + ' ' + h.toFixed(1) +
+            'h' + (-w * 0.84).toFixed(1) + 'Z"/>' +
+            '<path class="sc-chope__biere" d="M' + (x - w * 0.42).toFixed(1) + ' ' + (top + h * 0.26).toFixed(1) +
+            'h' + (w * 0.84).toFixed(1) + 'l' + (-w * 0.06).toFixed(1) + ' ' + (h * 0.7).toFixed(1) +
+            'h' + (-w * 0.72).toFixed(1) + 'Z"/>' +
+            '<ellipse class="sc-chope__mousse" cx="' + x.toFixed(1) + '" cy="' + (top + h * 0.2).toFixed(1) +
+            '" rx="' + (w * 0.46).toFixed(1) + '" ry="' + (h * 0.13).toFixed(1) + '"/>' +
+            '<path class="sc-chope__anse" d="M' + (x + w * 0.46).toFixed(1) + ' ' + (top + h * 0.3).toFixed(1) +
+            'q' + (w * 0.5).toFixed(1) + ' ' + (h * 0.2).toFixed(1) + ' 0 ' + (h * 0.42).toFixed(1) + '"/>' +
+
+            // La pastille appelle au-dessus de la chope ; la mention « à toi »
+            // descend sous le nom, sinon elle se pose sur les fûts du fond.
+            (mienne ? '' : badge(x, top - 22 * scale, scale, 'ready')) +
+
+            '<text class="sc-chope__nom" x="' + x.toFixed(1) + '" y="' + (y + 26 * scale).toFixed(1) + '">' +
+            esc(offre.recipeName || '') + '</text>' +
+            '<text class="sc-chope__hote" x="' + x.toFixed(1) + '" y="' + (y + 42 * scale).toFixed(1) + '">' +
+            esc(offre.seller || '') + (offre.price ? ' · ' + offre.price + ' pièces' : ' · offert') + '</text>' +
+            (mienne
+                ? '<text class="sc-chope__sien" x="' + x.toFixed(1) + '" y="' + (y + 60 * scale).toFixed(1) + '">à toi</text>'
+                : '') +
+            hit(x, top - 34 * scale, w * 2.4, h + 70 * scale) +
+            '</g>';
+    }
+
+    /**
+     * Tables et tabourets au premier plan.
+     *
+     * <p>Elles ne servent à rien, et c'est exactement leur rôle : une salle
+     * vide n'est pas une taverne. Le plateau a une tranche — sans elle, une
+     * ellipse sur un pied ressemble à un champignon.
+     */
+    function tables() {
+        var out = '<g class="sc-salle">';
+        [[168, 506, 1], [478, 532, 1.14], [792, 500, 0.95]].forEach(function (t, i) {
+            var x = t[0], y = t[1], k = t[2];
+            var haut = y - 50 * k;
+            var rx = 76 * k;
+            var ry = 21 * k;
+
+            out += '<ellipse class="sc-contact" cx="' + x + '" cy="' + (y + 8 * k) + '" rx="' + (rx * 1.16) + '" ry="' + (15 * k) + '"/>';
+
+            // Tabourets derrière la table, pour qu'elle les recouvre.
+            [-1.42, 1.42].forEach(function (cote) {
+                var sx = x + cote * rx;
+                out += '<path class="sc-tabouret__pied" d="M' + (sx - 7 * k) + ' ' + (y - 26 * k) + 'l' + (-3 * k) + ' ' + (28 * k) +
+                    'M' + (sx + 7 * k) + ' ' + (y - 26 * k) + 'l' + (3 * k) + ' ' + (28 * k) + '"/>' +
+                    '<ellipse class="sc-tabouret" cx="' + sx + '" cy="' + (y - 28 * k) + '" rx="' + (23 * k) + '" ry="' + (9 * k) + '"/>' +
+                    '<path class="sc-tabouret__tranche" d="M' + (sx - 23 * k) + ' ' + (y - 28 * k) +
+                    'v' + (5 * k) + 'a' + (23 * k) + ' ' + (9 * k) + ' 0 0 0 ' + (46 * k) + ' 0v' + (-5 * k) + 'Z"/>';
+            });
+
+            out += '<path class="sc-table__pied" d="M' + (x - 11 * k) + ' ' + y + 'l' + (4 * k) + ' ' + (-50 * k) +
+                'h' + (14 * k) + 'l' + (4 * k) + ' ' + (50 * k) + 'Z"/>' +
+                '<path class="sc-table__socle" d="M' + (x - 30 * k) + ' ' + y + 'h' + (60 * k) + 'l' + (-6 * k) + ' ' + (-7 * k) +
+                'h' + (-48 * k) + 'Z"/>' +
+                // La tranche du plateau, dessinée avant le dessus.
+                '<path class="sc-table__tranche" d="M' + (x - rx) + ' ' + haut + 'v' + (9 * k) +
+                'a' + rx + ' ' + ry + ' 0 0 0 ' + (rx * 2) + ' 0v' + (-9 * k) + 'Z"/>' +
+                '<ellipse class="sc-table__plateau" cx="' + x + '" cy="' + haut + '" rx="' + rx + '" ry="' + ry + '"/>' +
+                '<ellipse class="sc-table__veine" cx="' + x + '" cy="' + (haut - 2 * k) + '" rx="' + (rx * 0.62) + '" ry="' + (ry * 0.56) + '"/>';
+
+            // Une chandelle sur deux tables : la salle respire.
+            if (i !== 1) {
+                var cx = x + 26 * k;
+                out += '<path class="sc-bougeoir" d="M' + (cx - 9 * k) + ' ' + (haut - 3 * k) + 'h' + (18 * k) + 'l' + (-4 * k) + ' ' + (-5 * k) + 'h' + (-10 * k) + 'Z"/>' +
+                    '<path class="sc-bougie" d="M' + cx + ' ' + (haut - 8 * k) + 'v' + (-20 * k) + '"/>' +
+                    '<ellipse class="sc-bougie__flamme" cx="' + cx + '" cy="' + (haut - 33 * k) + '" rx="' + (3.6 * k) + '" ry="' + (6.4 * k) + '"/>' +
+                    '<ellipse class="sc-bougie__halo" cx="' + cx + '" cy="' + (haut - 30 * k) + '" rx="' + (30 * k) + '" ry="' + (24 * k) + '" fill="url(#sc-halo)"/>';
+            }
+        });
+        return out + '</g>';
+    }
+
     /* ------------------------------------------------------------- Montage */
 
     var SCENES = {
         champs: { build: champs, empty: 'Aucune parcelle sur ce domaine.' },
         rucher: { build: rucher, empty: 'Aucune ruche installée.' },
-        brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' }
+        brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' },
+        taverne: { build: taverne, empty: '' }
     };
 
     /**
@@ -670,6 +866,11 @@
         }
         if (place === 'brasserie') {
             return (state.batches || []).map(function (b) { return b.id + ':' + batchState(b); }).join('|');
+        }
+        if (place === 'taverne') {
+            return (state.tavernCounter || []).map(function (o) {
+                return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
+            }).join('|');
         }
         return '';
     }

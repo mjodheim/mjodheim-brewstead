@@ -18,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -27,6 +28,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class NpcOrderService {
+
+    private static final int CONTRATS_MAX = 3;
 
     private static final List<String> CUSTOMERS = List.of(
             "La troupe de Ragnar",
@@ -45,13 +48,46 @@ public class NpcOrderService {
     private final NpcOrderMapper npcOrderMapper;
     private final ProgressionService progressionService;
 
+    /** Un marchand se présente au plus tous les quarts d'heure. */
+    private static final Duration ENTRE_DEUX_MARCHANDS = Duration.ofMinutes(15);
+
     @Transactional
     public List<NpcOrderResponse> findAllOrders(Long playerId) {
         getPlayer(playerId);
+        accueillirUnMarchand(playerId);
         return npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(playerId).stream()
                 .peek(this::refreshOrderStatus)
                 .map(this::toResponse)
                 .toList();
+    }
+
+    /**
+     * Fait venir un marchand de lui-même, s'il y a de la place et que le
+     * précédent n'est pas arrivé à l'instant.
+     *
+     * <p>Le joueur convoquait ses clients en appuyant sur un bouton : un
+     * marchand qu'on invoque n'est pas un marchand, c'est un distributeur.
+     * Ils passent maintenant au comptoir quand bon leur semble, dans la
+     * limite de trois contrats à la fois.
+     */
+    private void accueillirUnMarchand(Long playerId) {
+        List<NpcOrder> tous = npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(playerId);
+        LocalDateTime now = LocalDateTime.now();
+        long actifs = tous.stream()
+                .peek(this::refreshOrderStatus)
+                .filter(order -> order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
+                .filter(order -> now.isBefore(order.getExpiresAt()))
+                .count();
+        if (actifs >= CONTRATS_MAX) return;
+
+        boolean tropTot = tous.stream()
+                .map(NpcOrder::getCreatedAt)
+                .max(LocalDateTime::compareTo)
+                .filter(dernier -> dernier.isAfter(now.minus(ENTRE_DEUX_MARCHANDS)))
+                .isPresent();
+        if (tropTot) return;
+
+        generateOrder(playerId);
     }
 
     @Transactional
@@ -64,8 +100,8 @@ public class NpcOrderService {
                 .filter(order -> order.getStatus() == OrderStatus.OPEN || order.getStatus() == OrderStatus.IN_PROGRESS)
                 .filter(order -> now.isBefore(order.getExpiresAt()))
                 .count();
-        if (active >= 3) {
-            throw new IllegalStateException("Livre tes contrats en cours avant d’inviter un autre marchand (3 maximum).");
+        if (active >= CONTRATS_MAX) {
+            throw new IllegalStateException("Livre tes contrats en cours avant qu’un autre marchand ne se présente (3 maximum).");
         }
         List<Recipe> recipes = recipeRepository.findAllByIsPublicTrue().stream()
                 .sorted(Comparator.comparingLong(Recipe::getId))

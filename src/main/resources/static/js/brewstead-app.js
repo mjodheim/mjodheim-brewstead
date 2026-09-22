@@ -559,6 +559,7 @@
 
         taverne: {
             title: 'Taverne',
+            scene: 'taverne',
             render: function (s) {
                 var tabs = '<div class="tabs">' +
                     ['salle', 'comptoir'].map(function (key) {
@@ -823,11 +824,12 @@
     }
 
     function renderNpcOrders(s) {
-        var active = s.npcOrders.filter(function (order) { return order.status === 'OPEN' || order.status === 'IN_PROGRESS'; });
-        var head = '<p class="hint">Brasse, puis livre les marchands pour gagner des pièces, de la réputation et de l’expérience. Trois contrats actifs au maximum.</p>' +
-            '<div class="account-actions"><button class="btn btn--gold" type="button" data-action="npc-generate"' +
-            (active.length >= 3 ? ' disabled' : '') + '>Faire venir un marchand</button></div>';
-        if (!s.npcOrders.length) return head + empty('Le premier marchand attend ton invitation.');
+        // Les marchands ne s'invoquent plus : ils passent d'eux-mêmes, trois
+        // contrats au plus à la fois. Le bouton « Faire venir un marchand »
+        // transformait le comptoir en distributeur.
+        var head = '<p class="hint">Les marchands passent au comptoir d’eux-mêmes, trois contrats à la fois. ' +
+            'Brasse, livre-les, et la réputation suit.</p>';
+        if (!s.npcOrders.length) return head + empty('Aucun marchand n’est encore passé. Le premier ne tardera pas.');
         return head + s.npcOrders.map(function (order) {
             var open = (order.status === 'OPEN' || order.status === 'IN_PROGRESS') && !fmt.isDone(order.expiresAt);
             var available = (order.lines || []).every(function (line) {
@@ -991,7 +993,9 @@
     }
 
     function loadTavern(force) {
-        var tab = tavern.tab;
+        // Dans la salle dessinée, ce sont les chopes du comptoir qu'il faut,
+        // quel que soit l'onglet choisi pour la vue en liste.
+        var tab = (activeView === 'taverne' && !listMode.taverne) ? 'comptoir' : tavern.tab;
         if (tavern.requests[tab]) return tavern.requests[tab];
         var log = $('chatLog');
         var atBottom = !log || log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -1006,14 +1010,14 @@
 
         tavern.requests[tab] = job.then(function () {
             tavern.connectionError = '';
-            if (activeView === 'taverne' && tavern.tab === tab) {
+            if (activeView === 'taverne') {
                 renderScreen();
                 if (atBottom || force) scrollChat();
             }
         }).catch(function (error) {
             tavern.connectionError = 'Connexion interrompue. Nouvelle tentative automatique…';
             if (error.sessionExpired) showFault(error);
-            if (activeView === 'taverne' && tavern.tab === tab) renderScreen();
+            if (activeView === 'taverne') renderScreen();
         }).finally(function () { delete tavern.requests[tab]; });
         return tavern.requests[tab];
     }
@@ -1058,10 +1062,6 @@
 
         if (action === 'renom-tab') { renom.tab = id; renderScreen(); return; }
 
-        if (action === 'npc-generate') {
-            send('/api/npc-orders/players/' + state.player.id + '/generate', undefined, function () { toast('Un marchand te propose un contrat.'); });
-            return;
-        }
         if (action === 'npc-accept' || action === 'npc-complete') {
             send('/api/npc-orders/' + Number(id) + (action === 'npc-accept' ? '/accept' : '/complete'), undefined,
                 function () { toast(action === 'npc-accept' ? 'Contrat accepté. Prépare ta livraison.' : 'Brassin livré. Pièces, expérience et réputation reçues.'); });
@@ -1386,10 +1386,13 @@
         var player = state.player;
         dom.playerName.textContent = player.displayName || player.username || '—';
         dom.playerAvatar.innerHTML = icon('av-' + (player.avatar || 'CERF'));
-        dom.playerLevel.textContent = 'Niveau ' + player.level;
         var xp = player.experience % Data.XP_PER_LEVEL;
         dom.xpBar.style.width = (xp / Data.XP_PER_LEVEL * 100) + '%';
-        dom.xpLabel.textContent = fmt.number(xp) + ' / ' + fmt.number(Data.XP_PER_LEVEL) + ' XP';
+        // « Niveau 1 » et « 670 / 1 000 XP » disaient la même chose sur deux
+        // lignes. La barre montre l'avancement, le texte donne le niveau.
+        dom.playerLevel.textContent = 'Niveau ' + player.level;
+        dom.playerCard.title = 'Niveau ' + player.level + ' · ' +
+            fmt.number(xp) + ' / ' + fmt.number(Data.XP_PER_LEVEL) + ' XP';
     }
 
     /* Chaque ressource mène là où elle se range : on clique sur « Miel » pour
@@ -1432,13 +1435,24 @@
         dom.effects.hidden = effects.length === 0;
     }
 
+    /**
+     * L'objectif du jour, tant qu'il en reste un.
+     *
+     * <p>Il occupait un parchemin entier et y restait « 3/3 · récompense
+     * reçue » jusqu'au lendemain, en haut à droite, sans que le clic serve
+     * à rien. Un objectif atteint n'est plus un objectif : la pastille
+     * disparaît, et le coin de l'écran avec elle.
+     */
     function renderQuest() {
-        var goal = Data.goal(state);
-        dom.questText.textContent = goal.text;
-        dom.questCount.textContent = goal.done + '/' + goal.total;
-        dom.questBar.style.width = (goal.total ? goal.done / goal.total * 100 : 0) + '%';
-        dom.questBox.classList.toggle('is-done', goal.done >= goal.total);
-        dom.quest.dataset.place = goal.place;
+        var quete = state.progression && state.progression.dailyQuest;
+        if (!quete || quete.claimed) { dom.quest.hidden = true; return; }
+
+        dom.quest.hidden = false;
+        dom.questText.textContent = quete.title;
+        dom.questCount.textContent = quete.progress + '/' + quete.target;
+        dom.quest.dataset.place = quete.place || 'commandes';
+        dom.quest.style.setProperty('--avance',
+            (quete.target ? quete.progress / quete.target * 100 : 0) + '%');
     }
 
     function initAtmosphere() {
@@ -1453,18 +1467,12 @@
         var weather = weathers[Math.abs(day * 17) % weathers.length];
         var hour = now.getHours();
         var light = hour < 6 || hour >= 21 ? 'nuit' : (hour < 9 || hour >= 18 ? 'crepuscule' : 'jour');
+        // La météo habille le décor — pluie, brume, lumière du soir. Elle n'a
+        // jamais eu d'effet sur le jeu ; la pastille qui l'annonçait occupait
+        // donc un coin de l'écran pour énoncer un fait sans conséquence.
         dom.game.dataset.weather = weather.key;
         dom.game.dataset.light = light;
-        dom.weatherLabel.textContent = weather.label;
-        dom.weatherChip.title = 'Météo du domaine · ' + (light === 'jour' ? 'jour' : light);
         dom.game.dataset.paused = document.hidden ? 'true' : 'false';
-    }
-
-    function renderFeed() {
-        var items = Data.feed(state);
-        dom.feedList.innerHTML = items.slice(0, 4).map(function (item) {
-            return '<li data-tone="' + item.tone + '">' + esc(item.text) + '</li>';
-        }).join('');
     }
 
     /** Un mot quand un travail s'achève, une seule fois par élément. */
@@ -1547,7 +1555,8 @@
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
-            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.'
+            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
+            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.'
         }[view] || '';
 
         var actions = '';
@@ -1578,11 +1587,12 @@
      */
     function renderSceneScreen(section) {
         var place = section.scene;
-        var fresh = Scenes.signature(place, state);
+        var vu = decor();
+        var fresh = Scenes.signature(place, vu);
         var drawn = dom.screenBody.querySelector('.sc-stage, .sc-empty');
 
         if (drawn && sceneSignature[place] === fresh) {
-            Scenes.tick(dom.screenBody, place, state);
+            Scenes.tick(dom.screenBody, place, vu);
             return;
         }
 
@@ -1590,8 +1600,19 @@
         // innerHTML direct : updateMarkup réconcilie nœud par nœud, ce qui
         // n'a aucun sens pour un décor entier qu'on redessine.
         dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
-            Scenes.markup(place, state) + sceneBar(place) + '</div>';
+            Scenes.markup(place, vu) + sceneBar(place) + '</div>';
         dom.screenBody._markup = null;
+    }
+
+    /**
+     * L'état tel que les décors le lisent.
+     *
+     * <p>Le comptoir de la taverne est chargé à part de l'état du domaine ;
+     * la salle en a pourtant besoin pour poser ses chopes. On le joint ici
+     * plutôt que de donner deux paramètres à chaque décor.
+     */
+    function decor() {
+        return Object.assign({}, state, { tavernCounter: tavern.counter });
     }
 
     function renderScreen() {
@@ -1627,7 +1648,6 @@
         renderQuest();
         renderGuide();
         veilleHautsFaits();
-        renderFeed();
         renderMarkers();
         renderPlace();
         if (activeView !== 'monde') renderScreen();
@@ -1718,9 +1738,24 @@
         });
     }
 
+    /** Ce lieu montre-t-il quelque chose avant qu'on y entre ? */
+    function aUnTiroir(place) {
+        return !!place.tiroir;
+    }
+
+    /**
+     * Ouvre un lieu.
+     *
+     * <p>Les champs, le rucher et la brasserie ouvrent leur tiroir : on y
+     * voit ce qui pousse, ce qui fermente, avant d'entrer. Les autres
+     * n'avaient qu'un tiroir de passage devant leur écran — la taverne
+     * disait « Entre dans la salle » et rien d'autre. Ils ouvrent l'écran
+     * directement.
+     */
     function openPlace(id) {
         var place = Data.PLACES.find(function (p) { return p.id === id; });
         if (!place) return;
+        if (!aUnTiroir(place)) { openScreen(place.screen); return; }
         closeScreen();
         activePlace = place;
 
@@ -1799,10 +1834,13 @@
     }
 
     function syncDock() {
-        dom.dock.querySelectorAll('.dock__tab').forEach(function (tab) {
-            tab.classList.toggle('is-active', tab.dataset.view === activeView);
-        });
         dom.game.dataset.view = activeView;
+        dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
+            var place = Data.PLACES.find(function (p) { return p.id === chip.dataset.place; });
+            chip.classList.toggle('is-active',
+                (!!activePlace && activePlace.id === chip.dataset.place) ||
+                (!activePlace && !!place && place.screen === activeView));
+        });
     }
 
     function selectView(view) {
@@ -2124,13 +2162,13 @@
             if (event.target === dom.screen) selectView('monde');
         });
 
-        dom.dock.addEventListener('click', function (event) {
-            var tab = event.target.closest('.dock__tab');
-            if (tab) selectView(tab.dataset.view);
+        dom.quest.addEventListener('click', function () {
+            selectView('monde');
+            openPlace(dom.quest.dataset.place || 'commandes');
         });
 
-        dom.questRow.addEventListener('click', function () {
-            openPlace(dom.quest.dataset.place || 'commandes');
+        dom.renownBtn.addEventListener('click', function () {
+            openScreen('classement');
         });
 
         dom.settingsBtn.addEventListener('click', function () {
@@ -2182,11 +2220,11 @@
 
     function start() {
         ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featTitle', 'featDesc', 'featReward', 'featClose', 'playerName', 'playerAvatar', 'playerLevel',
-            'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
-            'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
+            'xpBar', 'resources', 'quest', 'questText', 'questCount',
+            'renownBtn', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
             'playerCard', 'settingsBtn', 'reapBtn', 'reapCount', 'places', 'lieux', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
-            'weatherChip', 'weatherLabel'].forEach(function (id) { dom[id] = $(id); });
+        ].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
         buildPlaceLayers();

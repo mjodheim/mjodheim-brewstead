@@ -193,6 +193,89 @@
     100% { transform: translateY(var(--bub-to, -60px)); opacity: 0; }
 }
 
+/* Taverne ------------------------------------------------------------------ */
+
+/* Le zinc et son mur de tonneaux. Tout se joue sur trois valeurs de bois :
+   le fond recule, le plateau accroche la lumière, la face avant retombe. */
+.sc-bar__etagere { fill: #46301a; stroke: rgba(16, 9, 3, .55); stroke-width: 2; }
+.sc-bar__console { fill: #35240f; }
+
+/* Un fût couché. Trois traits suffisent, mais il faut les trois : le galbe
+   des douves, les cercles de fer, la bonde. */
+.sc-fut__corps { fill: #79562e; stroke: rgba(18, 11, 4, .5); stroke-width: 2; }
+.sc-fut__fond { fill: #5d4021; stroke: rgba(18, 11, 4, .45); stroke-width: 2; }
+.sc-fut__douve { fill: none; stroke: rgba(36, 22, 8, .34); stroke-width: 2.2; }
+.sc-fut__cercle { fill: none; stroke: #c39f5e; stroke-width: 5; stroke-linecap: round; }
+.sc-fut__bonde { fill: #2e1f0c; stroke: rgba(196, 160, 94, .5); stroke-width: 2; }
+
+.sc-bar__front { fill: #3b2a14; }
+.sc-bar__planche { fill: none; stroke: rgba(20, 12, 4, .5); stroke-width: 2.2; }
+.sc-bar__moulure { fill: none; stroke: rgba(138, 97, 54, .4); stroke-width: 3; }
+.sc-bar__top { fill: #8a6336; }
+.sc-bar__edge { fill: none; stroke: rgba(255, 228, 176, .42); stroke-width: 3; }
+
+/* Les chopes. Celles des voisins appellent ; la tienne est simplement là. */
+.sc-chope__body { fill: #8a6a42; stroke: rgba(28, 17, 6, .5); stroke-width: 2; }
+.sc-chope__biere { fill: #cf9633; }
+.sc-chope[data-state="mine"] .sc-chope__biere { fill: #9c7433; }
+.sc-chope__mousse { fill: rgba(255, 248, 224, .92); }
+.sc-chope__anse { fill: none; stroke: #8a6a42; stroke-width: 5; stroke-linecap: round; }
+
+.sc-chope__nom {
+    fill: var(--cream);
+    font: 600 15px "Cinzel", Georgia, serif;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .85);
+    stroke-width: 4;
+}
+
+.sc-chope__hote, .sc-chope__sien {
+    fill: var(--cream-dim);
+    font: 400 12px "Spectral", Georgia, serif;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .8);
+    stroke-width: 3.5;
+}
+
+.sc-chope__sien { fill: var(--gold); font-family: "Cinzel", Georgia, serif; }
+
+.sc-salle__vide {
+    fill: var(--cream-dim);
+    font: 400 17px "Spectral", Georgia, serif;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .8);
+    stroke-width: 4;
+}
+
+/* Le premier plan. Ces tables ne servent à rien, et c'est leur rôle : une
+   salle vide n'est pas une taverne. */
+.sc-table__pied { fill: #3f2c15; }
+.sc-table__socle { fill: #33220f; }
+.sc-table__tranche { fill: #4c3417; }
+.sc-table__plateau { fill: #7b5830; stroke: rgba(22, 13, 4, .45); stroke-width: 2; }
+.sc-table__veine { fill: rgba(255, 224, 170, .09); }
+.sc-tabouret { fill: #63431f; stroke: rgba(22, 13, 4, .45); stroke-width: 2; }
+.sc-tabouret__tranche { fill: #432d13; }
+.sc-tabouret__pied { fill: none; stroke: #3a2712; stroke-width: 4; stroke-linecap: round; }
+.sc-bougeoir { fill: #b8933f; }
+.sc-bougie { fill: none; stroke: #efe0bd; stroke-width: 4; stroke-linecap: round; }
+.sc-bougie__halo { opacity: .5; }
+
+.sc-bougie__flamme {
+    fill: #ffd98a;
+    filter: drop-shadow(0 0 6px rgba(255, 190, 90, .9));
+    animation: sc-flamme 2.2s ease-in-out infinite;
+    transform-origin: center bottom;
+}
+
+@keyframes sc-flamme {
+    0%, 100% { transform: scaleY(1) scaleX(1); opacity: .95; }
+    45% { transform: scaleY(1.22) scaleX(.9); opacity: 1; }
+}
+
 /* Pastille d'action -------------------------------------------------------- */
 
 .sc-badge__disc { fill: rgba(22, 14, 5, .82); stroke: rgba(233, 188, 85, .55); stroke-width: 2; }
@@ -240,9 +323,10 @@
 :root[data-mouvement="sobre"] .sc-lanterns ellipse,
 :root[data-mouvement="sobre"] .sc-plot[data-state="empty"] .sc-plot__edge,
 :root[data-mouvement="sobre"] .sc-plot[data-state="ready"] .sc-row,
-:root[data-mouvement="sobre"] .sc-node[data-state="ready"] .sc-badge__bob { animation: none; }
+:root[data-mouvement="sobre"] .sc-node[data-state="ready"] .sc-badge__bob,
+:root[data-mouvement="sobre"] .sc-bougie__flamme { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
     .sc-bee, .sc-bubble, .sc-node__glow, .sc-lanterns ellipse,
-    .sc-plot__edge, .sc-row, .sc-badge__bob { animation: none !important; }
+    .sc-plot__edge, .sc-row, .sc-badge__bob, .sc-bougie__flamme { animation: none !important; }
 }

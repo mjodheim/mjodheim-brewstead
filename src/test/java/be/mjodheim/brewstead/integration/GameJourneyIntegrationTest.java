@@ -188,18 +188,16 @@ class GameJourneyIntegrationTest {
 
         assertTrue(stock(alphaPlayer, crop.getIngredient()).compareTo(cropStockBefore) > 0);
 
+        // Les ruches n'attendent plus qu'on les réveille : elles produisent
+        // dès qu'on les regarde, et repartent seules après la récolte.
+        mockMvc.perform(get("/api/apiary/players/{playerId}/hives", alphaPlayer.getId()).session(alpha))
+                .andExpect(status().isOk());
+
         Beehive hive = hiveRepository.findAllByPlayerId(alphaPlayer.getId()).stream()
-                .filter(candidate -> candidate.getStatus() == BehiveStatus.IDLE)
+                .filter(candidate -> candidate.getStatus() == BehiveStatus.PRODUCING)
                 .findFirst()
                 .orElseThrow();
 
-        mockMvc.perform(post("/api/apiary/hives/{id}/start", hive.getId())
-                        .session(alpha)
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("PRODUCING"));
-
-        hive = hiveRepository.findById(hive.getId()).orElseThrow();
         hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
         hiveRepository.save(hive);
 
@@ -207,7 +205,7 @@ class GameJourneyIntegrationTest {
                         .session(alpha)
                         .with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("IDLE"));
+                .andExpect(jsonPath("$.status").value("PRODUCING"));
 
         Recipe brewable = findBrewableRecipe(alphaPlayer);
 

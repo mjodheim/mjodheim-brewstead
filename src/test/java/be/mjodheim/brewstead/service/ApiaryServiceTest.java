@@ -116,9 +116,10 @@ class ApiaryServiceTest {
                 request.playerId().equals(1L)
                         && request.ingredientId().equals(8L)
                         && request.quantity().compareTo(new BigDecimal("3.000")) == 0));
-        assertEquals(BehiveStatus.IDLE, hive.getStatus());
-        assertNull(hive.getStartedAt());
-        assertNull(hive.getReadyAt());
+        // La ruche ne s'endort plus : elle repart aussitôt.
+        assertEquals(BehiveStatus.PRODUCING, hive.getStatus());
+        assertNotNull(hive.getStartedAt());
+        assertTrue(hive.getReadyAt().isAfter(LocalDateTime.now()));
     }
 
     @Test
@@ -161,10 +162,10 @@ class ApiaryServiceTest {
         assertEquals(2, service.harvestAll(1L));
 
         verify(inventoryService, times(2)).addIngredient(any());
-        assertEquals(BehiveStatus.IDLE, ready.getStatus());
-        assertEquals(BehiveStatus.IDLE, justDone.getStatus());
+        assertEquals(BehiveStatus.PRODUCING, ready.getStatus(), "une ruche récoltée repart");
+        assertEquals(BehiveStatus.PRODUCING, justDone.getStatus());
         assertEquals(BehiveStatus.PRODUCING, working.getStatus(), "une ruche au travail n'est pas dérangée");
-        assertEquals(BehiveStatus.IDLE, asleep.getStatus());
+        assertEquals(BehiveStatus.PRODUCING, asleep.getStatus(), "une ruche endormie se réveille seule");
     }
 
     @Test

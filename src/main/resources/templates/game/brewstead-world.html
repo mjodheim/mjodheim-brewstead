@@ -114,7 +114,18 @@
             <img class="world__art" id="worldArt" width="1536" height="742" alt="Le domaine de Brewstead"
                  th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
             <svg th:replace="~{game/brewstead-atmosphere :: atmosphere}"></svg>
-            <div class="world__lieux" id="lieux" aria-hidden="true"></div>
+            <!-- Les calques sont posés par le script, qui ne sait pas calculer
+                 l'empreinte d'un fichier. Le serveur la lui donne ici, sinon
+                 ces sept images seraient les seules à garder leur ancien
+                 contenu en cache après une mise à jour. -->
+            <div class="world__lieux" id="lieux" aria-hidden="true"
+                 th:attr="data-art-rucher=@{/images/lieux/rucher.webp},
+                          data-art-champs=@{/images/lieux/champs.webp},
+                          data-art-entrepot=@{/images/lieux/entrepot.webp},
+                          data-art-brasserie=@{/images/lieux/brasserie.webp},
+                          data-art-laboratoire=@{/images/lieux/laboratoire.webp},
+                          data-art-taverne=@{/images/lieux/taverne.webp},
+                          data-art-commandes=@{/images/lieux/commandes.webp}"></div>
             <div class="world__markers" id="markers"></div>
         </div>
         <div class="world__fx" aria-hidden="true">
@@ -125,7 +136,14 @@
             <span class="weather-chip__symbol" aria-hidden="true"></span>
             <span id="weatherLabel">Éclaircies</span>
         </div>
-        <div class="world__hint" id="worldHint">Glisse pour explorer le domaine</div>
+        <!-- « Glisse pour explorer » disait comment bouger la carte, jamais
+             quoi faire du domaine. Cette place, la plus visible de l'écran,
+             sert maintenant à dérouler la boucle du jeu une étape à la fois. -->
+        <button class="world__guide" id="guide" type="button">
+            <span class="world__guide-text" id="guideText">—</span>
+            <small class="world__guide-why" id="guideWhy"></small>
+            <svg class="world__guide-go" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"/></svg>
+        </button>
     </div>
 
     <header class="hud hud--top">
@@ -182,6 +200,20 @@
         <h2><svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-compass"/></svg> Événements</h2>
         <ul id="feedList"></ul>
     </aside>
+
+    <!-- La fanfare d'un haut fait. Elle passe devant tout le reste : un haut
+         fait se gagne une fois, il mérite qu'on lève les yeux. -->
+    <div class="hud feat" id="feat" role="status" aria-live="polite" hidden>
+        <div class="feat__card">
+            <span class="feat__burst" aria-hidden="true"></span>
+            <svg class="feat__icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg>
+            <p class="feat__kicker">Haut fait débloqué</p>
+            <h2 class="feat__title" id="featTitle">—</h2>
+            <p class="feat__desc" id="featDesc"></p>
+            <p class="feat__reward" id="featReward"></p>
+            <button class="btn btn--gold feat__close" id="featClose" type="button">Continuer</button>
+        </div>
+    </div>
 
     <button class="hud reap" id="reapBtn" type="button" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-basket"/></svg>

@@ -74,6 +74,15 @@ public class FarmService {
         if (field.getStatus() != FieldStatus.READY) {
             throw new IllegalStateException("Field is not ready");
         }
+        // Une parcelle mûre sans semence n'existe pas en jeu ; elle existe
+        // si la base a dérivé. Sans ce garde-fou, la récolte répond 500 au
+        // lieu de rendre la parcelle à son état vide.
+        if (field.getCrop() == null) {
+            field.setStatus(FieldStatus.EMPTY);
+            field.setPlantedAt(null);
+            field.setReadyAt(null);
+            return farmMapper.toResponse(playerFieldRepository.save(field));
+        }
 
         inventoryService.addIngredient(
                 new IngredientRequest(

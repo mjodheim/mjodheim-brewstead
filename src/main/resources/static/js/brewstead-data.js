@@ -114,6 +114,21 @@
         return Math.floor(hours / 24) + ' j ' + (hours % 24) + ' h';
     }
 
+    /**
+     * Une durée en minutes, dite comme on la dit à voix haute.
+     *
+     * <p>« 150 min » demande un calcul mental ; « 2 h 30 » ne demande rien.
+     */
+    function duration(minutes) {
+        var m = Math.max(0, Math.round(Number(minutes) || 0));
+        if (m < 60) return m + ' min';
+        var h = Math.floor(m / 60);
+        var reste = m % 60;
+        if (h < 24) return reste ? h + ' h ' + String(reste).padStart(2, '0') : h + ' h';
+        var j = Math.floor(h / 24);
+        return (h % 24) ? j + ' j ' + (h % 24) + ' h' : j + ' j';
+    }
+
     function ratio(startIso, endIso) {
         var start = new Date(startIso).getTime();
         var end = new Date(endIso).getTime();
@@ -295,6 +310,101 @@
         };
     }
 
+
+    /* ------------------------------------------------------- Fil conducteur */
+
+    /**
+     * La prochaine chose à faire, et la raison de la faire.
+     *
+     * <p>C'est la réponse à « et maintenant ? ». Un joueur qui arrive voit
+     * sept lieux et ne sait pas lequel ouvre la boucle ; cette ligne la lui
+     * déroule dans l'ordre — récolter, semer, brasser, livrer — en disant
+     * chaque fois à quoi sert le geste. Elle ne se lit qu'une fois : le jour
+     * où le joueur connaît la boucle, il ne la regarde plus.
+     *
+     * <p>L'ordre n'est pas décoratif. Ce qui est mûr passe avant ce qui est
+     * vide, parce qu'une récolte qui attend est du temps déjà investi ; et
+     * semer passe avant brasser, parce qu'on ne brasse pas sans grain.
+     */
+    function guide(state) {
+        var mur = harvestableCount(state);
+        if (mur > 0) {
+            return {
+                texte: mur > 1 ? 'Récolte tes ' + mur + ' choses mûres' : 'Récolte ce qui est mûr',
+                pourquoi: 'Le grain et le miel sont la matière de tout ce que tu brasses.',
+                action: 'reap'
+            };
+        }
+
+        if (state.batches.some(function (b) { return b.status === 'READY'; })) {
+            return {
+                texte: 'Ton brassin est prêt',
+                pourquoi: 'Va le chercher à la brasserie : il ira en cave, prêt à être vendu.',
+                lieu: 'brasserie'
+            };
+        }
+
+        if (state.fields.some(function (f) { return f.status === 'EMPTY'; })) {
+            return {
+                texte: 'Sème une parcelle',
+                pourquoi: 'L’orge devient la bière, le houblon lui donne son amertume.',
+                lieu: 'champs'
+            };
+        }
+
+        var enCours = state.batches.some(function (b) {
+            return b.status !== 'SOLD_OUT' && b.status !== 'CANCELLED' && b.status !== 'READY';
+        });
+        if (!enCours && state.recipes.some(function (r) { return brewable(state, r); })) {
+            return {
+                texte: 'Lance un brassin',
+                pourquoi: 'C’est à la brasserie que tes récoltes deviennent des boissons.',
+                lieu: 'brasserie'
+            };
+        }
+
+        var cave = cellarVolume(state.batches);
+        if (cave > 0 && state.npcOrders.some(function (o) { return o.status === 'OPEN'; })) {
+            return {
+                texte: 'Livre une commande',
+                pourquoi: 'Les marchands paient en pièces, et la renommée suit.',
+                lieu: 'commandes'
+            };
+        }
+
+        if (cave > 0) {
+            return {
+                texte: 'Offre une tournée à la taverne',
+                pourquoi: 'Faire goûter aux voyageurs, c’est ainsi qu’on se fait un nom.',
+                lieu: 'taverne'
+            };
+        }
+
+        if (enCours) {
+            return {
+                texte: 'Ton brassin fermente',
+                pourquoi: 'Rien ne presse. Le domaine travaille pendant ton absence.',
+                lieu: 'brasserie'
+            };
+        }
+
+        return {
+            texte: 'Regarde où tu en es',
+            pourquoi: 'Les autres domaines brassent aussi. Le classement dit qui mène.',
+            vue: 'classement'
+        };
+    }
+
+    /** Assez de tout en réserve pour lancer cette recette ? */
+    function brewable(state, recipe) {
+        return (recipe.ingredients || []).every(function (line) {
+            var stock = state.inventory.find(function (item) {
+                return item.ingredientName === line.ingredientName;
+            });
+            return stock && Number(stock.quantity) >= Number(line.quantity);
+        });
+    }
+
     /* ------------------------------------------------- État d'un lieu (pastille) */
 
     function placeState(id, state) {
@@ -362,9 +472,10 @@
         load: load,
         feed: feed,
         goal: goal,
+        guide: guide,
         placeState: placeState,
         placeCount: placeCount,
         harvestableCount: harvestableCount,
-        format: { number: number, quantity: quantity, countdown: countdown, ratio: ratio, isDone: isDone }
+        format: { number: number, quantity: quantity, countdown: countdown, duration: duration, ratio: ratio, isDone: isDone }
     };
 })(window);

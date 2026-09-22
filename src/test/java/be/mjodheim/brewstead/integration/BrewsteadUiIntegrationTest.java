@@ -117,7 +117,13 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
-            waitForScreen(wait, "Renommée & hauts faits");
+            waitForScreen(wait, "Renommée");
+
+            // L'écran s'ouvre sur les hauts faits : c'est ce qu'on vient y voir.
+            assertTrue(driver.findElement(By.cssSelector(".feats-head")).isDisplayed());
+            assertEquals(8, driver.findElements(By.cssSelector(".achievement")).size());
+
+            click(driver, wait, By.cssSelector("[data-action='renom-tab'][data-id='domaine']"));
             assertEquals(3, driver.findElements(By.cssSelector(".specialization")).size());
             assertEquals(4, driver.findElements(By.cssSelector(".theme-choice")).size());
             assertTrue(driver.findElement(By.cssSelector(".season-card")).isDisplayed());
@@ -176,7 +182,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Rucher"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
+            // Les ruches tournent d'elles-mêmes : rien à lancer.
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
 
@@ -187,7 +193,7 @@ class BrewsteadUiIntegrationTest {
             new WebDriverWait(driver, Duration.ofSeconds(30)).until(
                     ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']")));
             click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']"));
-            wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getStatus() == BehiveStatus.IDLE);
+            wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getReadyAt().isAfter(LocalDateTime.now()));
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
             click(driver, wait, By.cssSelector("#markers [data-place='brasserie']"));
@@ -389,8 +395,6 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedFields());
 
             openSection(brewer, wait, "rucher");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive'] .sc-node__hit, #screenBody [data-action='start-hive']"));
-            waitForMutation(brewer, wait);
             var hive = hiveRepository.findAllByPlayerId(player.getId()).stream()
                     .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
             hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
@@ -475,6 +479,7 @@ class BrewsteadUiIntegrationTest {
 
             brewer.manage().window().setSize(new Dimension(390, 844));
             click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            click(brewer, wait, By.cssSelector("[data-action='renom-tab'][data-id='domaine']"));
             assertTrue(brewer.findElement(By.cssSelector(".daily-card")).isDisplayed());
             assertTrue((Boolean) ((JavascriptExecutor) brewer).executeScript(
                     "const e=document.getElementById('screenBody'); return e.scrollWidth <= e.clientWidth + 1;"));
@@ -749,7 +754,6 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(driver, wait, "rucher");
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
             click(driver, wait, By.id("screenClose"));
@@ -766,8 +770,10 @@ class BrewsteadUiIntegrationTest {
             driver.navigate().refresh();
             wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("reapBtn")));
-            assertEquals("2", driver.findElement(By.id("reapCount")).getText(),
-                    "Une parcelle et une ruche font deux.");
+            // Les deux ruches tournent d'elles-mêmes : avec la parcelle, cela
+            // fait trois choses à ramasser.
+            assertEquals("3", driver.findElement(By.id("reapCount")).getText(),
+                    "Une parcelle et deux ruches font trois.");
 
             // Les écriteaux disent aussi ce qui attend, sans ouvrir le lieu.
             WebElement fields = driver.findElement(By.cssSelector("#markers [data-place='champs']"));
@@ -865,11 +871,24 @@ class BrewsteadUiIntegrationTest {
     private void click(WebDriver driver, WebDriverWait wait, By locator) {
         wait.ignoring(StaleElementReferenceException.class).ignoring(ElementClickInterceptedException.class)
                 .until(d -> {
+                    fermerLaFanfare(d);
                     WebElement element = d.findElement(locator);
                     if (!element.isDisplayed() || !element.isEnabled()) return false;
                     click(d, element);
                     return true;
                 });
+    }
+
+    /**
+     * Un haut fait gagné pose sa fanfare par-dessus tout l'écran. C'est voulu
+     * en jeu, mais un parcours automatique ne la regarde pas : on la referme
+     * avant chaque clic, comme le ferait une personne pressée.
+     */
+    private void fermerLaFanfare(WebDriver driver) {
+        List<WebElement> fanfare = driver.findElements(By.id("feat"));
+        if (fanfare.isEmpty() || !fanfare.getFirst().isDisplayed()) return;
+        ((JavascriptExecutor) driver).executeScript(
+                "document.getElementById('featClose').click();");
     }
 
     private void click(WebDriver driver, WebElement element) {

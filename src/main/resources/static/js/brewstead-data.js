@@ -312,6 +312,38 @@
         }
     }
 
+    /**
+     * Combien de choses attendent le joueur à cet endroit.
+     *
+     * <p>Une pastille dit qu'il se passe quelque chose ; un nombre dit s'il
+     * faut y aller tout de suite. C'est ce chiffre qui rend la carte lisible
+     * d'un coup d'œil, sans ouvrir les sept lieux l'un après l'autre.
+     */
+    function placeCount(id, state) {
+        switch (id) {
+            case 'champs':
+                return state.fields.filter(function (f) {
+                    return f.status === 'READY' || (f.readyAt && isDone(f.readyAt));
+                }).length;
+            case 'rucher':
+                return state.hives.filter(function (h) { return h.status === 'READY'; }).length;
+            case 'brasserie':
+                return state.batches.filter(function (b) { return b.status === 'READY'; }).length;
+            case 'commandes':
+                return state.npcOrders.filter(function (o) { return o.status === 'OPEN'; }).length
+                    + state.market.filter(function (o) { return o.creatorId !== state.playerId; }).length;
+            case 'taverne':
+                return state.tavern.openPlayerOrders || 0;
+            default:
+                return 0;
+        }
+    }
+
+    /** Tout ce qui peut être ramassé d'un seul geste, champs et ruches. */
+    function harvestableCount(state) {
+        return placeCount('champs', state) + placeCount('rucher', state);
+    }
+
     global.BrewsteadData = {
         PLACES: PLACES,
         RESOURCES: RESOURCES,
@@ -324,6 +356,8 @@
         feed: feed,
         goal: goal,
         placeState: placeState,
+        placeCount: placeCount,
+        harvestableCount: harvestableCount,
         format: { number: number, quantity: quantity, countdown: countdown, ratio: ratio, isDone: isDone }
     };
 })(window);

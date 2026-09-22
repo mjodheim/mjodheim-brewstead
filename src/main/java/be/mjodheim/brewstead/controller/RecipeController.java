@@ -32,9 +32,22 @@ public class RecipeController {
         return recipeService.findRecipe(currentPlayer.requireSelf(principal, playerId), recipeId);
     }
 
+    /**
+     * Le propriétaire vient de la session, jamais du corps de la requête :
+     * personne n'écrit dans le grimoire d'un autre domaine, et le client n'a
+     * pas à répéter une identité que le serveur connaît déjà.
+     */
     @PostMapping
     public RecipeResponse create(Principal principal, @RequestBody CreateRecipeRequest request) {
-        currentPlayer.requireSelf(principal, request.ownerId());
-        return recipeService.createRecipe(request);
+        Long self = currentPlayer.requireSelf(principal, request.ownerId());
+        return recipeService.createRecipe(new CreateRecipeRequest(
+                self,
+                request.name(),
+                request.drinkType(),
+                request.baseVolume(),
+                request.fermentationDurationHours(),
+                request.fermentationDurationMinutes(),
+                request.ingredients()
+        ));
     }
 }

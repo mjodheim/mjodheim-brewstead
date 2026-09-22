@@ -93,6 +93,30 @@ public class FarmService {
         return farmMapper.toResponse(field);
     }
 
+    /**
+     * Ramasse tout ce qui est mûr en une fois.
+     *
+     * <p>Faire le tour de ses parcelles une par une n'est pas du jeu, c'est de
+     * la corvée. On récolte donc d'un geste, et la transaction unique évite de
+     * laisser le domaine à moitié ramassé si quelque chose casse en route.
+     *
+     * @return le nombre de parcelles effectivement récoltées
+     */
+    @Transactional
+    public int harvestAll(Long playerId) {
+        List<PlayerField> fields = playerFieldRepository.findAllByPlayerId(playerId);
+        fields.forEach(this::refreshFieldStatus);
+
+        int harvested = 0;
+        for (PlayerField field : fields) {
+            if (field.getStatus() == FieldStatus.READY) {
+                harvest(playerId, field.getId());
+                harvested++;
+            }
+        }
+        return harvested;
+    }
+
     private PlayerField getOwnedField(Long playerId, Long fieldId) {
         PlayerField field = playerFieldRepository.findById(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Parcelle introuvable."));

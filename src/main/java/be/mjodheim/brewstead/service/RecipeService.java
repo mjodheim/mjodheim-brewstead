@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +31,16 @@ public class RecipeService {
     private final IngredientRepository ingredientRepository;
     private final PlayerProfileRepository playerProfileRepository;
     private final RecipeMapper recipeMapper;
+    private final RecipeAlchemyService alchemy;
+
+    /** Garde-fous d'un laboratoire : on invente, on n'inonde pas la base. */
+    private static final int NOM_MAX = 60;
+    private static final int LIGNES_MAX = 8;
+    private static final int RECETTES_MAX = 60;
+    private static final BigDecimal VOLUME_MAX = BigDecimal.valueOf(200);
+    private static final BigDecimal DOSE_MAX = BigDecimal.valueOf(500);
+    private static final int MINUTES_MIN = 5;
+    private static final int MINUTES_MAX = 10080;
 
     @Transactional
     public List<RecipeResponse> findAvailableRecipes(Long playerId) {
@@ -50,21 +61,52 @@ public class RecipeService {
     public RecipeResponse createRecipe(CreateRecipeRequest request) {
         validateRequest(request);
         PlayerProfile owner = getPlayer(request.ownerId());
+        String name = request.name().trim();
+
+        if (recipeRepository.countByOwnerId(owner.getId()) >= RECETTES_MAX) {
+            throw new IllegalStateException("Ton grimoire est plein : " + RECETTES_MAX + " recettes au maximum.");
+        }
+        if (recipeRepository.existsByOwnerIdAndNameIgnoreCase(owner.getId(), name)) {
+            throw new IllegalStateException("Une recette porte déjà ce nom dans ton grimoire.");
+        }
+
+        // Le mélange est résolu avant l'enregistrement : c'est lui qui décide
+        // de la rareté et de l'effet, pas le joueur.
+        List<Ingredient> ingredients = new ArrayList<>();
+        List<BigDecimal> doses = new ArrayList<>();
+        for (RecipeIngredientRequest line : request.ingredients()) {
+            ingredients.add(getIngredient(line.ingredientId()));
+            doses.add(line.quantity());
+        }
+
+        RecipeAlchemyService.Resultat resultat = alchemy.analyser(request.drinkType(), ingredients, doses);
+        int minutes = request.minutes();
 
         Recipe recipe = recipeRepository.save(
                 Recipe.builder()
                         .owner(owner)
-                        .name(request.name().trim())
+                        .name(name)
                         .drinkType(request.drinkType())
                         .baseVolume(request.baseVolume())
-                        .fermentationDurationHours(request.fermentationDurationHours())
+                        .fermentationDurationHours(Math.max(1, (minutes + 59) / 60))
+                        .fermentationDurationMinutes(minutes)
+                        .rarity(resultat.rarity())
+                        .effectKind(resultat.effectKind())
+                        .effectMagnitude(resultat.magnitude())
+                        .effectDurationMinutes(resultat.durationMinutes())
+                        .flavour(resultat.flavour())
                         .isPublic(false)
                         .build()
         );
 
-        List<RecipeIngredient> lines = request.ingredients().stream()
-                .map(line -> toEntity(recipe, line))
-                .toList();
+        List<RecipeIngredient> lines = new ArrayList<>();
+        for (int i = 0; i < ingredients.size(); i++) {
+            lines.add(RecipeIngredient.builder()
+                    .recipe(recipe)
+                    .ingredient(ingredients.get(i))
+                    .quantity(doses.get(i))
+                    .build());
+        }
         recipeIngredientRepository.saveAll(lines);
 
         return recipeMapper.toResponse(recipe, lines);
@@ -84,47 +126,55 @@ public class RecipeService {
         );
     }
 
-    private RecipeIngredient toEntity(Recipe recipe, RecipeIngredientRequest request) {
-        Ingredient ingredient = ingredientRepository.findById(request.ingredientId())
-                .orElseThrow(() -> new IllegalArgumentException("Ingredient not found"));
-
-        return RecipeIngredient.builder()
-                .recipe(recipe)
-                .ingredient(ingredient)
-                .quantity(request.quantity())
-                .build();
-    }
-
     private void validateRequest(CreateRecipeRequest request) {
         if (request.ownerId() == null) {
             throw new IllegalArgumentException("Recipe owner is required");
         }
         if (request.name() == null || request.name().isBlank()) {
-            throw new IllegalArgumentException("Recipe name is required");
+            throw new IllegalArgumentException("Il faut donner un nom à ta recette.");
+        }
+        if (request.name().trim().length() > NOM_MAX) {
+            throw new IllegalArgumentException("Le nom ne peut pas dépasser " + NOM_MAX + " caractères.");
         }
         if (request.drinkType() == null) {
-            throw new IllegalArgumentException("Drink type is required");
+            throw new IllegalArgumentException("Il faut choisir un type de breuvage.");
         }
         if (request.baseVolume() == null || request.baseVolume().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Base volume must be greater than zero");
+            throw new IllegalArgumentException("Le volume doit être positif.");
         }
-        if (request.fermentationDurationHours() <= 0) {
-            throw new IllegalArgumentException("Fermentation duration must be greater than zero");
+        if (request.baseVolume().compareTo(VOLUME_MAX) > 0) {
+            throw new IllegalArgumentException("Une cuve ne dépasse pas " + VOLUME_MAX + " litres.");
+        }
+        int minutes = request.minutes();
+        if (minutes < MINUTES_MIN || minutes > MINUTES_MAX) {
+            throw new IllegalArgumentException("La fermentation tient entre "
+                    + MINUTES_MIN + " minutes et " + (MINUTES_MAX / 1440) + " jours.");
         }
         if (request.ingredients() == null || request.ingredients().isEmpty()) {
-            throw new IllegalArgumentException("A recipe must contain at least one ingredient");
+            throw new IllegalArgumentException("Une recette contient au moins un ingrédient.");
+        }
+        if (request.ingredients().size() > LIGNES_MAX) {
+            throw new IllegalArgumentException("Pas plus de " + LIGNES_MAX + " ingrédients dans une recette.");
         }
 
         Set<Long> ingredientIds = new HashSet<>();
         for (RecipeIngredientRequest line : request.ingredients()) {
             if (line.ingredientId() == null || line.quantity() == null
                     || line.quantity().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("Recipe ingredient quantity must be greater than zero");
+                throw new IllegalArgumentException("Chaque dose doit être positive.");
+            }
+            if (line.quantity().compareTo(DOSE_MAX) > 0) {
+                throw new IllegalArgumentException("Une dose ne dépasse pas " + DOSE_MAX + ".");
             }
             if (!ingredientIds.add(line.ingredientId())) {
-                throw new IllegalArgumentException("An ingredient can only appear once in a recipe");
+                throw new IllegalArgumentException("Un ingrédient ne peut figurer qu'une fois dans une recette.");
             }
         }
+    }
+
+    private Ingredient getIngredient(Long ingredientId) {
+        return ingredientRepository.findById(ingredientId)
+                .orElseThrow(() -> new IllegalArgumentException("Ingrédient introuvable."));
     }
 
     private PlayerProfile getPlayer(Long playerId) {

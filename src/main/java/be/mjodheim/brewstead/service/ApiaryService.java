@@ -96,6 +96,26 @@ public class ApiaryService {
         return apiaryMapper.toResponse(hive);
     }
 
+    /**
+     * Vide toutes les ruches prêtes d'un seul geste.
+     *
+     * @return le nombre de ruches effectivement récoltées
+     */
+    @Transactional
+    public int harvestAll(Long playerId) {
+        List<Beehive> hives = beehiveRepository.findAllByPlayerId(playerId);
+        hives.forEach(this::refreshHiveStatus);
+
+        int harvested = 0;
+        for (Beehive hive : hives) {
+            if (hive.getStatus() == BehiveStatus.READY) {
+                harvest(playerId, hive.getId());
+                harvested++;
+            }
+        }
+        return harvested;
+    }
+
     private Beehive getOwnedHive(Long playerId, Long hiveId) {
         Beehive hive = beehiveRepository.findById(hiveId)
                 .orElseThrow(() -> new IllegalArgumentException("Ruche introuvable."));

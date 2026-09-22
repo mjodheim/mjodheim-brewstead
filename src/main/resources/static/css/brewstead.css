@@ -81,13 +81,26 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     touch-action: none;
 }
 
-/* Le décor, flou et assombri, comble les marges sur les écrans très larges. */
+/* Le hors-champ : le même tableau, simplement hors de la mise au point.
+   Écrasé à 40 %, il passait pour une bande noire ; à cette clarté il se lit
+   comme de la profondeur de champ, et la pluie qui y tombe reste crédible. */
 .world::before {
     content: "";
     position: absolute;
-    inset: -6%;
+    inset: -8%;
     background: url("../images/brewstead-domaine.webp") center / cover no-repeat;
-    filter: blur(30px) brightness(.4) saturate(.75);
+    filter: blur(24px) brightness(.68) saturate(.9);
+    transform: scale(1.04);
+    pointer-events: none;
+}
+
+/* Un voile léger aux bords, pour que le regard revienne au centre sans
+   que les angles virent au noir. */
+.world::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(125% 95% at 50% 45%, transparent 58%, rgba(9, 6, 2, .42) 100%);
     pointer-events: none;
 }
 
@@ -104,6 +117,10 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 .world__scene.is-animated { transition: transform .75s cubic-bezier(.22, .78, .24, 1); }
+
+/* La bordure de la scène fond dans le hors-champ. Une ombre plus large
+   noircissait les marges au point de les faire passer pour un trou. */
+.world__scene { box-shadow: 0 0 1.6em rgba(10, 7, 3, .5); }
 
 .world__art {
     display: block;
@@ -125,9 +142,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 .weather { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
+/* La pluie a été réduite : à pleine force elle masquait les lueurs et les
+   cascades, qui sont ce qu'on veut voir du domaine. */
 .weather--rain {
     inset: -25%;
-    background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .28) 14px 15px, transparent 16px 28px);
+    background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .16) 14px 15px, transparent 16px 28px);
     background-size: 38px 38px;
     animation: rain-drift .7s linear infinite;
 }
@@ -185,7 +204,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .marker {
     position: absolute;
-    transform: translate(-50%, -50%);
+    /* Contre-échelle : l'écriteau garde sa taille à l'écran quel que soit le
+       zoom, comme un panneau indicateur sur une carte. */
+    transform: translate(-50%, -50%) scale(calc(1 / var(--zoom, 1)));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -225,18 +246,58 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     pointer-events: none;
 }
 
-.marker__dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: #6d5637;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .6);
+/* L'icône dit quel lieu, le compteur dit s'il faut y aller. Une pastille
+   de neuf pixels ne disait ni l'un ni l'autre. */
+
+.marker__icon {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: var(--gold);
+    opacity: .85;
+    transition: color .22s ease, opacity .22s ease;
+}
+
+.marker__label { flex: none; }
+
+.marker__count {
+    display: grid;
+    place-items: center;
+    min-width: 21px;
+    height: 21px;
+    margin-right: -4px;
+    padding: 0 5px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: system-ui, sans-serif;
+    letter-spacing: 0;
+    color: #23180a;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    border-radius: 99px;
+    box-shadow: 0 0 0 2px rgba(20, 12, 4, .75), 0 2px 5px rgba(0, 0, 0, .5);
+    text-shadow: none;
     flex: none;
 }
 
-.marker[data-state="ready"] .marker__dot { background: var(--ok); box-shadow: 0 0 9px var(--ok); }
-.marker[data-state="busy"] .marker__dot { background: var(--warn); box-shadow: 0 0 9px var(--warn); }
-.marker[data-state="news"] .marker__dot { background: var(--info); box-shadow: 0 0 9px var(--info); }
+.marker[data-state="ready"] .marker__icon { color: var(--ok); opacity: 1; }
+.marker[data-state="busy"] .marker__icon { color: var(--warn); opacity: 1; }
+.marker[data-state="news"] .marker__icon { color: var(--info); opacity: 1; }
+
+.marker[data-state="ready"] .marker__count {
+    background: linear-gradient(180deg, #b9e9a6, var(--ok));
+    animation: count-call 2.4s ease-in-out infinite;
+}
+
+.marker[data-state="news"] .marker__count {
+    background: linear-gradient(180deg, #a9d9f2, var(--info));
+}
+
+@keyframes count-call {
+    0%, 100% { transform: scale(1); }
+    45% { transform: scale(1.16); }
+}
+
+:root[data-mouvement="sobre"] .marker__count { animation: none; }
 
 .marker__pin {
     width: 14px;
@@ -262,6 +323,19 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     border-color: var(--gold);
     box-shadow: 0 0 0 2px rgba(233, 188, 85, .55), 0 10px 22px rgba(0, 0, 0, .6);
 }
+
+/* Sur un décor aussi chargé, un lieu qui appelle doit se détacher du reste. */
+.marker[data-state="ready"] .marker__plate {
+    border-color: rgba(121, 196, 106, .7);
+    box-shadow:
+            inset 0 1px 0 rgba(255, 224, 170, .28),
+            inset 0 -10px 18px rgba(0, 0, 0, .5),
+            0 6px 16px rgba(0, 0, 0, .55),
+            0 0 1.4em rgba(121, 196, 106, .3);
+}
+
+.marker[data-state="idle"] .marker__plate { opacity: .82; }
+.marker[data-state="idle"]:hover .marker__plate { opacity: 1; }
 
 .marker[data-state="ready"] .marker__pin { animation: pin-pulse 2.4s ease-in-out infinite; opacity: 1; }
 
@@ -397,6 +471,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     left: 0;
     right: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     gap: var(--gap);
     padding: .9em 1.1em;
@@ -465,7 +540,29 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 /* Carte joueur */
 
-.player { display: flex; align-items: center; gap: .8em; padding: .6em .95em; }
+/* Le portrait ouvre le compte : c'est le geste attendu, autant l'offrir. */
+.player {
+    display: flex;
+    align-items: center;
+    gap: .8em;
+    padding: .6em .95em;
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    transition: transform .18s ease, border-color .18s ease;
+}
+
+.player:hover { transform: translateY(-1px); border-color: rgba(233, 188, 85, .55); }
+.player:active { transform: translateY(0); }
+
+.player:focus-visible {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(233, 188, 85, .3);
+}
+
+.player:hover .player__avatar { border-color: var(--gold); }
 
 .player__avatar {
     display: grid;
@@ -503,16 +600,35 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .resources::-webkit-scrollbar { display: none; }
 
+/* Un compteur qu'on ne peut pas ouvrir est un cul-de-sac : chaque ressource
+   emmène là où elle se range. */
 .resource {
     display: flex;
     align-items: center;
     gap: .5em;
     padding: .35em 1em;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: none;
+    border: 0;
     border-right: 1px solid rgba(0, 0, 0, .45);
+    border-radius: .3em;
     box-shadow: 1px 0 0 rgba(255, 220, 160, .07);
+    cursor: pointer;
+    transition: background .18s ease;
+}
+
+.resource:hover { background: rgba(255, 210, 140, .09); }
+.resource:hover .resource__icon { color: var(--gold-hi); }
+
+.resource:focus-visible {
+    outline: none;
+    box-shadow: 1px 0 0 rgba(255, 220, 160, .07), inset 0 0 0 2px rgba(233, 188, 85, .55);
 }
 
 .resource:last-child { border-right: 0; box-shadow: none; }
+.resource:last-child:focus-visible { box-shadow: inset 0 0 0 2px rgba(233, 188, 85, .55); }
 .resource__icon { width: 1.9em; height: 1.9em; color: var(--gold); flex: none; }
 .resource__text { display: flex; flex-direction: column; line-height: 1.15; }
 .resource__value { font-family: "Cinzel", serif; font-size: 1.1em; color: #fbf1dc; white-space: nowrap; }
@@ -639,27 +755,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 /* --------------------------------------------------------------------------
-   Signature
-   -------------------------------------------------------------------------- */
-
-.tagline {
-    right: 1.2em;
-    bottom: 1.4em;
-    margin: 0;
-    padding: .8em 1.2em;
-    font-style: italic;
-    font-size: 1.05em;
-    line-height: 1.45;
-    text-align: right;
-    color: #4a3316;
-    background: linear-gradient(170deg, var(--parch-1), var(--parch-2));
-    border: 1px solid #9a7845;
-    border-radius: .5em;
-    box-shadow: 0 .6em 1.4em rgba(0, 0, 0, .5);
-    transform: rotate(-2deg);
-}
-
-/* --------------------------------------------------------------------------
    Panneau de lieu
    -------------------------------------------------------------------------- */
 
@@ -668,7 +763,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     z-index: 30;
     top: 8.6em;
     right: 1.1em;
-    bottom: 8.4em;
+    max-height: calc(100% - 17em);
     width: min(25em, 36vw);
     display: flex;
     flex-direction: column;
@@ -699,7 +794,18 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .place__head small { display: block; font-size: .8em; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
 .place__head h2 { font-size: 1.5em; color: #fbf1dc; margin-top: .1em; }
 .place__intro { margin: .9em 1.1em 0; font-size: .95em; line-height: 1.5; color: #d9c9a8; }
-.place__body { flex: 1; overflow-y: auto; padding: .9em 1.1em; display: flex; flex-direction: column; gap: .6em; }
+.place__body {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: .9em 1.1em;
+    display: flex;
+    flex-direction: column;
+    gap: .6em;
+}
+
+/* Un lieu qui n'a rien à montrer le dit sur une ligne, pas sur un écran. */
+.place__body .empty { margin: .4em 0 .2em; }
 
 .place__foot {
     padding: .8em 1.1em 1em;
@@ -782,6 +888,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 }
 
 .screen.is-open .screen__sheet { transform: none; }
+
+/* Un décor a besoin de place : on élargit la feuille quand on entre dans
+   un lieu plutôt que d'y écraser une scène. */
+.screen--wide .screen__sheet { width: min(72em, 100%); }
+.screen--wide .screen__body { overflow: hidden; }
 
 .screen__head {
     display: flex;
@@ -1249,7 +1360,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 @media (max-width: 1080px) {
     .crest__text { display: none; }
     .crest { padding: .55em; }
-    .tagline { display: none; }
     .place { top: auto; bottom: 8.4em; width: min(26em, calc(100vw - 2.2em)); max-height: 60vh; }
 }
 
@@ -1280,4 +1390,176 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+}
+
+/* Laboratoire : volume et durée se lisent côte à côte. */
+
+.lab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: .8em;
+    margin-bottom: .2em;
+}
+
+.lab-grid .account-field { margin: 0; }
+
+/* Le réglage d'une dose : moins, la valeur, plus, et on retire.
+   Une ligne, jamais une colonne — la pile verticale rendait les rangées
+   hautes comme des immeubles. */
+
+.dose { display: flex; align-items: center; gap: .35em; }
+
+.dose__value {
+    min-width: 4.2em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.dose .btn {
+    min-width: 2.1em;
+    padding: .3em .5em;
+    justify-content: center;
+    font-size: 1em;
+    line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
+   La tournée de récolte
+   -------------------------------------------------------------------------- */
+
+/* Faire le tour de ses parcelles une par une n'est pas du jeu. Le bouton
+   n'apparaît que lorsqu'il y a vraiment quelque chose à ramasser. */
+
+.reap {
+    left: 1.1em;
+    bottom: 1.4em;
+    /* .hud coupe les événements de pointeur et ne les rend qu'à ses
+       descendants ; ici le bouton est lui-même le .hud, il faut le dire. */
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: .6em;
+    padding: .75em 1.2em;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: calc(var(--ui) * var(--ui-facteur));
+    letter-spacing: .03em;
+    color: #22180a;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    border: 1px solid #7d5a33;
+    border-radius: .6em;
+    box-shadow: inset 0 1px 0 rgba(255, 245, 210, .5), 0 .5em 1.2em rgba(0, 0, 0, .55);
+    cursor: pointer;
+    animation: reap-in .35s cubic-bezier(.2, .9, .3, 1) both;
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.reap svg { width: 1.35em; height: 1.35em; flex: none; }
+
+.reap:hover { transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255, 245, 210, .5), 0 .7em 1.5em rgba(0, 0, 0, .6); }
+.reap:active { transform: translateY(0); }
+
+.reap:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(233, 188, 85, .45), 0 .5em 1.2em rgba(0, 0, 0, .55); }
+
+.reap__count {
+    display: grid;
+    place-items: center;
+    min-width: 1.5em;
+    height: 1.5em;
+    padding: 0 .35em;
+    font-family: system-ui, sans-serif;
+    font-size: .8em;
+    font-weight: 700;
+    color: var(--gold-hi);
+    background: #2a1c08;
+    border-radius: 99px;
+}
+
+@keyframes reap-in {
+    from { opacity: 0; transform: translateY(.8em) scale(.94); }
+}
+
+:root[data-mouvement="sobre"] .reap { animation: none; }
+
+@media (max-width: 1080px) {
+    /* Le journal des événements passe devant en bas à gauche : on remonte. */
+    .reap { bottom: 5.4em; }
+}
+
+/* --------------------------------------------------------------------------
+   La barre des lieux
+   -------------------------------------------------------------------------- */
+
+/* Sur un grand écran la carte montre les sept écriteaux et cette barre ne
+   sert à rien. Sur un téléphone, un seul tient à l'écran : il fallait faire
+   glisser la carte à l'aveugle pour retrouver ses propres champs. */
+
+.places {
+    display: none;
+    flex-basis: 100%;
+    gap: .45em;
+    margin-top: -.2em;
+    overflow-x: auto;
+    padding: .2em .1em;
+    font-size: calc(var(--ui) * var(--ui-facteur));
+    scrollbar-width: none;
+    pointer-events: auto;
+}
+
+.places::-webkit-scrollbar { display: none; }
+
+.place-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4em;
+    flex: none;
+    padding: .45em .7em;
+    font-family: "Cinzel", Georgia, serif;
+    font-size: calc(var(--ui) * var(--ui-facteur) * .9);
+    color: var(--cream-dim);
+    background: linear-gradient(180deg, var(--wood-1), var(--wood-3)), var(--grain);
+    background-blend-mode: normal, overlay;
+    border: 1px solid var(--edge-soft);
+    border-radius: 99px;
+    box-shadow: var(--shadow-panel);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .18s ease, border-color .18s ease;
+}
+
+.place-chip__icon { width: 1.15em; height: 1.15em; color: var(--gold); flex: none; }
+.place-chip__label { flex: none; }
+
+.place-chip__count {
+    display: grid;
+    place-items: center;
+    min-width: 1.35em;
+    height: 1.35em;
+    padding: 0 .3em;
+    font-family: system-ui, sans-serif;
+    font-size: .75em;
+    font-weight: 700;
+    color: #23180a;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    border-radius: 99px;
+}
+
+.place-chip[data-state="ready"] { color: #f1ffe9; border-color: rgba(121, 196, 106, .6); }
+.place-chip[data-state="ready"] .place-chip__icon { color: var(--ok); }
+.place-chip[data-state="ready"] .place-chip__count { background: linear-gradient(180deg, #b9e9a6, var(--ok)); }
+.place-chip[data-state="busy"] .place-chip__icon { color: var(--warn); }
+.place-chip[data-state="news"] .place-chip__icon { color: var(--info); }
+.place-chip[data-state="news"] .place-chip__count { background: linear-gradient(180deg, #a9d9f2, var(--info)); }
+
+.place-chip.is-active { color: #ffe6b4; border-color: var(--gold); }
+.place-chip:focus-visible { outline: none; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(233, 188, 85, .35); }
+
+@media (max-width: 1200px) {
+    /* Dans le flux du bandeau, sur sa propre ligne. Une version précédente la
+       positionnait d'après une hauteur mesurée en JavaScript : au moindre
+       changement de fenêtre, elle se posait sur le bandeau le temps que la
+       mesure suive. Ici rien à mesurer, donc rien à rattraper.
+
+       L'ordre est explicite : sous 860 px, .hud__center passe en `order: 3`
+       et la barre, restée à zéro, se retrouvait au-dessus des ressources. */
+    .places { display: flex; order: 4; }
 }

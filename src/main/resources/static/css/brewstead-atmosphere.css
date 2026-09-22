@@ -8,7 +8,9 @@
     pointer-events: none;
     overflow: hidden;
     stroke: none;
-    --lamp-strength: .66;
+    /* Les lueurs se voyaient à peine sous la pluie : c'est le premier
+       signe qu'un domaine est habité, elles doivent porter. */
+    --lamp-strength: .92;
 }
 .world__life g, .world__life path, .world__life ellipse, .world__life rect, .world__life circle {
     pointer-events: none;
@@ -16,14 +18,14 @@
 .world__life .cloud-bank { animation: cloud-sailing 36s ease-in-out infinite alternate; opacity: .8; }
 .world__life .cloud-bank--far { animation-duration: 58s; animation-delay: -22s; opacity: .55; }
 .world__life .chimney-smoke { animation: smoke-rising 8s ease-out infinite; opacity: .35; }
-.world__life .fall { mix-blend-mode: screen; opacity: .64; }
-.world__life .fall--far { opacity: .48; }
-.world__life .fall__flow { animation: waterfall-flow 1.65s linear infinite; }
+.world__life .fall { mix-blend-mode: screen; opacity: .88; }
+.world__life .fall--far { opacity: .7; }
+.world__life .fall__flow { animation: waterfall-flow 1.15s linear infinite; }
 .world__life .fall__flow--far { animation-duration: 2.4s; animation-delay: -.8s; }
 .world__life .fall-foam { animation: foam-breath 4.2s ease-in-out infinite alternate; mix-blend-mode: screen; }
 .world__life .water-shimmer {
-    position: static; opacity: .3; height: auto; background: none;
-    animation: river-flow 5s linear infinite; mix-blend-mode: screen;
+    position: static; opacity: .5; height: auto; background: none;
+    animation: river-flow 4.2s linear infinite; mix-blend-mode: screen;
 }
 .world__life .water-spark {
     fill: none; stroke: #f3ffff; stroke-width: 1.4;
@@ -40,6 +42,9 @@
 .game[data-light="nuit"] .world__life { --lamp-strength: 1; }
 .game[data-light="crepuscule"] .world__life { --lamp-strength: .9; }
 .game[data-weather="pluie"] .cloud-bank { opacity: .55; }
+/* Sous la pluie, les fenêtres s'allument davantage : c'est ce qu'on
+   regarde quand il tombe de l'eau. */
+.game[data-weather="pluie"] .world__life { --lamp-strength: 1; }
 .game[data-weather="brume"] .cloud-bank { opacity: 1; }
 .game[data-theme="solstice"] .world__life { --lamp-strength: 1; }
 .game:not([data-view="monde"]) .world__life *,
@@ -54,7 +59,7 @@
 @keyframes smoke-rising { from { transform: translate(0, 6px); opacity: .35; } to { transform: translate(24px, -22px); opacity: 0; } }
 @keyframes foam-breath { from { opacity: .42; } to { opacity: .8; } }
 @keyframes water-glint { 0%, 65%, 100% { opacity: .08; } 30% { opacity: .7; } 44% { opacity: .22; } }
-@keyframes window-breath { 0%, 100% { opacity: var(--lamp-strength); } 35% { opacity: calc(var(--lamp-strength) * .72); } 62% { opacity: calc(var(--lamp-strength) * .9); } }
+@keyframes window-breath { 0%, 100% { opacity: var(--lamp-strength); } 35% { opacity: calc(var(--lamp-strength) * .58); } 62% { opacity: calc(var(--lamp-strength) * .86); } }
 
 @media (prefers-reduced-motion: reduce) {
     .world__life *, .weather { animation: none !important; }

@@ -1,6 +1,7 @@
 package be.mjodheim.brewstead.integration;
 
 import be.mjodheim.brewstead.entity.PlayerProfile;
+import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.User;
 import be.mjodheim.brewstead.enums.BehiveStatus;
 import be.mjodheim.brewstead.enums.FieldStatus;
@@ -51,6 +52,8 @@ class BrewsteadUiIntegrationTest {
     @Autowired NpcOrderLineRepository npcLineRepository;
     @Autowired TastingOfferRepository offerRepository;
     @Autowired PlayerAchievementRepository achievementRepository;
+    @Autowired RecipeRepository recipeRepository;
+    @Autowired PlayerInventoryRepository inventoryRepository;
 
     @Test
     void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
@@ -162,7 +165,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Champs");
-            click(driver, wait, By.cssSelector("[data-action='sow-field']"));
+            click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
             waitForScreen(wait, "Choisir une culture");
             click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
@@ -173,7 +176,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Rucher"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive']"));
+            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
 
@@ -182,8 +185,8 @@ class BrewsteadUiIntegrationTest {
             hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
             hiveRepository.save(hive);
             new WebDriverWait(driver, Duration.ofSeconds(30)).until(
-                    ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive']")));
-            click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive']"));
+                    ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']")));
+            click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']"));
             wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getStatus() == BehiveStatus.IDLE);
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
@@ -236,11 +239,13 @@ class BrewsteadUiIntegrationTest {
             click(alice, a, By.id("placeAction"));
             waitForScreen(a, "Taverne");
             assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
-            WebElement draft = alice.findElement(By.id("chatInput"));
+            WebElement draft = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             draft.sendKeys("Un message rédigé lentement");
 
             click(bob, b, By.cssSelector(".dock__tab[data-view='taverne']"));
-            bob.findElement(By.id("chatInput")).sendKeys("Bonjour Alice");
+            waitForScreen(b, "Taverne");
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")))
+                    .sendKeys("Bonjour Alice");
             click(bob, b, By.cssSelector("[data-action='chat-send']"));
             a.until(ExpectedConditions.textToBePresentInElementLocated(By.id("chatLog"), "Bonjour Alice"));
             new Actions(alice).pause(Duration.ofSeconds(5)).perform();
@@ -283,7 +288,8 @@ class BrewsteadUiIntegrationTest {
             alice.manage().window().setSize(new Dimension(1440, 1000));
             click(alice, a, By.cssSelector(".dock__tab[data-view='commandes']"));
             click(alice, a, By.cssSelector("[data-action='new-order']"));
-            alice.findElement(By.id("pickerSearch")).sendKeys("Eau de source");
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")))
+                    .sendKeys("Eau de source");
             var water = ingredientRepository.findByNameIgnoreCase("Eau de source").orElseThrow();
             click(alice, a, By.cssSelector("[data-action='pick-order-ingredient'][data-id='" + water.getId() + "']"));
             WebElement quantity = alice.findElement(By.id("orderQty"));
@@ -368,7 +374,7 @@ class BrewsteadUiIntegrationTest {
             // Sow and harvest through the UI. Only waiting time is accelerated in
             // the isolated database: production, stock and rewards use real services.
             openSection(brewer, wait, "champs");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field'] .sc-node__hit, #screenBody [data-action='sow-field']"));
             click(brewer, wait, By.cssSelector("#screenBody [data-action='pick-crop']"));
             waitForMutation(brewer, wait);
             var field = fieldRepository.findAllByPlayerId(player.getId()).stream()
@@ -383,7 +389,7 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedFields());
 
             openSection(brewer, wait, "rucher");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive'] .sc-node__hit, #screenBody [data-action='start-hive']"));
             waitForMutation(brewer, wait);
             var hive = hiveRepository.findAllByPlayerId(player.getId()).stream()
                     .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
@@ -445,7 +451,8 @@ class BrewsteadUiIntegrationTest {
             assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("10 L"));
 
             openSection(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "']"));
+            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "'] .sc-node__hit, " +
+                    "[data-action='offer-batch'][data-id='" + batchId + "']"));
             assertFalse(brewer.findElement(By.id("screenBody")).getText().contains("undefined"));
             WebElement services = brewer.findElement(By.id("offerServings"));
             services.clear(); services.sendKeys("2");
@@ -545,7 +552,7 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(brewer, wait, "champs");
             assertEquals("paused", flow.getCssValue("animation-play-state"), "L'animation repose pendant la lecture des menus");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='sow-field'] .sc-node__hit, #screenBody [data-action='sow-field']"));
             click(brewer, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream().anyMatch(f -> f.getStatus() == FieldStatus.GROWING));
             var field = fieldRepository.findAllByPlayerId(profile.getId()).stream().filter(f -> f.getStatus() == FieldStatus.GROWING).findFirst().orElseThrow();
@@ -554,7 +561,7 @@ class BrewsteadUiIntegrationTest {
             fieldRepository.save(field);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             openPlaceScreen(brewer, wait, "champs");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-field']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='harvest-field'] .sc-node__hit, #screenBody [data-action='harvest-field']"));
             wait.until(d -> achievementRepository.existsByPlayerIdAndCode(profile.getId(), "FIRST_HARVEST"));
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
@@ -568,7 +575,7 @@ class BrewsteadUiIntegrationTest {
             batchRepository.save(batch);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch'] .sc-node__hit, #screenBody [data-action='taste-batch']"));
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
@@ -590,7 +597,8 @@ class BrewsteadUiIntegrationTest {
             screenshot(brewer, "09-merchant-delivered.png");
 
             openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch']"));
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch'] .sc-node__hit, " +
+                    "#screenBody [data-action='offer-batch']"));
             WebElement servings = brewer.findElement(By.id("offerServings"));
             assertTrue(Integer.parseInt(servings.getDomAttribute("max")) <= batchRepository.findById(batch.getId()).orElseThrow().getVolume().multiply(BigDecimal.valueOf(2)).intValue());
             servings.clear();
@@ -625,6 +633,199 @@ class BrewsteadUiIntegrationTest {
             brewer.quit();
             guest.quit();
         }
+    }
+
+    /**
+     * Le laboratoire : on assemble un mélange, on l'inscrit au grimoire, et la
+     * recette obtenue est aussitôt brassable. Au passage, le portrait du HUD
+     * doit ouvrir le compte — c'est le premier geste que tente un joueur.
+     */
+    @Test
+    void laboratoryTurnsAMixIntoAPrivateRecipeAndThePortraitOpensTheAccount() {
+        WebDriver driver = newBrowser();
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        String username = "ui_lab_" + System.nanoTime() % 100000;
+
+        try {
+            registerAndLogin(driver, wait, username);
+            PlayerProfile profile = profile(username);
+
+            // Le portrait est un bouton, pas un simple panneau décoratif.
+            click(driver, wait, By.id("playerCard"));
+            waitForScreen(wait, "Mon compte");
+            assertFalse(driver.findElements(By.cssSelector(".avatar-pick")).isEmpty());
+            click(driver, wait, By.id("screenClose"));
+
+            openPlaceScreen(driver, wait, "laboratoire");
+            waitForScreen(wait, "Grimoire des recettes");
+            long before = recipeRepository.countByOwnerId(profile.getId());
+
+            click(driver, wait, By.cssSelector("[data-action='open-lab']"));
+            waitForScreen(wait, "Composer une recette");
+
+            String name = "Cuvée " + username;
+            WebElement labName = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("labName")));
+            labName.sendKeys(name);
+
+            // Changer de type puis ajouter un ingrédient ne doit rien effacer.
+            click(driver, wait, By.cssSelector("[data-action='lab-type'][data-id='BEER']"));
+            assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"));
+
+            addIngredient(driver, wait, "miel");
+            addIngredient(driver, wait, "eau");
+            assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"),
+                    "Le nom saisi doit survivre aux ajouts d'ingrédients.");
+            assertEquals(2, driver.findElements(By.cssSelector("[data-action='lab-remove']")).size());
+
+            // La dose se règle sans champ de saisie : rien à perdre au réaffichage.
+            click(driver, wait, By.cssSelector("[data-action='lab-more']"));
+
+            WebElement minutes = driver.findElement(By.id("labMinutes"));
+            minutes.clear();
+            minutes.sendKeys("15");
+            screenshot(driver, "07-laboratory-mix.png");
+
+            click(driver, wait, By.cssSelector("[data-action='lab-save']"));
+            waitForScreen(wait, "Grimoire des recettes");
+            wait.until(d -> recipeRepository.countByOwnerId(profile.getId()) == before + 1);
+
+            Recipe created = recipeRepository.findAllByIsPublicTrueOrOwnerId(profile.getId()).stream()
+                    .filter(recipe -> name.equals(recipe.getName()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("La recette n'a pas rejoint le grimoire."));
+            assertFalse(created.isPublic(), "Une invention reste privée.");
+            assertEquals(15, created.getFermentationMinutes());
+            assertNotNull(created.getRarity());
+            assertNotNull(created.getFlavour(), "Le mélange doit produire une ligne de dégustation.");
+
+            wait.until(d -> d.findElement(By.id("screenBody")).getText().contains(name));
+
+            // Et elle est immédiatement proposée au moment de lancer un brassin.
+            openPlaceScreen(driver, wait, "brasserie");
+            waitForScreen(wait, "Brasserie");
+            click(driver, wait, By.cssSelector("[data-action='open-brew']"));
+            waitForScreen(wait, "Choisir une recette");
+            WebElement search = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")));
+            search.sendKeys(name);
+            wait.until(d -> d.findElement(By.id("screenBody")).getText().contains(name));
+
+            assertNoApplicationJavascriptErrors(driver);
+            screenshot(driver, "08-laboratory-brewable.png");
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-laboratory.png");
+            throw failure;
+        } finally {
+            driver.quit();
+        }
+    }
+
+    /**
+     * La tournée de récolte : le bouton n'apparaît que lorsqu'il y a de quoi
+     * ramasser, il annonce combien, et un seul clic vide champs et ruches.
+     */
+    @Test
+    void theReapButtonAppearsOnlyWhenSomethingIsRipeAndEmptiesTheDomainAtOnce() {
+        WebDriver driver = newBrowser();
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        String username = "ui_reap_" + System.nanoTime() % 100000;
+
+        try {
+            registerAndLogin(driver, wait, username);
+            PlayerProfile profile = profile(username);
+
+            // Domaine au repos : rien à ramasser, donc pas de bouton.
+            assertFalse(driver.findElement(By.id("reapBtn")).isDisplayed(),
+                    "Un domaine au repos n'affiche pas la tournée.");
+
+            openPlaceScreen(driver, wait, "champs");
+            waitForScreen(wait, "Champs");
+            click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
+            waitForScreen(wait, "Choisir une culture");
+            click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
+            wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .anyMatch(field -> field.getStatus() == FieldStatus.GROWING));
+
+            openPlaceScreen(driver, wait, "rucher");
+            waitForScreen(wait, "Rucher");
+            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
+            wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
+            click(driver, wait, By.id("screenClose"));
+
+            // On avance le temps plutôt que de l'attendre.
+            LocalDateTime past = LocalDateTime.now().minusMinutes(1);
+            fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .filter(field -> field.getStatus() == FieldStatus.GROWING)
+                    .forEach(field -> { field.setReadyAt(past); fieldRepository.save(field); });
+            hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .filter(hive -> hive.getStatus() == BehiveStatus.PRODUCING)
+                    .forEach(hive -> { hive.setReadyAt(past); hiveRepository.save(hive); });
+
+            driver.navigate().refresh();
+            wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("reapBtn")));
+            assertEquals("2", driver.findElement(By.id("reapCount")).getText(),
+                    "Une parcelle et une ruche font deux.");
+
+            // Les écriteaux disent aussi ce qui attend, sans ouvrir le lieu.
+            WebElement fields = driver.findElement(By.cssSelector("#markers [data-place='champs']"));
+            assertEquals("ready", fields.getAttribute("data-state"));
+            assertEquals("1", fields.findElement(By.cssSelector(".marker__count")).getText());
+            screenshot(driver, "09-reap-call.png");
+
+            click(driver, wait, By.id("reapBtn"));
+            wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
+                    .noneMatch(field -> field.getStatus() == FieldStatus.READY)
+                    && hiveRepository.findAllByPlayerId(profile.getId()).stream()
+                    .noneMatch(hive -> hive.getStatus() == BehiveStatus.READY));
+            wait.until(ExpectedConditions.invisibilityOfElementLocated(By.id("reapBtn")));
+
+            // Le miel et la céréale sont bien rentrés.
+            assertFalse(inventoryRepository.findAllByPlayerId(profile.getId()).isEmpty());
+
+            // Un compteur de ressource est un raccourci, pas un cul-de-sac.
+            click(driver, wait, By.cssSelector("#resources .resource"));
+            wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
+            click(driver, wait, By.id("screenClose"));
+
+            // Sur un téléphone la carte ne montre qu'un lieu sur sept : la
+            // barre prend le relais. Elle vit dans le bandeau, sur sa propre
+            // ligne, et ne doit donc jamais recouvrir les ressources.
+            driver.manage().window().setSize(new Dimension(390, 844));
+            WebElement bar = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.id("places")));
+            assertEquals(7, driver.findElements(By.cssSelector(".place-chip")).size());
+            wait.until(d -> {
+                Rectangle resources = d.findElement(By.id("resources")).getRect();
+                return d.findElement(By.id("places")).getRect().getY()
+                        >= resources.getY() + resources.getHeight();
+            });
+            assertTrue(bar.getRect().getY()
+                            >= driver.findElement(By.id("playerCard")).getRect().getY(),
+                    "La barre des lieux ne doit pas recouvrir la carte du joueur.");
+
+            click(driver, wait, By.cssSelector(".place-chip[data-place='champs']"));
+            wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Champs"));
+            screenshot(driver, "10-places-mobile.png");
+            driver.manage().window().setSize(new Dimension(1440, 1000));
+
+            assertNoApplicationJavascriptErrors(driver);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-reap.png");
+            throw failure;
+        } finally {
+            driver.quit();
+        }
+    }
+
+    private void addIngredient(WebDriver driver, WebDriverWait wait, String query) {
+        WebElement search = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")));
+        search.clear();
+        search.sendKeys(query);
+        click(driver, wait, By.cssSelector("[data-action='lab-add']"));
     }
 
     private void openPlaceScreen(WebDriver driver, WebDriverWait wait, String place) {

@@ -155,4 +155,54 @@ class FarmServiceTest {
         assertNull(field.getPlantedAt());
         assertNull(field.getReadyAt());
     }
+
+    /**
+     * La tournée ne ramasse que ce qui est mûr, laisse pousser le reste et
+     * compte ce qu'elle a pris — le client n'a pas à recompter.
+     */
+    @Test
+    void harvestAllTakesOnlyTheRipeFieldsAndCountsThem() {
+        PlayerProfile owner = player(1);
+        Crop crop = Crop.builder()
+                .id(3L).ingredient(ingredient(8, IngredientType.CEREAL))
+                .yieldQuantity(new BigDecimal("4.000")).build();
+
+        PlayerField ripe = PlayerField.builder()
+                .id(5L).player(owner).crop(crop).status(FieldStatus.GROWING)
+                .plantedAt(LocalDateTime.now().minusMinutes(9))
+                .readyAt(LocalDateTime.now().minusSeconds(1)).build();
+        PlayerField alsoRipe = PlayerField.builder()
+                .id(6L).player(owner).crop(crop).status(FieldStatus.READY)
+                .plantedAt(LocalDateTime.now().minusMinutes(9))
+                .readyAt(LocalDateTime.now().minusMinutes(1)).build();
+        PlayerField growing = PlayerField.builder()
+                .id(7L).player(owner).crop(crop).status(FieldStatus.GROWING)
+                .plantedAt(LocalDateTime.now().minusMinutes(1))
+                .readyAt(LocalDateTime.now().plusMinutes(8)).build();
+        PlayerField bare = PlayerField.builder()
+                .id(8L).player(owner).status(FieldStatus.EMPTY).build();
+
+        when(fieldRepository.findAllByPlayerId(1L))
+                .thenReturn(List.of(ripe, alsoRipe, growing, bare));
+        when(fieldRepository.findById(5L)).thenReturn(Optional.of(ripe));
+        when(fieldRepository.findById(6L)).thenReturn(Optional.of(alsoRipe));
+        when(progressionService.harvestYield(eq(1L), any(BigDecimal.class)))
+                .thenAnswer(call -> call.getArgument(1));
+
+        assertEquals(2, service.harvestAll(1L));
+
+        verify(inventoryService, times(2)).addIngredient(any());
+        assertEquals(FieldStatus.EMPTY, ripe.getStatus());
+        assertEquals(FieldStatus.EMPTY, alsoRipe.getStatus());
+        assertEquals(FieldStatus.GROWING, growing.getStatus(), "ce qui pousse encore reste en terre");
+        assertEquals(FieldStatus.EMPTY, bare.getStatus());
+    }
+
+    @Test
+    void harvestAllOnAnIdleDomainTakesNothing() {
+        when(fieldRepository.findAllByPlayerId(1L)).thenReturn(List.of());
+
+        assertEquals(0, service.harvestAll(1L));
+        verifyNoInteractions(inventoryService);
+    }
 }

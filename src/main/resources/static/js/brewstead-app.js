@@ -38,7 +38,9 @@
     var settings = Object.assign({}, DEFAULTS);
     var readySeen = {};
     var featsConnus = null;     // les hauts faits déjà acquis à l'ouverture
-    var featsAFeter = [];       // ceux qui attendent leur fanfare
+    var featsAFeter = [];       // les cartons qui attendent leur fanfare
+    var niveauConnu = null;     // le niveau lu à l'ouverture
+    var featAller = null;       // où mène le second bouton du carton, s'il y en a un
     var featTimer = null;
     var audio = null;           // créé au premier son, jamais avant
 
@@ -199,6 +201,55 @@
     };
 
     /** Ce que le joueur a en réserve, par nom d'ingrédient. */
+    /**
+     * Ce que le domaine gagnerait à cultiver, ingrédient par ingrédient.
+     *
+     * <p>Un contrat accepté pèse le plus : on s'y est engagé. Vient ensuite
+     * ce qui manque à une recette qui n'attend plus qu'un seul ingrédient —
+     * le grimoire le dit déjà sur sa ligne, le champ doit le dire aussi.
+     */
+    function besoinsDuDomaine(s) {
+        var besoins = {};
+        var noter = function (nom, poids, raison) {
+            if (!besoins[nom] || besoins[nom].poids < poids) besoins[nom] = { poids: poids, raison: raison };
+        };
+
+        (s.npcOrders || []).filter(function (o) { return o.status === 'IN_PROGRESS'; }).forEach(function (order) {
+            (order.lines || []).forEach(function (line) {
+                var recette = s.recipes.find(function (r) { return r.id === line.recipeId; });
+                if (!recette) return;
+                brewability(s, recette).missing.forEach(function (m) {
+                    noter(m.ingredientName, 3, 'Pour ton contrat : ' + recette.name);
+                });
+            });
+        });
+
+        var presque = {};
+        s.recipes.forEach(function (recette) {
+            var manque = brewability(s, recette).missing;
+            if (manque.length !== 1) return;
+            var nom = manque[0].ingredientName;
+            (presque[nom] = presque[nom] || []).push(recette.name);
+        });
+        Object.keys(presque).forEach(function (nom) {
+            var recettes = presque[nom];
+            noter(nom, 2, recettes.length > 1
+                ? 'Seul ingrédient qui manque à ' + recettes.length + ' recettes'
+                : 'Seul ingrédient qui manque à : ' + recettes[0]);
+        });
+        return besoins;
+    }
+
+    /**
+     * Ce que rapporte une parcelle, avec son unité. « Rend 760 » à côté de
+     * « rend 3 » laissait croire que la menthe donnait deux cents fois plus
+     * que l'orge : c'étaient 760 grammes contre 3 kilos.
+     */
+    function rendement(s, crop) {
+        var ingredient = (s.ingredients || []).find(function (i) { return i.id === crop.ingredientId; });
+        return fmt.quantity(crop.yieldQuantity, ingredient ? ingredient.unit : null);
+    }
+
     function stockOf(s, name) {
         var line = s.inventory.find(function (item) { return item.ingredientName === name; });
         return line ? Number(line.quantity) : 0;
@@ -370,14 +421,32 @@
 
                 if (!s.crops.length) return empty('Le catalogue des cultures n’est pas encore chargé.');
 
+                var besoins = besoinsDuDomaine(s);
+                var fiches = list.map(function (crop) {
+                    return { crop: crop, besoin: besoins[crop.ingredientName] || null };
+                });
+                // Ce dont le domaine a besoin passe devant : d'abord ce qu'un
+                // contrat réclame, ensuite ce qui manque à une recette presque
+                // prête. Le reste suit, du plus rapide au plus lent. Quarante-deux
+                // cultures dans l'ordre du catalogue ne répondaient pas à la
+                // seule question qu'on se pose ici : quoi planter ?
+                fiches.sort(function (a, b) {
+                    var pa = a.besoin ? a.besoin.poids : 0, pb = b.besoin ? b.besoin.poids : 0;
+                    if (pa !== pb) return pb - pa;
+                    return a.crop.growDurationMinutes - b.crop.growDurationMinutes;
+                });
+
                 return searchField('Chercher une culture…', query) +
-                    (list.length ? '<div class="grid">' + list.slice(0, 60).map(function (crop) {
+                    (fiches.length ? '<div class="grid">' + fiches.slice(0, 60).map(function (fiche) {
+                        var crop = fiche.crop;
                         return '<button class="row row--pick" type="button" data-action="pick-crop" data-id="' + crop.id + '">' +
                             icon('i-grain', 'row__icon') +
                             '<span class="row__body"><span class="row__title">' + esc(crop.ingredientName) + '</span>' +
                             '<small class="row__meta">' + esc(crop.name) + ' · ' +
                             crop.growDurationMinutes + ' min · rend ' +
-                            esc(fmt.number(crop.yieldQuantity)) + '</small></span></button>';
+                            esc(rendement(s, crop)) + '</small>' +
+                            (fiche.besoin ? '<small class="row__meta row__besoin">' + esc(fiche.besoin.raison) + '</small>' : '') +
+                            '</span></button>';
                     }).join('') + '</div>' : empty('Aucune culture ne correspond.'));
             }
         },
@@ -1793,6 +1862,7 @@
         renderQuest();
         renderGuide();
         veilleHautsFaits();
+        veilleNiveau();
         renderMarkers();
         renderPlace();
         if (activeView !== 'monde') renderScreen();
@@ -2149,19 +2219,67 @@
         acquis.forEach(function (a) {
             if (featsConnus[a.code]) return;
             featsConnus[a.code] = true;
-            featsAFeter.push(a);
+            featsAFeter.push({
+                kicker: 'Haut fait débloqué',
+                title: a.title,
+                desc: a.description,
+                reward: fmt.number(a.rewardCoins) + ' pièces · ' + fmt.number(a.rewardExperience) + ' XP'
+            });
         });
         if (featsAFeter.length && dom.feat.hidden) feterLeProchain();
+    }
+
+    /**
+     * Le passage de niveau.
+     *
+     * <p>Il était muet : l'expérience montait, le chiffre du bandeau changeait
+     * en silence, et rien ne disait ce que ça ouvrait. Le niveau 2 débloque
+     * pourtant la spécialisation — un choix définitif, rangé au fond de la
+     * Renommée, que personne ne pouvait deviner.
+     */
+    function veilleNiveau() {
+        if (!state || !state.player) return;
+        var niveau = Number(state.player.level) || 1;
+        if (niveauConnu === null || niveau <= niveauConnu) { niveauConnu = niveau; return; }
+
+        for (var n = niveauConnu + 1; n <= niveau; n++) featsAFeter.push(carteDeNiveau(n));
+        niveauConnu = niveau;
+        if (dom.feat.hidden) feterLeProchain();
+    }
+
+    /** Ce qu'un niveau change vraiment — rien de plus que ce que fait le serveur. */
+    function carteDeNiveau(n) {
+        var qualite = Math.min(25, n * 2);
+        if (n === 2) {
+            return {
+                kicker: 'Niveau 2',
+                title: 'Ton domaine peut choisir sa voie',
+                desc: 'Cultivateur, brasseur ou marchand : une spécialisation, définitive, t’attend dans la Renommée.',
+                reward: 'Tes brassins gagnent en qualité · +' + qualite + ' au total',
+                go: { label: 'Choisir ma voie', action: function () { renom.tab = 'domaine'; openScreen('classement'); } }
+            };
+        }
+        return {
+            kicker: 'Niveau ' + n,
+            title: 'Ton savoir-faire grandit',
+            desc: qualite < 25
+                ? 'L’expérience se goûte : chaque brassin que tu lances sort meilleur qu’avant.'
+                : 'Ta main de brasseur est faite : la qualité ne montera plus avec l’âge, seulement avec la recette.',
+            reward: 'Qualité des brassins · +' + qualite + ' au total'
+        };
     }
 
     function feterLeProchain() {
         var fait = featsAFeter.shift();
         if (!fait) return;
 
+        dom.featKicker.textContent = fait.kicker;
         dom.featTitle.textContent = fait.title;
-        dom.featDesc.textContent = fait.description;
-        dom.featReward.textContent = fmt.number(fait.rewardCoins) + ' pièces · ' +
-            fmt.number(fait.rewardExperience) + ' XP';
+        dom.featDesc.textContent = fait.desc;
+        dom.featReward.textContent = fait.reward || '';
+        featAller = fait.go ? fait.go.action : null;
+        dom.featGo.hidden = !fait.go;
+        if (fait.go) dom.featGo.textContent = fait.go.label;
         dom.feat.hidden = false;
         // Le souffle de l'animation doit repartir de zéro à chaque carton.
         dom.feat.classList.remove('is-in');
@@ -2169,8 +2287,11 @@
         dom.feat.classList.add('is-in');
         carillon();
 
+        // Un carton qui propose d'aller quelque part attend qu'on réponde :
+        // refermé au bout de sept secondes, « Choisir ma voie » disparaissait
+        // avant qu'on ait fini de lire. Les autres s'effacent seuls.
         clearTimeout(featTimer);
-        featTimer = setTimeout(fermerLaFanfare, 7000);
+        if (!fait.go) featTimer = setTimeout(fermerLaFanfare, 7000);
     }
 
     function fermerLaFanfare() {
@@ -2243,6 +2364,11 @@
     function bind() {
         dom.guide.addEventListener('click', suivreLeFil);
         dom.featClose.addEventListener('click', fermerLaFanfare);
+        dom.featGo.addEventListener('click', function () {
+            var aller = featAller;
+            fermerLaFanfare();
+            if (aller) aller();
+        });
         dom.feat.addEventListener('click', function (event) {
             if (event.target === dom.feat) fermerLaFanfare();
         });
@@ -2334,6 +2460,9 @@
         });
 
         dom.renownBtn.addEventListener('click', function () {
+            // Le trophée ouvre toujours sur les hauts faits : c'est ce qu'on
+            // vient y voir. Seul le carton du niveau 2 mène droit à la voie.
+            renom.tab = 'faits';
             openScreen('classement');
         });
 
@@ -2404,7 +2533,7 @@
     }
 
     function start() {
-        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featTitle', 'featDesc', 'featReward', 'featClose', 'playerName', 'playerAvatar', 'playerLevel',
+        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featKicker', 'featTitle', 'featDesc', 'featReward', 'featClose', 'featGo', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'resources', 'quest', 'questText', 'questCount',
             'renownBtn', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',

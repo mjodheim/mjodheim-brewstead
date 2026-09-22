@@ -1769,7 +1769,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     border-radius: 99px;
 }
 
-.feat__close { margin-top: 1.1em; }
+.screen .row__besoin { display: block; color: #3f7d33; font-style: italic; }
+
+.feat__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .6em; margin-top: 1.1em; }
+/* Quand le carton propose d'aller quelque part, « Continuer » s'efface d'un cran. */
+#featGo:not([hidden]) + #featClose { background: none; color: inherit; box-shadow: none; }
 
 .feat.is-in .feat__card { animation: feat-pop .5s cubic-bezier(.2, 1.25, .35, 1) both; }
 .feat.is-in .feat__burst { animation: feat-burst 1.1s ease-out both; }

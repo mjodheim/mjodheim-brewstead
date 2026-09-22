@@ -56,7 +56,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired PlayerInventoryRepository inventoryRepository;
 
     @Test
-    void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
+    void browserCanRegisterLoginRenderAndDriveCoreUiActions() throws InterruptedException {
         String username = "ui_eirik";
         String password = "Secret123!";
 
@@ -125,7 +125,30 @@ class BrewsteadUiIntegrationTest {
             PlayerProfile profile = profile(username);
             profile.setLevel(2);
             playerRepository.save(profile);
-            driver.navigate().refresh();
+
+            // Le passage de niveau ne passe plus en silence. Pas de
+            // rechargement : c'est le rafraîchissement périodique qui doit le
+            // voir, comme quand un contrat livré fait monter le joueur.
+            WebDriverWait patient = new WebDriverWait(driver, Duration.ofSeconds(30));
+            patient.until(ExpectedConditions.visibilityOfElementLocated(By.id("feat")));
+            // Le carton entre en fondu : son texte n'est « visible » pour le
+            // pilote qu'une fois l'animation passée. On lit le contenu brut.
+            patient.until(d -> d.findElement(By.id("featKicker")).getAttribute("textContent").contains("2"));
+            assertEquals("Niveau 2", driver.findElement(By.id("featKicker")).getAttribute("textContent").trim());
+            // Le niveau 2 mène à la spécialisation (visible une fois le fondu passé).
+            WebElement voie = patient.until(ExpectedConditions.visibilityOfElementLocated(By.id("featGo")));
+            assertEquals("Choisir ma voie", voie.getAttribute("textContent").trim());
+            // Il attend qu'on réponde : avant, il se refermait au bout de sept
+            // secondes, emportant son bouton.
+            Thread.sleep(8_000);
+            assertTrue(driver.findElement(By.id("feat")).isDisplayed());
+            voie.click();
+            waitForScreen(wait, "Renommée");
+            assertTrue(driver.findElement(By.cssSelector("[data-action='renom-tab'][data-id='domaine']"))
+                    .getAttribute("class").contains("is-active"));
+            assertEquals(3, driver.findElements(
+                    By.cssSelector("[data-action='choose-specialization']:not([disabled])")).size());
+            ouvrirVue(driver, wait, "monde");
             wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
 
             ouvrirVue(driver, wait, "classement");
@@ -200,6 +223,23 @@ class BrewsteadUiIntegrationTest {
             waitForScreen(wait, "Champs");
             click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
             waitForScreen(wait, "Choisir une culture");
+
+            // Ce dont le domaine a besoin passe devant, et le dit : aucune
+            // culture utile ne doit apparaître après une culture quelconque.
+            List<WebElement> cultures = driver.findElements(By.cssSelector("#screenBody .row--pick"));
+            assertFalse(cultures.isEmpty());
+            boolean quelconque = false;
+            for (WebElement culture : cultures) {
+                boolean utile = !culture.findElements(By.cssSelector(".row__besoin")).isEmpty();
+                assertFalse(utile && quelconque, "culture utile reléguée : "
+                        + culture.getText().replace('\n', ' '));
+                quelconque = quelconque || !utile;
+            }
+            // Et le rendement porte son unité : « rend 760 » à côté de
+            // « rend 3 » comparait des grammes à des kilos.
+            assertTrue(cultures.getFirst().getText().matches("(?s).*rend [\\d\\s\\u00a0\\u202f,.]+(kg|g|L|ml)\\b.*"),
+                    cultures.getFirst().getText());
+
             click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(field -> field.getStatus() == FieldStatus.GROWING));

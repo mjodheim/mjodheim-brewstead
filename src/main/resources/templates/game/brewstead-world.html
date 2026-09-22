@@ -193,11 +193,14 @@
         <div class="feat__card">
             <span class="feat__burst" aria-hidden="true"></span>
             <svg class="feat__icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg>
-            <p class="feat__kicker">Haut fait débloqué</p>
+            <p class="feat__kicker" id="featKicker">Haut fait débloqué</p>
             <h2 class="feat__title" id="featTitle">—</h2>
             <p class="feat__desc" id="featDesc"></p>
             <p class="feat__reward" id="featReward"></p>
-            <button class="btn btn--gold feat__close" id="featClose" type="button">Continuer</button>
+            <div class="feat__actions">
+                <button class="btn btn--gold feat__close" id="featGo" type="button" hidden>—</button>
+                <button class="btn btn--gold feat__close" id="featClose" type="button">Continuer</button>
+            </div>
         </div>
     </div>
 

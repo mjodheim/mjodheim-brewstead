@@ -12,6 +12,12 @@
 
     /* ---------------------------------------------------------------- Lieux
      *
+     * « tiroir » marque les lieux dont le panneau montre quelque chose avant
+     * d'entrer : les parcelles qui poussent, les ruches, les cuves. Les
+     * autres n'avaient qu'une porte de passage devant leur écran — la taverne
+     * disait « Entre dans la salle » et rien d'autre — et l'ouvrent donc
+     * directement.
+     *
      * « x, y » place l'écriteau. « calque » donne le rectangle du bâtiment
      * dans le tableau (1536 x 742), tel qu'il a été découpé dans
      * images/lieux/<id>.webp : c'est le noyau de la découpe, sans les 34 px
@@ -21,13 +27,13 @@
 
     var PLACES = [
         {
-            id: 'rucher', calque: { x: 123, y: 87, w: 264, h: 136 }, label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
+            id: 'rucher', tiroir: true, calque: { x: 123, y: 87, w: 264, h: 136 }, label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
             x: 285, y: 147, screen: 'rucher',
             intro: "Les ruches du coteau donnent le miel de bruyère qui fait la rondeur de tes hydromels.",
             action: 'Récolter le miel'
         },
         {
-            id: 'champs', calque: { x: 82, y: 238, w: 316, h: 124 }, label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
+            id: 'champs', tiroir: true, calque: { x: 82, y: 238, w: 316, h: 124 }, label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
             x: 241, y: 277, screen: 'champs',
             intro: "Orge, houblon et plantes aromatiques poussent ici, au rythme des saisons du fjord.",
             action: 'Gérer les cultures'
@@ -39,7 +45,7 @@
             action: 'Ouvrir l’inventaire'
         },
         {
-            id: 'brasserie', calque: { x: 618, y: 110, w: 388, h: 236 }, label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
+            id: 'brasserie', tiroir: true, calque: { x: 618, y: 110, w: 388, h: 236 }, label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
             x: 841, y: 227, screen: 'brasserie',
             intro: "Cuves, fûts et fermentation : c’est ici que les recettes deviennent des bières et des hydromels.",
             action: 'Suivre les brassins'

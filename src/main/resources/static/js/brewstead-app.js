@@ -559,6 +559,7 @@
 
         taverne: {
             title: 'Taverne',
+            scene: 'taverne',
             render: function (s) {
                 var tabs = '<div class="tabs">' +
                     ['salle', 'comptoir'].map(function (key) {
@@ -992,7 +993,9 @@
     }
 
     function loadTavern(force) {
-        var tab = tavern.tab;
+        // Dans la salle dessinée, ce sont les chopes du comptoir qu'il faut,
+        // quel que soit l'onglet choisi pour la vue en liste.
+        var tab = (activeView === 'taverne' && !listMode.taverne) ? 'comptoir' : tavern.tab;
         if (tavern.requests[tab]) return tavern.requests[tab];
         var log = $('chatLog');
         var atBottom = !log || log.scrollHeight - log.scrollTop - log.clientHeight < 40;
@@ -1007,14 +1010,14 @@
 
         tavern.requests[tab] = job.then(function () {
             tavern.connectionError = '';
-            if (activeView === 'taverne' && tavern.tab === tab) {
+            if (activeView === 'taverne') {
                 renderScreen();
                 if (atBottom || force) scrollChat();
             }
         }).catch(function (error) {
             tavern.connectionError = 'Connexion interrompue. Nouvelle tentative automatique…';
             if (error.sessionExpired) showFault(error);
-            if (activeView === 'taverne' && tavern.tab === tab) renderScreen();
+            if (activeView === 'taverne') renderScreen();
         }).finally(function () { delete tavern.requests[tab]; });
         return tavern.requests[tab];
     }
@@ -1552,7 +1555,8 @@
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
-            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.'
+            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
+            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.'
         }[view] || '';
 
         var actions = '';
@@ -1583,11 +1587,12 @@
      */
     function renderSceneScreen(section) {
         var place = section.scene;
-        var fresh = Scenes.signature(place, state);
+        var vu = decor();
+        var fresh = Scenes.signature(place, vu);
         var drawn = dom.screenBody.querySelector('.sc-stage, .sc-empty');
 
         if (drawn && sceneSignature[place] === fresh) {
-            Scenes.tick(dom.screenBody, place, state);
+            Scenes.tick(dom.screenBody, place, vu);
             return;
         }
 
@@ -1595,8 +1600,19 @@
         // innerHTML direct : updateMarkup réconcilie nœud par nœud, ce qui
         // n'a aucun sens pour un décor entier qu'on redessine.
         dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
-            Scenes.markup(place, state) + sceneBar(place) + '</div>';
+            Scenes.markup(place, vu) + sceneBar(place) + '</div>';
         dom.screenBody._markup = null;
+    }
+
+    /**
+     * L'état tel que les décors le lisent.
+     *
+     * <p>Le comptoir de la taverne est chargé à part de l'état du domaine ;
+     * la salle en a pourtant besoin pour poser ses chopes. On le joint ici
+     * plutôt que de donner deux paramètres à chaque décor.
+     */
+    function decor() {
+        return Object.assign({}, state, { tavernCounter: tavern.counter });
     }
 
     function renderScreen() {
@@ -1722,24 +1738,24 @@
         });
     }
 
-    /** Ce lieu a-t-il un décor dans lequel on entre, ou n'est-ce qu'un écran ? */
-    function aUnDecor(place) {
-        var section = SECTIONS[place.screen];
-        return !!section && !!section.scene && !!Scenes && Scenes.has(section.scene);
+    /** Ce lieu montre-t-il quelque chose avant qu'on y entre ? */
+    function aUnTiroir(place) {
+        return !!place.tiroir;
     }
 
     /**
      * Ouvre un lieu.
      *
-     * <p>Les lieux qui ont un décor — les champs, le rucher, la brasserie —
-     * ouvrent leur tiroir : on y voit ce qui pousse avant d'entrer. Les
-     * autres n'avaient qu'un tiroir de passage devant leur écran, parfois
-     * réduit à « Entre dans la salle » ; ils ouvrent l'écran directement.
+     * <p>Les champs, le rucher et la brasserie ouvrent leur tiroir : on y
+     * voit ce qui pousse, ce qui fermente, avant d'entrer. Les autres
+     * n'avaient qu'un tiroir de passage devant leur écran — la taverne
+     * disait « Entre dans la salle » et rien d'autre. Ils ouvrent l'écran
+     * directement.
      */
     function openPlace(id) {
         var place = Data.PLACES.find(function (p) { return p.id === id; });
         if (!place) return;
-        if (!aUnDecor(place)) { openScreen(place.screen); return; }
+        if (!aUnTiroir(place)) { openScreen(place.screen); return; }
         closeScreen();
         activePlace = place;
 

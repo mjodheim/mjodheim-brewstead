@@ -227,7 +227,7 @@ class BrewsteadUiIntegrationTest {
             waitForScreen(wait, "Grimoire des recettes");
             assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
 
-            ouvrirVue(driver, wait, "taverne");
+            ouvrirTaverneEnListe(driver, wait);
             waitForScreen(wait, "Taverne");
             WebElement chat = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             chat.sendKeys("Skål depuis Chromium");
@@ -255,15 +255,16 @@ class BrewsteadUiIntegrationTest {
         try {
             registerAndLogin(alice, a, "ui_chat_alice");
             registerAndLogin(bob, b, "ui_chat_bob");
-            // La taverne n'a pas de décor à explorer : son repère ouvre
-            // directement la salle, sans tiroir intermédiaire.
+            // Le repère de la taverne ouvre directement la salle dessinée ;
+            // le fil de discussion est derrière « Voir la liste ».
             click(alice, a, By.cssSelector("#markers [data-place='taverne']"));
             waitForScreen(a, "Taverne");
+            click(alice, a, By.cssSelector("[data-action='show-list'][data-id='taverne']"));
             assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
             WebElement draft = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             draft.sendKeys("Un message rédigé lentement");
 
-            ouvrirVue(bob, b, "taverne");
+            ouvrirTaverneEnListe(bob, b);
             waitForScreen(b, "Taverne");
             b.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")))
                     .sendKeys("Bonjour Alice");
@@ -345,12 +346,12 @@ class BrewsteadUiIntegrationTest {
             b.until(d -> orderRepository.findById(order.getId()).orElseThrow().getStatus()
                     == be.mjodheim.brewstead.enums.OrderStatus.COMPLETED);
             screenshot(bob, "06-market-delivered.png");
-            ouvrirVue(alice, a, "taverne");
+            ouvrirTaverneEnListe(alice, a);
 
             alice.findElement(By.id("chatInput")).sendKeys("Brouillon à conserver");
             ouvrirVue(alice, a, "monde");
             assertTrue(alice.findElements(By.id("chatInput")).isEmpty());
-            ouvrirVue(alice, a, "taverne");
+            ouvrirTaverneEnListe(alice, a);
             assertEquals("Brouillon à conserver", alice.findElement(By.id("chatInput")).getDomProperty("value"));
             alice.manage().deleteCookieNamed("JSESSIONID");
             click(alice, a, By.cssSelector("[data-action='chat-send']"));
@@ -482,7 +483,7 @@ class BrewsteadUiIntegrationTest {
             var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batchId, 0).orElseThrow();
             int guestCoins = profile("ui_full_guest").getCoin();
             int sellerCoins = profile("ui_full_brewer").getCoin();
-            ouvrirVue(guest, visitor, "taverne");
+            ouvrirTaverneEnListe(guest, visitor);
             click(guest, visitor, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, visitor, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             waitForMutation(guest, visitor);
@@ -629,7 +630,7 @@ class BrewsteadUiIntegrationTest {
             click(brewer, wait, By.cssSelector("[data-action='offer-confirm']"));
             wait.until(d -> offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).isPresent());
             var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).orElseThrow();
-            ouvrirVue(guest, guestWait, "taverne");
+            ouvrirTaverneEnListe(guest, guestWait);
             click(guest, guestWait, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, guestWait, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             guestWait.until(d -> offerRepository.findById(offer.getId()).orElseThrow().getServings() == 1);
@@ -896,6 +897,29 @@ class BrewsteadUiIntegrationTest {
      * ou par le trophée du bandeau. Les onglets du bas ont disparu — quatre
      * d'entre eux menaient au même endroit que quatre lieux.
      */
+    /**
+     * Ouvre la taverne sur sa vue en liste — le fil de discussion et le
+     * comptoir détaillé. La salle dessinée s'ouvre la première ; « Voir la
+     * liste » donne accès au reste.
+     */
+    private void ouvrirTaverneEnListe(WebDriver driver, WebDriverWait wait) {
+        ouvrirVue(driver, wait, "taverne");
+        waitForScreen(wait, "Taverne");
+        // La salle se redessine toute seule quand le comptoir bouge : garder
+        // une référence sur son bouton la rend caduque entre deux lignes.
+        // On cherche, on clique et on vérifie dans la même tentative.
+        By versListe = By.cssSelector("[data-action='show-list'][data-id='taverne']");
+        wait.ignoring(StaleElementReferenceException.class)
+                .ignoring(ElementClickInterceptedException.class)
+                .until(d -> {
+                    if (!d.findElements(By.cssSelector(".tabs")).isEmpty()) return true;
+                    List<WebElement> bouton = d.findElements(versListe);
+                    if (bouton.isEmpty()) return false;
+                    click(d, bouton.getFirst());
+                    return false;
+                });
+    }
+
     private void ouvrirVue(WebDriver driver, WebDriverWait wait, String view) {
         switch (view) {
             case "monde" -> {

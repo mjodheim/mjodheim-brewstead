@@ -41,24 +41,34 @@ public class ApiaryService {
         return apiaryMapper.toResponseList(hives);
     }
 
-    @Transactional
-    public BeehiveResponse startProduction(Long playerId, Long hiveId) {
-        Beehive hive = getOwnedHive(playerId, hiveId);
-        refreshHiveStatus(hive);
-
-        if (hive.getStatus() != BehiveStatus.IDLE) {
-            throw new IllegalStateException("Beehive is not idle");
-        }
-
+    /**
+     * Les abeilles n'attendent pas qu'on le leur demande.
+     *
+     * <p>Une ruche vide se remet à produire d'elle-même : réveiller chaque
+     * ruche à la main après chaque récolte n'était pas une décision de jeu,
+     * juste un clic de plus. Le joueur choisit quand récolter, pas quand les
+     * abeilles travaillent.
+     */
+    private void relancer(Beehive hive) {
         LocalDateTime now = LocalDateTime.now();
         double factor = effectService.durationFactor(hive.getPlayer().getId(), EffectKind.BOURDONNEMENT);
         long durationMinutes = Math.max(1,
                 Math.round(Math.max(2, BASE_PRODUCTION_MINUTES - (hive.getLevel() - 1)) * factor));
-
         hive.setStartedAt(now);
         hive.setReadyAt(now.plusMinutes(durationMinutes));
         hive.setStatus(BehiveStatus.PRODUCING);
+    }
 
+    @Transactional
+    public BeehiveResponse startProduction(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
+        // Pas de rafraîchissement ici : il réveillerait la ruche avant le
+        // contrôle, et le contrat de cette opération resterait inapplicable.
+        if (hive.getStatus() != BehiveStatus.IDLE) {
+            throw new IllegalStateException("Beehive is not idle");
+        }
+
+        relancer(hive);
         return apiaryMapper.toResponse(hive);
     }
 
@@ -87,9 +97,7 @@ public class ApiaryService {
                 new IngredientRequest(hive.getPlayer().getId(), honey.getId(), quantity)
         );
 
-        hive.setStatus(BehiveStatus.IDLE);
-        hive.setStartedAt(null);
-        hive.setReadyAt(null);
+        relancer(hive);
 
         progressionService.record(playerId, ProgressAction.HARVEST_HIVE);
 
@@ -126,6 +134,10 @@ public class ApiaryService {
     }
 
     private void refreshHiveStatus(Beehive hive) {
+        if (hive.getStatus() == BehiveStatus.IDLE) {
+            relancer(hive);
+            return;
+        }
         if (hive.getStatus() == BehiveStatus.PRODUCING
                 && hive.getReadyAt() != null
                 && !LocalDateTime.now().isBefore(hive.getReadyAt())) {

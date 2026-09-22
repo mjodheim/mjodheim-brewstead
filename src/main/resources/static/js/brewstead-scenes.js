@@ -467,7 +467,9 @@
 
     function hiveNode(hive, slot) {
         var state = hiveState(hive);
-        var action = state === 'ready' ? 'harvest-hive' : (state === 'empty' ? 'start-hive' : '');
+        // Une ruche ne se lance plus : elle tourne seule. Le seul geste est
+        // de la vider quand le miel est prêt.
+        var action = state === 'ready' ? 'harvest-hive' : '';
         var h = slot.height * 1.15;
 
         return '<g class="sc-node sc-hive" data-state="' + state + '" data-id="' + hive.id + '"' +

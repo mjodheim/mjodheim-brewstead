@@ -270,24 +270,65 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 @keyframes rain-drift { to { transform: translate3d(-25px, 38px, 0); } }
 @keyframes mist-drift { to { transform: translate3d(8%, -2%, 0) scale(1.08); } }
 
-.world__hint {
+/* Le fil conducteur. Il occupe la place la plus visible de l'écran parce
+   que c'est la seule chose qu'un joueur qui arrive doit lire. */
+.world__guide {
     position: absolute;
     left: 50%;
-    bottom: 22%;
+    bottom: 20%;
     transform: translateX(-50%);
-    padding: .5em 1.1em;
-    font-size: var(--ui);
-    letter-spacing: .04em;
-    color: var(--cream-dim);
-    background: rgba(12, 8, 3, .6);
-    border: 1px solid rgba(138, 100, 56, .5);
-    border-radius: 99px;
-    backdrop-filter: blur(4px);
-    pointer-events: none;
-    transition: opacity .6s ease;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "texte fleche" "raison fleche";
+    align-items: center;
+    gap: 0 .9em;
+    max-width: min(30em, calc(100% - 2.4em));
+    padding: .7em 1em .75em 1.15em;
+    text-align: left;
+    color: var(--cream);
+    background: rgba(14, 9, 3, .72);
+    border: 1px solid rgba(180, 134, 74, .5);
+    border-radius: 1.1em;
+    box-shadow: 0 .5em 1.6em rgba(0, 0, 0, .5);
+    backdrop-filter: blur(7px);
+    cursor: pointer;
+    transition: transform .2s ease, border-color .2s ease, background-color .2s ease;
 }
 
-.world__hint.is-hidden { opacity: 0; }
+.world__guide:hover,
+.world__guide:focus-visible {
+    transform: translateX(-50%) translateY(-2px);
+    border-color: var(--gold);
+    background: rgba(20, 13, 5, .84);
+}
+
+.world__guide-text {
+    grid-area: texte;
+    font: 600 1.02em "Cinzel", Georgia, serif;
+    letter-spacing: .02em;
+}
+
+.world__guide-why {
+    grid-area: raison;
+    margin-top: .15em;
+    font-size: .82em;
+    line-height: 1.35;
+    color: var(--cream-dim);
+}
+
+.world__guide-go {
+    grid-area: fleche;
+    width: 1.5em;
+    height: 1.5em;
+    color: var(--gold);
+    stroke: none;
+    fill: currentColor;
+}
+
+@media (max-width: 720px) {
+    .world__guide { bottom: 7.4em; padding: .6em .85em .65em 1em; }
+    .world__guide-text { font-size: .95em; }
+}
 
 /* Écriteaux des lieux ------------------------------------------------------ */
 
@@ -916,6 +957,26 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .row__icon { width: 1.9em; height: 1.9em; color: var(--gold); flex: none; }
 .row__body { flex: 1; min-width: 0; }
 .row__title { font-family: "Cinzel", serif; font-size: 1em; color: #fbf1dc; }
+/* Le dosage exact d'une recette : replié par défaut, à un clic pour qui le
+   cherche. C'est la différence entre un jeu et une fiche technique. */
+.row__detail { margin-top: .25em; }
+
+.row__detail summary {
+    display: inline-block;
+    font-size: .76em;
+    letter-spacing: .04em;
+    color: var(--gold);
+    cursor: pointer;
+    list-style: none;
+    opacity: .8;
+}
+
+.row__detail summary::-webkit-details-marker { display: none; }
+.row__detail summary::before { content: "▸ "; }
+.row__detail[open] summary::before { content: "▾ "; }
+.row__detail summary:hover { opacity: 1; }
+.row__detail small { display: block; margin-top: .25em; font-size: .78em; color: var(--cream-dim); }
+
 .row__meta { display: block; font-size: .84em; color: var(--cream-dim); margin-top: .12em; }
 .row__side { display: flex; flex-direction: column; align-items: flex-end; gap: .35em; flex: none; }
 

@@ -14,6 +14,7 @@
     var state = null;
     var activePlace = null;
     var activeView = 'monde';
+    var fil = null;          // l'étape du fil conducteur affichée en ce moment
     var toastTimer = null;
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
@@ -115,6 +116,10 @@
             '<div class="row__body">' +
             '<span class="row__title">' + esc(parts.title) + '</span>' +
             (parts.meta ? '<small class="row__meta">' + esc(parts.meta) + '</small>' : '') +
+            // Le détail chiffré se replie : visible pour qui le cherche,
+            // absent pour qui veut juste brasser.
+            (parts.detail ? '<details class="row__detail"><summary>Détail</summary>' +
+                '<small>' + esc(parts.detail) + '</small></details>' : '') +
             (parts.progress || '') +
             '</div>' +
             (parts.side ? '<div class="row__side">' + parts.side + '</div>' : '') +
@@ -263,16 +268,16 @@
                 if (!s.hives.length) return empty('Aucune ruche installée pour l’instant.');
                 return reapHeader(s, 'rucher') + s.hives.map(function (hive) {
                     var ready = hive.status === 'READY';
+                    // Les ruches tournent d'elles-mêmes : il n'y a plus
+                    // qu'un geste possible ici, récolter quand c'est prêt.
                     return row({
                         icon: 'i-honey',
                         title: 'Ruche n°' + hive.id,
-                        meta: 'Niveau ' + hive.level + (hive.status === 'IDLE' ? ' · en sommeil' : ''),
+                        meta: 'Niveau ' + hive.level,
                         progress: hive.status === 'PRODUCING' && hive.readyAt ? progress(hive.startedAt, hive.readyAt) : '',
                         side: ready
                             ? actionButton('harvest-hive', 'Récolter', hive.id)
-                            : (hive.status === 'PRODUCING'
-                                ? chip('en production', 'warn')
-                                : actionButton('start-hive', 'Lancer', hive.id))
+                            : chip('les abeilles travaillent', 'warn')
                     });
                 }).join('');
             }
@@ -352,7 +357,7 @@
                         '<span class="row__title">' + esc(recipe.name) + '</span>' +
                         '<small class="row__meta">' + esc(DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
                         ' · ' + esc(RARITY_LABELS[recipe.rarity] || recipe.rarity) +
-                        ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
+                        ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
                         (recipe.effectKind && recipe.effectKind !== 'AUCUN'
                             ? ' — ' + esc(recipe.effectLabel) : '') +
                         (can.ok ? '' : ' · il te manque ' + esc(lack)) +
@@ -422,15 +427,23 @@
                     return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
                 });
                 return head + searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
+                    // Ce qu'il faut, pas combien il en faut. « Orge maltée
+                    // 9 kg · Houblon du fjord 180 g · Eau de source 32 L »
+                    // est la fiche d'un brasseur, pas d'un joueur ; les
+                    // dosages restent, un cran plus loin, pour qui les veut.
                     var ingredients = (recipe.ingredients || []).map(function (i) {
+                        return i.ingredientName;
+                    }).join(' · ');
+                    var dosage = (recipe.ingredients || []).map(function (i) {
                         return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
                     }).join(' · ');
                     return row({
                         icon: 'i-recipe',
                         title: recipe.name,
                         meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
-                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + recipe.fermentationDurationMinutes + ' min' +
+                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
                             (ingredients ? ' — ' + ingredients : ''),
+                        detail: dosage ? 'Dosage : ' + dosage : '',
                         side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
                             (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
                             (recipe.effectKind && recipe.effectKind !== 'AUCUN'
@@ -1275,12 +1288,6 @@
             return;
         }
 
-        if (action === 'start-hive') {
-            send('/api/apiary/hives/' + Number(id) + '/start', undefined,
-                function () { toast('La ruche se remet au travail.'); });
-            return;
-        }
-
         if (action === 'taste-batch') {
             send('/api/brewery/batches/' + Number(id) + '/taste', undefined, function (result) {
                 if (!result) return;
@@ -1569,7 +1576,7 @@
     function sceneBar(view) {
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
-            rucher: 'Touche une ruche endormie pour la lancer, une ruche pleine pour la vider.',
+            rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
             brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.'
         }[view] || '';
 
@@ -1648,6 +1655,7 @@
         renderReap();
         renderEffects();
         renderQuest();
+        renderGuide();
         renderFeed();
         renderMarkers();
         renderPlace();
@@ -1763,7 +1771,7 @@
         dom.place.classList.add('is-open');
         dom.place.setAttribute('aria-hidden', 'false');
 
-        if (!settings.recentrage) { hideHint(); return; }
+        if (!settings.recentrage) { renderGuide(); return; }
 
         var drawer = dom.place.getBoundingClientRect();
         var narrow = window.matchMedia('(max-width: 1080px)').matches;
@@ -1772,7 +1780,7 @@
             offsetX: narrow ? 0 : -drawer.width / 2,
             offsetY: narrow ? -drawer.height / 3 : 0
         });
-        hideHint();
+        renderGuide();
     }
 
     function closePlace() {
@@ -1789,6 +1797,7 @@
         dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
             chip.classList.remove('is-active');
         });
+        renderGuide();
     }
 
     function openScreen(view) {
@@ -1836,13 +1845,33 @@
         syncDock();
     }
 
-    function hideHint() {
-        dom.worldHint.classList.add('is-hidden');
+    /**
+     * Le fil conducteur : une ligne, la raison de la suivre, et un geste.
+     *
+     * <p>Il ne s'efface pas au bout de six secondes comme l'ancien conseil de
+     * navigation : tant que le joueur n'a pas fait le tour de la boucle, la
+     * ligne lui sert ; le jour où il la connaît, il ne la lit plus.
+     */
+    function renderGuide() {
+        if (!state) return;
+        fil = Data.guide(state);
+        dom.guideText.textContent = fil.texte;
+        dom.guideWhy.textContent = fil.pourquoi;
+        dom.guide.hidden = activeView !== 'monde' || !!activePlace;
+    }
+
+    function suivreLeFil() {
+        if (!fil) return;
+        if (fil.action === 'reap') { runAction('harvest-all'); return; }
+        if (fil.lieu) { selectView('monde'); openPlace(fil.lieu); return; }
+        if (fil.vue) selectView(fil.vue);
     }
 
     /* ---------------------------------------------------------- Événements */
 
     function bind() {
+        dom.guide.addEventListener('click', suivreLeFil);
+
         dom.markers.addEventListener('click', function (event) {
             var marker = event.target.closest('.marker');
             if (marker) openPlace(marker.dataset.place);
@@ -1956,8 +1985,6 @@
             }
         });
 
-        dom.world.addEventListener('pointerdown', hideHint, { once: true });
-
         dom.faultRetry.addEventListener('click', function () {
             dom.faultRetry.disabled = true;
             refresh().catch(function () {}).then(function () { dom.faultRetry.disabled = false; });
@@ -1982,7 +2009,7 @@
     }
 
     function start() {
-        ['game', 'world', 'scene', 'markers', 'worldHint', 'playerName', 'playerAvatar', 'playerLevel',
+        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
@@ -2021,8 +2048,6 @@
                 }
             });
         });
-
-        setTimeout(hideHint, 6000);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

@@ -48,10 +48,27 @@
         // « Vue d'ensemble », les sept lieux doivent y tenir. Le tableau est
         // plus large que les écrans courants, donc il reste des marges : le
         // hors-champ les remplit avec le même décor, hors mise au point.
+        //
+        // Le cadrage serré rognait les côtés : à 1024 de large, quatre lieux
+        // sur sept tombaient hors de l'écran, et la carte cachait la moitié
+        // du jeu. Sur un écran plus large que haut, on montre donc toute la
+        // largeur du tableau. Sur un téléphone tenu droit ce serait un
+        // timbre-poste : là, on garde le cadrage serré, et c'est la barre
+        // des lieux du bandeau qui garantit l'accès aux sept.
         var contain = Math.min(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
         var cover = Math.max(box.width / SCENE_WIDTH, box.height / SCENE_HEIGHT);
-        this.fit = Math.max(contain, cover * 0.88);
-        this.scale = Math.max(this.scale, this.fit);
+        var pleineLargeur = box.width / SCENE_WIDTH;
+        var ancienCadrage = this.fit;
+        this.fit = box.width >= box.height * 1.15
+            ? Math.max(contain, Math.min(cover * 0.88, pleineLargeur))
+            : Math.max(contain, cover * 0.88);
+
+        // Tant que le joueur n'a pas zoomé lui-même, la vue suit le cadrage :
+        // sans ça, rétrécir la fenêtre gardait l'ancienne échelle et rognait
+        // la carte. Dès qu'il a zoomé, on ne lui reprend pas sa vue.
+        this.scale = Math.abs(this.scale - ancienCadrage) < 0.0005
+            ? this.fit
+            : Math.max(this.scale, this.fit);
         this.apply(false);
     };
 

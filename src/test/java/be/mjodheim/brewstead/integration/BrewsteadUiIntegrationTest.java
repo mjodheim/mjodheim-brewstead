@@ -176,7 +176,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("placeTitle"), "Rucher"));
             click(driver, wait, By.id("placeAction"));
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
+            // Les ruches tournent d'elles-mêmes : rien à lancer.
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
 
@@ -187,7 +187,7 @@ class BrewsteadUiIntegrationTest {
             new WebDriverWait(driver, Duration.ofSeconds(30)).until(
                     ExpectedConditions.elementToBeClickable(By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']")));
             click(driver, wait, By.cssSelector("#screenBody [data-action='harvest-hive'] .sc-node__hit, #screenBody [data-action='harvest-hive']"));
-            wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getStatus() == BehiveStatus.IDLE);
+            wait.until(d -> hiveRepository.findById(hive.getId()).orElseThrow().getReadyAt().isAfter(LocalDateTime.now()));
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='monde']"));
             click(driver, wait, By.cssSelector("#markers [data-place='brasserie']"));
@@ -389,8 +389,6 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedFields());
 
             openSection(brewer, wait, "rucher");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='start-hive'] .sc-node__hit, #screenBody [data-action='start-hive']"));
-            waitForMutation(brewer, wait);
             var hive = hiveRepository.findAllByPlayerId(player.getId()).stream()
                     .filter(value -> value.getStatus() == BehiveStatus.PRODUCING).findFirst().orElseThrow();
             hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
@@ -749,7 +747,6 @@ class BrewsteadUiIntegrationTest {
 
             openPlaceScreen(driver, wait, "rucher");
             waitForScreen(wait, "Rucher");
-            click(driver, wait, By.cssSelector("[data-action='start-hive'] .sc-node__hit, [data-action='start-hive']"));
             wait.until(d -> hiveRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(hive -> hive.getStatus() == BehiveStatus.PRODUCING));
             click(driver, wait, By.id("screenClose"));
@@ -766,8 +763,10 @@ class BrewsteadUiIntegrationTest {
             driver.navigate().refresh();
             wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("reapBtn")));
-            assertEquals("2", driver.findElement(By.id("reapCount")).getText(),
-                    "Une parcelle et une ruche font deux.");
+            // Les deux ruches tournent d'elles-mêmes : avec la parcelle, cela
+            // fait trois choses à ramasser.
+            assertEquals("3", driver.findElement(By.id("reapCount")).getText(),
+                    "Une parcelle et deux ruches font trois.");
 
             // Les écriteaux disent aussi ce qui attend, sans ouvrir le lieu.
             WebElement fields = driver.findElement(By.cssSelector("#markers [data-place='champs']"));

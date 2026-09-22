@@ -215,6 +215,9 @@
             recipes: state.recipes || [],
             batches: state.batches || [],
             npcOrders: state.npcOrders || [],
+            // Le barème de l'agrandissement vient du serveur : un prix
+            // recopié dans le navigateur finit toujours par diverger.
+            estate: state.estate || null,
             progression: progression || null,
             tavern: tavern || { notablePlayers: [], openPlayerOrders: 0 }
         };
@@ -338,6 +341,27 @@
                 pourquoi: 'Faire goûter aux voyageurs, c’est ainsi qu’on se fait un nom.',
                 lieu: 'taverne'
             };
+        }
+
+        // Une bourse pleine et rien en attente : c'est le moment de pousser
+        // les murs. Sans ce rappel, l'agrandissement resterait caché au bas
+        // de deux écrans que personne n'ouvre quand tout tourne.
+        var croissance = state.estate;
+        if (croissance) {
+            if (croissance.fieldPrice && state.player.coins >= croissance.fieldPrice) {
+                return {
+                    texte: 'Défriche une parcelle de plus',
+                    pourquoi: 'Ta bourse le permet. Plus de terre, c’est plus de tout le reste.',
+                    lieu: 'champs'
+                };
+            }
+            if (croissance.hivePrice && state.player.coins >= croissance.hivePrice) {
+                return {
+                    texte: 'Installe une ruche de plus',
+                    pourquoi: 'Le miel est la matière rare : une ruche de plus se rentabilise vite.',
+                    lieu: 'rucher'
+                };
+            }
         }
 
         if (enCours) {

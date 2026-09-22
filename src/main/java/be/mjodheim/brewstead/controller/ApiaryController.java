@@ -22,6 +22,18 @@ public class ApiaryController {
         return apiaryService.findAllHives(currentPlayer.requireSelf(principal, playerId));
     }
 
+    /** Installer une ruche de plus, contre des pièces. */
+    @PostMapping("/hives")
+    public List<BeehiveResponse> install(Principal principal) {
+        return apiaryService.installNewHive(currentPlayer.id(principal));
+    }
+
+    /** Faire passer une ruche au niveau suivant. */
+    @PostMapping("/hives/{hiveId}/upgrade")
+    public BeehiveResponse upgrade(Principal principal, @PathVariable Long hiveId) {
+        return apiaryService.upgradeHive(currentPlayer.id(principal), hiveId);
+    }
+
     @PostMapping("/hives/{hiveId}/start")
     public BeehiveResponse start(Principal principal, @PathVariable Long hiveId) {
         return apiaryService.startProduction(currentPlayer.id(principal), hiveId);

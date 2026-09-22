@@ -264,6 +264,53 @@
             icon('i-basket') + 'Tout récolter (' + waiting + ')</button></div>';
     }
 
+    /**
+     * La ligne « on s'agrandit », au bas d'un lieu.
+     *
+     * <p>Les pièces n'avaient aucune sortie : elles s'entassaient sans rien
+     * ouvrir. Défricher un carré de plus ou poser une ruche de plus est la
+     * première chose à faire d'une bourse pleine, et c'est la seule qui
+     * change le domaine à l'écran.
+     */
+    function agrandir(s, quoi) {
+        var e = s.estate;
+        if (!e) return '';
+        var parcelles = quoi === 'champs';
+        var prix = parcelles ? e.fieldPrice : e.hivePrice;
+        var combien = parcelles ? e.fields : e.hives;
+        var plafond = parcelles ? e.maxFields : e.maxHives;
+
+        if (prix === null || prix === undefined) {
+            return row({
+                icon: parcelles ? 'i-grain' : 'i-honey',
+                title: parcelles ? 'Toutes les terres sont défrichées' : 'Le coteau est plein',
+                meta: combien + ' sur ' + plafond,
+                side: chip('au complet', 'ok')
+            });
+        }
+
+        var assez = s.player.coins >= prix;
+        return row({
+            icon: parcelles ? 'i-grain' : 'i-honey',
+            title: parcelles ? 'Défricher une parcelle' : 'Installer une ruche',
+            meta: combien + ' sur ' + plafond + ' · ' + fmt.number(prix) + ' pièces'
+                + (assez ? '' : ' · il t’en manque ' + fmt.number(prix - s.player.coins)),
+            side: '<button class="btn btn--sm btn--gold" type="button" data-action="'
+                + (parcelles ? 'clear-field' : 'install-hive') + '"'
+                + (assez ? '' : ' disabled') + '>' + (parcelles ? 'Défricher' : 'Installer') + '</button>'
+        });
+    }
+
+    /** Le bouton d'agrandissement d'une ruche, s'il y a encore un palier. */
+    function agrandirRuche(s, hive) {
+        var prix = s.estate && s.estate.hiveUpgradePrices
+            ? s.estate.hiveUpgradePrices[hive.level - 1] : undefined;
+        if (prix === undefined || prix === null) return '';
+        return '<button class="btn btn--sm" type="button" data-action="upgrade-hive" data-id="'
+            + hive.id + '"' + (s.player.coins >= prix ? '' : ' disabled')
+            + '>Agrandir · ' + fmt.number(prix) + '</button>';
+    }
+
     var SECTIONS = {
         rucher: {
             live: true,
@@ -278,13 +325,14 @@
                     return row({
                         icon: 'i-honey',
                         title: 'Ruche n°' + hive.id,
-                        meta: 'Niveau ' + hive.level,
+                        meta: 'Niveau ' + hive.level + ' · ' + hive.level
+                            + (hive.level > 1 ? ' pots' : ' pot') + ' par tournée',
                         progress: hive.status === 'PRODUCING' && hive.readyAt ? progress(hive.startedAt, hive.readyAt) : '',
-                        side: ready
+                        side: (ready
                             ? actionButton('harvest-hive', 'Récolter', hive.id)
-                            : chip('les abeilles travaillent', 'warn')
+                            : chip('les abeilles travaillent', 'warn')) + agrandirRuche(s, hive)
                     });
-                }).join('');
+                }).join('') + agrandir(s, 'rucher');
             }
         },
 
@@ -307,7 +355,7 @@
                                 ? actionButton('sow-field', 'Semer', field.id)
                                 : chip('en croissance', 'warn'))
                     });
-                }).join('');
+                }).join('') + agrandir(s, 'champs');
             }
         },
 
@@ -1227,6 +1275,30 @@
                 if (report.hives) parts.push(report.hives + (report.hives > 1 ? ' ruches' : ' ruche'));
                 cliquetis();
                 toast('Tournée faite : ' + parts.join(' et ') + '.');
+            });
+            return;
+        }
+
+        // On s'agrandit. Le serveur décide du prix et refuse tout seul si la
+        // bourse ne suit pas : le bouton grisé n'est qu'une politesse.
+        if (action === 'clear-field') {
+            send('/api/farm/fields', undefined, function () {
+                cliquetis();
+                toast('Parcelle défrichée. À toi de semer.');
+            });
+            return;
+        }
+        if (action === 'install-hive') {
+            send('/api/apiary/hives', undefined, function () {
+                cliquetis();
+                toast('Ruche installée. Les abeilles s’y mettent déjà.');
+            });
+            return;
+        }
+        if (action === 'upgrade-hive') {
+            send('/api/apiary/hives/' + Number(id) + '/upgrade', undefined, function () {
+                cliquetis();
+                toast('Ruche agrandie : plus de miel, et plus vite.');
             });
             return;
         }

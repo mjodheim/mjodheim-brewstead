@@ -1698,10 +1698,14 @@
         dom.lieux.innerHTML = Data.PLACES.filter(function (place) { return place.calque; })
             .map(function (place) {
                 var c = place.calque;
+                // Le serveur a posé l'adresse empreintée sur le conteneur ;
+                // le chemin nu ne sert que de secours.
+                var art = dom.lieux.dataset['art' + place.id.charAt(0).toUpperCase() + place.id.slice(1)]
+                    || '/images/lieux/' + place.id + '.webp';
                 return '<button class="lieu" type="button" data-place="' + place.id + '"' +
                     ' data-state="idle" tabindex="-1" aria-hidden="true"' +
                     ' style="left:' + c.x + 'px;top:' + c.y + 'px;width:' + c.w + 'px;height:' + c.h + 'px">' +
-                    '<img class="lieu__art" src="/images/lieux/' + place.id + '.webp"' +
+                    '<img class="lieu__art" src="' + esc(art) + '"' +
                     ' alt="" draggable="false" decoding="async" fetchpriority="low">' +
                     '</button>';
             }).join('');

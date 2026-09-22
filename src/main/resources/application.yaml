@@ -15,6 +15,23 @@ spring:
       hibernate:
         format_sql: true
 
+  # Chaque fichier statique est servi sous un nom qui contient l'empreinte de
+  # son contenu. Sans ça, un navigateur peut garder le JavaScript d'hier avec
+  # la feuille de style d'aujourd'hui : l'interface se casse à moitié, et
+  # personne ne comprend pourquoi. Le nom change quand le contenu change,
+  # donc un cache long devient sûr.
+  web:
+    resources:
+      chain:
+        strategy:
+          content:
+            enabled: true
+            paths: "/**"
+      cache:
+        cachecontrol:
+          max-age: 30d
+          cache-public: true
+
 server:
   port: ${PORT:8081}
   forward-headers-strategy: framework

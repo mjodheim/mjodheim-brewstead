@@ -300,75 +300,61 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     padding: 0;
     font-family: "Cinzel", Georgia, serif;
 }
 
+/* Plus d'écriteau : l'icône est posée à même le tableau. Ce qui la tient
+   lisible sur une peinture chargée, ce n'est plus une planche de bois mais
+   deux ombres — une noire serrée qui la détache, une plus large qui la
+   pose. */
 .marker__plate {
     position: relative;
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 7px;
-    font-size: 16px;
-    letter-spacing: .02em;
-    color: #f6e9cd;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, .95);
-    background: linear-gradient(180deg, #4a3320, #241709), var(--grain);
-    background-blend-mode: normal, overlay;
-    border: 2px solid #8a6136;
-    border-radius: 99px;
-    box-shadow:
-            inset 0 1px 0 rgba(255, 224, 170, .28),
-            inset 0 -10px 18px rgba(0, 0, 0, .5),
-            0 6px 16px rgba(0, 0, 0, .55);
-    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    padding: 0;
+    font-size: 15px;
+    letter-spacing: .05em;
+    color: #ffeec9;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .95), 0 0 10px rgba(0, 0, 0, .85);
+    background: none;
+    border: 0;
+    transition: transform .22s ease;
     white-space: nowrap;
 }
 
-.marker__plate::after {
-    content: "";
-    position: absolute;
-    inset: 3px;
-    border: 1px solid rgba(255, 220, 160, .12);
-    border-radius: 99px;
-    pointer-events: none;
-}
-
-/* L'icône dit quel lieu, le compteur dit s'il faut y aller. Une pastille
-   de neuf pixels ne disait ni l'un ni l'autre. */
-
 .marker__icon {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     flex: none;
-    color: var(--gold);
-    opacity: .85;
+    color: var(--gold-hi);
+    opacity: .95;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .95)) drop-shadow(0 0 7px rgba(0, 0, 0, .8));
     transition: color .22s ease, opacity .22s ease;
 }
 
-/* Le nom ne s'affiche qu'à la demande. Sept écriteaux en toutes lettres
-   couvraient le tableau ; réduits à leur médaillon, ils montrent le domaine
-   et disent quand même où l'on va dès qu'on les vise. Le repli se fait sur
-   la colonne de grille, qui s'anime, plutôt que sur la largeur, qui non. */
+/* Le nom ne s'affiche qu'à la demande. Le repli passe par la largeur
+   maximale et non par une colonne de grille : ça ne dépend d'aucune balise
+   interne, donc un JavaScript resté en cache ne peut pas laisser une
+   étiquette vide grande ouverte. */
 .marker__label {
-    display: grid;
-    grid-template-columns: 0fr;
+    max-width: 0;
     margin-left: 0;
+    overflow: hidden;
+    white-space: nowrap;
     opacity: 0;
-    transition: grid-template-columns .24s cubic-bezier(.2, .7, .3, 1),
-                margin-left .24s cubic-bezier(.2, .7, .3, 1),
+    transition: max-width .26s cubic-bezier(.2, .7, .3, 1),
+                margin-left .26s cubic-bezier(.2, .7, .3, 1),
                 opacity .16s ease;
 }
-
-.marker__text { min-width: 0; overflow: hidden; white-space: nowrap; }
 
 .marker:hover .marker__label,
 .marker:focus-visible .marker__label,
 .marker.is-lit .marker__label,
 .marker.is-active .marker__label {
-    grid-template-columns: 1fr;
+    max-width: 12em;
     margin-left: 9px;
     opacity: 1;
 }
@@ -414,8 +400,8 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 :root[data-mouvement="sobre"] .marker__count { animation: none; }
 
 .marker__pin {
-    width: 14px;
-    height: 14px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: radial-gradient(circle at 40% 35%, var(--gold-hi), var(--gold-lo));
     box-shadow: 0 0 0 3px rgba(20, 12, 4, .55), 0 4px 10px rgba(0, 0, 0, .6);
@@ -424,29 +410,14 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .marker:hover .marker__plate,
 .marker:focus-visible .marker__plate,
-.marker.is-lit .marker__plate {
-    transform: translateY(-3px);
-    border-color: var(--gold);
-    box-shadow:
-            inset 0 1px 0 rgba(255, 224, 170, .35),
-            inset 0 -10px 18px rgba(0, 0, 0, .45),
-            0 10px 22px rgba(0, 0, 0, .6),
-            0 0 0 1px rgba(233, 188, 85, .5);
-}
+.marker.is-lit .marker__plate { transform: translateY(-3px); }
 
-.marker.is-active .marker__plate {
-    border-color: var(--gold);
-    box-shadow: 0 0 0 2px rgba(233, 188, 85, .55), 0 10px 22px rgba(0, 0, 0, .6);
-}
+/* Sans planche, l'état se dit sur l'icône elle-même : sa couleur, et la
+   halo d'ombre colorée qui la remplace. */
+.marker.is-active .marker__icon { color: #fff4d8; }
 
-/* Sur un décor aussi chargé, un lieu qui appelle doit se détacher du reste. */
-.marker[data-state="ready"] .marker__plate {
-    border-color: rgba(121, 196, 106, .7);
-    box-shadow:
-            inset 0 1px 0 rgba(255, 224, 170, .28),
-            inset 0 -10px 18px rgba(0, 0, 0, .5),
-            0 6px 16px rgba(0, 0, 0, .55),
-            0 0 1.4em rgba(121, 196, 106, .3);
+.marker[data-state="ready"] .marker__icon {
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .95)) drop-shadow(0 0 9px rgba(121, 196, 106, .95));
 }
 
 .marker[data-state="idle"] .marker__plate { opacity: .82; }

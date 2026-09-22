@@ -114,7 +114,18 @@
             <img class="world__art" id="worldArt" width="1536" height="742" alt="Le domaine de Brewstead"
                  th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
             <svg th:replace="~{game/brewstead-atmosphere :: atmosphere}"></svg>
-            <div class="world__lieux" id="lieux" aria-hidden="true"></div>
+            <!-- Les calques sont posés par le script, qui ne sait pas calculer
+                 l'empreinte d'un fichier. Le serveur la lui donne ici, sinon
+                 ces sept images seraient les seules à garder leur ancien
+                 contenu en cache après une mise à jour. -->
+            <div class="world__lieux" id="lieux" aria-hidden="true"
+                 th:attr="data-art-rucher=@{/images/lieux/rucher.webp},
+                          data-art-champs=@{/images/lieux/champs.webp},
+                          data-art-entrepot=@{/images/lieux/entrepot.webp},
+                          data-art-brasserie=@{/images/lieux/brasserie.webp},
+                          data-art-laboratoire=@{/images/lieux/laboratoire.webp},
+                          data-art-taverne=@{/images/lieux/taverne.webp},
+                          data-art-commandes=@{/images/lieux/commandes.webp}"></div>
             <div class="world__markers" id="markers"></div>
         </div>
         <div class="world__fx" aria-hidden="true">

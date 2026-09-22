@@ -324,6 +324,47 @@
     stroke-width: 3.5;
 }
 
+/* Commandes ---------------------------------------------------------------- */
+
+.sc-tableau__cadre { fill: #4a3218; stroke: rgba(14, 8, 2, .55); stroke-width: 3; }
+.sc-tableau__liege { fill: #8a6a42; }
+.sc-tableau__grain { fill: rgba(60, 40, 18, .3); }
+
+.sc-feuille__ombre { fill: rgba(10, 6, 2, .4); }
+.sc-feuille { fill: #ece0c2; stroke: rgba(80, 58, 26, .45); stroke-width: 1.6; }
+.sc-feuille__corne { fill: #cdbd99; stroke: rgba(80, 58, 26, .4); stroke-width: 1.4; }
+.sc-feuille__filet { fill: none; stroke: rgba(90, 64, 28, .4); stroke-width: 1.6; }
+
+.sc-contrat[data-state="ready"] .sc-feuille { stroke: rgba(121, 196, 106, .8); stroke-width: 3; }
+.sc-contrat[data-state="busy"] .sc-feuille { fill: #e3d6b6; }
+
+.sc-feuille__client,
+.sc-feuille__recette,
+.sc-feuille__quoi,
+.sc-feuille__prix,
+.sc-feuille__note,
+.sc-feuille__delai,
+.sc-cachet__texte { text-anchor: middle; fill: #3d2a10; }
+
+.sc-feuille__client { font: 600 17px "Cinzel", Georgia, serif; }
+.sc-feuille__quoi { font: 700 28px "Cinzel", Georgia, serif; fill: #6b4a14; }
+.sc-feuille__recette { font: 400 15px "Spectral", Georgia, serif; }
+.sc-feuille__note { font: 400 12px "Spectral", Georgia, serif; fill: #6d5730; }
+.sc-feuille__prix { font: 700 18px "Cinzel", Georgia, serif; fill: #7a5410; }
+
+.sc-feuille__delai {
+    font: 600 13px system-ui, sans-serif;
+    fill: #7d6338;
+    paint-order: normal;
+    stroke: none;
+}
+
+.sc-punaise { fill: #b1402f; stroke: rgba(40, 12, 6, .5); stroke-width: 1.6; }
+.sc-punaise__reflet { fill: rgba(255, 224, 200, .6); }
+
+.sc-cachet { fill: rgba(150, 44, 32, .88); stroke: rgba(70, 18, 10, .6); stroke-width: 2; }
+.sc-cachet__texte { font: 600 13px "Cinzel", Georgia, serif; fill: #f6e2cf; }
+
 /* Pastille d'action -------------------------------------------------------- */
 
 .sc-badge__disc { fill: rgba(22, 14, 5, .82); stroke: rgba(233, 188, 85, .55); stroke-width: 2; }

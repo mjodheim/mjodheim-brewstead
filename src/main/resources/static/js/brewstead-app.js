@@ -543,6 +543,7 @@
         commandes: {
             live: true,
             title: 'Commandes',
+            scene: 'commandes',
             render: function (s) {
                 var tabs = '<div class="tabs">' +
                     [['marche', 'Le marché'], ['miennes', 'Les miennes'], ['pnj', 'Les marchands']]
@@ -1567,7 +1568,8 @@
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
             brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
             taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.',
-            entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.'
+            entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.',
+            commandes: 'Touche une feuille pour prendre le contrat, ou pour livrer quand ta cave suit. « Voir la liste » ouvre le marché entre domaines.'
         }[view] || '';
 
         var actions = '';

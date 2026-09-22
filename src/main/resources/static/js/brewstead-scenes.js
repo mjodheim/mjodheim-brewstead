@@ -134,7 +134,8 @@
         rucher: { x: 285, y: 150, width: 430 },
         brasserie: { x: 841, y: 232, width: 400 },
         taverne: { x: 1020, y: 470, width: 420 },
-        entrepot: { x: 292, y: 448, width: 400 }
+        entrepot: { x: 292, y: 448, width: 400 },
+        commandes: { x: 1372, y: 520, width: 330 }
     };
 
     var ART = '/images/brewstead-domaine.webp';
@@ -1005,6 +1006,117 @@
             '<path class="sc-pot__etiquette" d="M' + (x - w * 0.34) + ' ' + (y - h * 0.5) + 'h' + (w * 0.68) + 'v' + (h * 0.3) + 'h' + (-w * 0.68) + 'Z"/>';
     }
 
+
+    /* ---------------------------------------------------------- Commandes */
+
+    /**
+     * Le tableau d'affichage.
+     *
+     * <p>Les contrats étaient des lignes de liste. Le tableau existe pourtant
+     * déjà dans le décor peint, avec ses parchemins cloués : on le dessine.
+     * Chaque marchand a sa feuille, punaisée de travers, avec ce qu'il veut,
+     * ce qu'il paie, et le temps qu'il reste. Une feuille prête à livrer
+     * s'allume ; une feuille acceptée porte son cachet de cire.
+     */
+    function commandes(state) {
+        var contrats = (state.npcOrders || []).filter(function (o) {
+            return o.status === 'OPEN' || o.status === 'IN_PROGRESS';
+        }).slice(0, 3);
+        if (!contrats.length) return '';
+
+        var bois = '<g class="sc-tableau">' +
+            '<path class="sc-tableau__cadre" d="M52 96h856v404H52Z"/>' +
+            '<path class="sc-tableau__liege" d="M74 118h812v360H74Z"/>';
+        for (var g = 0; g < 26; g++) {
+            var gx = 74 + jitter(11, g) * 812;
+            var gy = 118 + jitter(11, g + 40) * 360;
+            bois += '<circle class="sc-tableau__grain" cx="' + gx.toFixed(0) + '" cy="' + gy.toFixed(0) +
+                '" r="' + (2 + jitter(11, g + 80) * 3).toFixed(1) + '"/>';
+        }
+        bois += '</g>';
+
+        var feuilles = contrats.map(function (contrat, i) {
+            var x = 480 + (i - (contrats.length - 1) / 2) * 268;
+            return parchemin(contrat, state, x, 300, i);
+        }).join('');
+
+        return defs() + painted('commandes') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            bois +
+            '<g class="sc-lanterns"><ellipse cx="480" cy="180" rx="260" ry="110" fill="url(#sc-halo)"/></g>' +
+            feuilles + light();
+    }
+
+    /** Une feuille punaisée : ce qu'on veut, ce qu'on paie, ce qu'il reste. */
+    function parchemin(contrat, state, x, y, i) {
+        var ligne = (contrat.lines || [])[0] || {};
+        var enCours = contrat.status === 'IN_PROGRESS';
+        var livrable = (contrat.lines || []).length > 0 && (contrat.lines || []).every(function (l) {
+            return (state.batches || []).filter(function (b) {
+                return b.recipeId === l.recipeId && b.status === 'READY' && b.quality >= l.minQuality;
+            }).reduce(function (t, b) { return t + Number(b.volume); }, 0) >= l.quantity;
+        });
+        var etat = livrable ? 'ready' : (enCours ? 'busy' : 'open');
+
+        var w = 216, h = 280;
+        var gauche = x - w / 2;
+        var haut = y - h / 2;
+        // Chaque feuille penche un peu, et toujours du même côté : une
+        // punaise au milieu ne tient pas une feuille droite.
+        var angle = (jitter(7, i) - 0.5) * 5;
+
+        var action = livrable ? 'npc-complete' : (contrat.status === 'OPEN' ? 'npc-accept' : '');
+
+        return '<g class="sc-node sc-contrat" data-state="' + etat + '" data-id="' + contrat.id + '"' +
+            (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
+            ' aria-label="' + esc(contrat.customerName || 'Contrat') + '"' +
+            ' transform="rotate(' + angle.toFixed(2) + ' ' + x + ' ' + y + ')">' +
+
+            (livrable
+                ? '<ellipse class="sc-node__glow" cx="' + x + '" cy="' + y +
+                  '" rx="' + (w * 0.78) + '" ry="' + (h * 0.62) + '" fill="url(#sc-halo)"/>'
+                : '') +
+
+            '<path class="sc-feuille__ombre" d="M' + (gauche + 6) + ' ' + (haut + 8) + 'h' + w + 'v' + h + 'h' + (-w) + 'Z"/>' +
+            // Un coin corné en bas à droite : une feuille plate est un rectangle.
+            '<path class="sc-feuille" d="M' + gauche + ' ' + haut + 'h' + w + 'v' + (h - 26) +
+            'l-26 26H' + gauche + 'Z"/>' +
+            '<path class="sc-feuille__corne" d="M' + (gauche + w) + ' ' + (haut + h - 26) +
+            'l-26 26v-26Z"/>' +
+
+            '<text class="sc-feuille__client" x="' + x + '" y="' + (haut + 44) + '">' +
+            esc(contrat.customerName || '') + '</text>' +
+            '<path class="sc-feuille__filet" d="M' + (gauche + 26) + ' ' + (haut + 58) + 'h' + (w - 52) + '"/>' +
+
+            '<text class="sc-feuille__quoi" x="' + x + '" y="' + (haut + 104) + '">' +
+            esc(ligne.quantity ? ligne.quantity + ' L' : '') + '</text>' +
+            '<text class="sc-feuille__recette" x="' + x + '" y="' + (haut + 130) + '">' +
+            esc(ligne.recipeName || '') + '</text>' +
+            (ligne.minQuality
+                ? '<text class="sc-feuille__note" x="' + x + '" y="' + (haut + 152) + '">qualité ≥ ' +
+                  ligne.minQuality + '</text>'
+                : '') +
+
+            '<text class="sc-feuille__prix" x="' + x + '" y="' + (haut + 200) + '">' +
+            (contrat.rewardCoins || 0) + ' pièces</text>' +
+            '<text class="sc-feuille__note" x="' + x + '" y="' + (haut + 222) + '">+' +
+            (contrat.rewardReputation || 0) + ' réputation</text>' +
+            '<text class="sc-plot__time sc-feuille__delai" x="' + x + '" y="' + (haut + 250) + '">' +
+            esc(countdown(contrat.expiresAt)) + '</text>' +
+
+            // La punaise, et le cachet de cire quand le contrat est pris.
+            '<circle class="sc-punaise" cx="' + x + '" cy="' + (haut + 14) + '" r="9"/>' +
+            '<circle class="sc-punaise__reflet" cx="' + (x - 3) + '" cy="' + (haut + 11) + '" r="3"/>' +
+            (enCours
+                ? '<circle class="sc-cachet" cx="' + (gauche + 40) + '" cy="' + (haut + h - 54) + '" r="22"/>' +
+                  '<text class="sc-cachet__texte" x="' + (gauche + 40) + '" y="' + (haut + h - 48) + '">pris</text>'
+                : '') +
+
+            (livrable ? badge(gauche + w - 34, haut + h - 66, 1, 'ready') : '') +
+            hit(x, haut, w + 24, h + 24) +
+            '</g>';
+    }
+
     /* ------------------------------------------------------------- Montage */
 
     var SCENES = {
@@ -1012,7 +1124,8 @@
         rucher: { build: rucher, empty: 'Aucune ruche installée.' },
         brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' },
         taverne: { build: taverne, empty: '' },
-        entrepot: { build: entrepot, empty: 'L’entrepôt est vide.' }
+        entrepot: { build: entrepot, empty: 'L’entrepôt est vide.' },
+        commandes: { build: commandes, empty: 'Aucun marchand n’est encore passé. Le premier ne tardera pas.' }
     };
 
     /**
@@ -1042,6 +1155,11 @@
             return (state.inventory || []).map(function (i) {
                 return i.ingredientId + ':' + i.quantity;
             }).join('|');
+        }
+        if (place === 'commandes') {
+            return (state.npcOrders || []).filter(function (o) {
+                return o.status === 'OPEN' || o.status === 'IN_PROGRESS';
+            }).map(function (o) { return o.id + ':' + o.status; }).join('|');
         }
         return '';
     }
@@ -1082,6 +1200,16 @@
                 if (!node) return;
                 var time = node.querySelector('.sc-plot__time');
                 if (time) time.textContent = hiveState(hive) === 'growing' ? countdown(hive.readyAt) : '';
+            });
+            return;
+        }
+
+        if (place === 'commandes') {
+            (state.npcOrders || []).forEach(function (order) {
+                var node = root.querySelector('.sc-contrat[data-id="' + order.id + '"]');
+                if (!node) return;
+                var time = node.querySelector('.sc-feuille__delai');
+                if (time) time.textContent = countdown(order.expiresAt);
             });
             return;
         }

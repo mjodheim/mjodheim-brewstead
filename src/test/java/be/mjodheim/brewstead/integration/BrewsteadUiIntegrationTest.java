@@ -314,7 +314,7 @@ class BrewsteadUiIntegrationTest {
 
             // Une vraie commande entre joueurs, publiée et livrée par l'interface.
             alice.manage().window().setSize(new Dimension(1440, 1000));
-            ouvrirVue(alice, a, "commandes");
+            ouvrirEnListe(alice, a, "commandes", ".tabs");
             click(alice, a, By.cssSelector("[data-action='new-order']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")))
                     .sendKeys("Eau de source");
@@ -345,7 +345,7 @@ class BrewsteadUiIntegrationTest {
             a.until(d -> !orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).isEmpty());
             var order = orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).getFirst();
             assertEquals(coins - 20, profile("ui_chat_alice").getCoin());
-            ouvrirVue(bob, b, "commandes");
+            ouvrirEnListe(bob, b, "commandes", ".tabs");
             By deliver = By.cssSelector("[data-action='fulfill-order'][data-id='" + order.getId() + "']");
             new WebDriverWait(bob, Duration.ofSeconds(30)).until(ExpectedConditions.elementToBeClickable(deliver));
             click(bob, b, deliver);
@@ -425,7 +425,14 @@ class BrewsteadUiIntegrationTest {
             waitForMutation(brewer, wait);
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedHives());
 
+            // Le tableau d'affichage montre les contrats punaisés ; la liste
+            // détaillée est derrière « Voir la liste ».
             ouvrirVue(brewer, wait, "commandes");
+            wait.until(d -> !d.findElements(By.cssSelector(".sc-contrat")).isEmpty());
+            assertFalse(brewer.findElements(By.cssSelector(".sc-feuille")).isEmpty(),
+                    "Un contrat doit être une feuille punaisée, pas une ligne.");
+
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
             // Le marchand se présente de lui-même dès qu'on ouvre le comptoir.
             wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(player.getId()).isEmpty());
@@ -449,7 +456,10 @@ class BrewsteadUiIntegrationTest {
 
             int coinsBefore = profile("ui_full_brewer").getCoin();
             int reputationBefore = profile("ui_full_brewer").getReputation();
-            ouvrirVue(brewer, wait, "commandes");
+            // Ce parcours a déjà basculé les commandes en liste plus haut, et
+            // le choix reste mémorisé par lieu : c'est donc la liste qui
+            // s'ouvre, et c'est son bouton qu'on vise.
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='npc-complete'][data-id='" + order.getId() + "']"));
             waitForMutation(brewer, wait);
             assertEquals(be.mjodheim.brewstead.enums.OrderStatus.COMPLETED,
@@ -606,7 +616,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
-            ouvrirVue(brewer, wait, "commandes");
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
             wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).isEmpty());
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
@@ -908,6 +918,27 @@ class BrewsteadUiIntegrationTest {
      * comptoir détaillé. La salle dessinée s'ouvre la première ; « Voir la
      * liste » donne accès au reste.
      */
+    /**
+     * Ouvre un lieu dessiné sur sa vue en liste, quand c'est elle qu'on teste.
+     *
+     * <p>Le décor se redessine tout seul quand son contenu bouge : chercher
+     * le bouton, cliquer et vérifier doivent tenir dans la même tentative,
+     * sinon la référence est caduque entre deux lignes.
+     */
+    private void ouvrirEnListe(WebDriver driver, WebDriverWait wait, String view, String repere) {
+        ouvrirVue(driver, wait, view);
+        By versListe = By.cssSelector("[data-action='show-list'][data-id='" + view + "']");
+        wait.ignoring(StaleElementReferenceException.class)
+                .ignoring(ElementClickInterceptedException.class)
+                .until(d -> {
+                    if (!d.findElements(By.cssSelector(repere)).isEmpty()) return true;
+                    List<WebElement> bouton = d.findElements(versListe);
+                    if (bouton.isEmpty()) return false;
+                    click(d, bouton.getFirst());
+                    return false;
+                });
+    }
+
     private void ouvrirTaverneEnListe(WebDriver driver, WebDriverWait wait) {
         ouvrirVue(driver, wait, "taverne");
         waitForScreen(wait, "Taverne");

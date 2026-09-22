@@ -10,47 +10,54 @@
     var XP_PER_LEVEL = 1000;
     var AVATARS = ['CERF', 'CORBEAU', 'OURS', 'LOUP', 'ABEILLE', 'ORGE', 'TONNEAU', 'MARTEAU'];
 
-    /* ---------------------------------------------------------------- Lieux */
+    /* ---------------------------------------------------------------- Lieux
+     *
+     * « x, y » place l'écriteau. « calque » donne le rectangle du bâtiment
+     * dans le tableau (1536 x 742), tel qu'il a été découpé dans
+     * images/lieux/<id>.webp : c'est le noyau de la découpe, sans les 34 px
+     * de fondu qui débordent tout autour. Le CSS s'appuie sur cet écart,
+     * donc les deux se déplacent ensemble ou pas du tout.
+     */
 
     var PLACES = [
         {
-            id: 'rucher', label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
+            id: 'rucher', calque: { x: 123, y: 87, w: 264, h: 136 }, label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
             x: 285, y: 147, screen: 'rucher',
             intro: "Les ruches du coteau donnent le miel de bruyère qui fait la rondeur de tes hydromels.",
             action: 'Récolter le miel'
         },
         {
-            id: 'champs', label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
+            id: 'champs', calque: { x: 82, y: 238, w: 316, h: 124 }, label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
             x: 241, y: 277, screen: 'champs',
             intro: "Orge, houblon et plantes aromatiques poussent ici, au rythme des saisons du fjord.",
             action: 'Gérer les cultures'
         },
         {
-            id: 'entrepot', label: 'Entrepôt', kicker: 'Stocks & matières', icon: 'i-pouch',
+            id: 'entrepot', calque: { x: 174, y: 382, w: 252, h: 136 }, label: 'Entrepôt', kicker: 'Stocks & matières', icon: 'i-pouch',
             x: 292, y: 443, screen: 'inventaire',
             intro: "Tout ce que le domaine produit finit ici avant de repartir en brassin ou en livraison.",
             action: 'Ouvrir l’inventaire'
         },
         {
-            id: 'brasserie', label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
+            id: 'brasserie', calque: { x: 618, y: 110, w: 388, h: 236 }, label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
             x: 841, y: 227, screen: 'brasserie',
             intro: "Cuves, fûts et fermentation : c’est ici que les recettes deviennent des bières et des hydromels.",
             action: 'Suivre les brassins'
         },
         {
-            id: 'laboratoire', label: 'Laboratoire', kicker: 'Recherche & recettes', icon: 'i-recipe',
+            id: 'laboratoire', calque: { x: 1188, y: 190, w: 284, h: 204 }, label: 'Laboratoire', kicker: 'Recherche & recettes', icon: 'i-recipe',
             x: 1334, y: 260, screen: 'recettes',
             intro: "On y assemble les recettes, on y note les dosages, on y rate parfois de belles idées.",
             action: 'Ouvrir le grimoire'
         },
         {
-            id: 'taverne', label: 'Taverne', kicker: 'Voyageurs & réputation', icon: 'i-tavern',
+            id: 'taverne', calque: { x: 856, y: 376, w: 328, h: 200 }, label: 'Taverne', kicker: 'Voyageurs & réputation', icon: 'i-tavern',
             x: 934, y: 463, screen: 'taverne',
             intro: "Les voyageurs s’y arrêtent, goûtent, racontent. Ta réputation se construit à cette table.",
             action: 'Entrer dans la taverne'
         },
         {
-            id: 'commandes', label: 'Commandes', kicker: 'Commerce', icon: 'i-orders',
+            id: 'commandes', calque: { x: 1284, y: 474, w: 176, h: 124 }, label: 'Commandes', kicker: 'Commerce', icon: 'i-orders',
             x: 1364, y: 523, screen: 'commandes',
             intro: "Les demandes des marchands et des autres domaines. Livre à l’heure, la réputation suit.",
             action: 'Voir les commandes'

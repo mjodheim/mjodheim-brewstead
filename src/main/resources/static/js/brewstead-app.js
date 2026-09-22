@@ -1539,6 +1539,9 @@
                 ? 'Ouvrir : ' + place.label + ' — ' + count + ' à voir'
                 : 'Ouvrir : ' + place.label);
 
+            var lit = dom.lieux.querySelector('[data-place="' + place.id + '"]');
+            if (lit) lit.dataset.state = placeState;
+
             var chip = dom.places.querySelector('[data-place="' + place.id + '"]');
             if (!chip) return;
             chip.dataset.state = placeState;
@@ -1677,6 +1680,33 @@
         }).join('');
     }
 
+    /**
+     * Les bâtiments du tableau, découpés et reposés à leur place.
+     *
+     * <p>Le fond reste la peinture entière : chaque découpe se superpose
+     * exactement à l'endroit d'où elle vient, donc il n'y a aucun trou. Elle
+     * est invisible au repos et ne sert qu'à éclairer son bâtiment quand on
+     * le vise — c'est le bâtiment qu'on touche, pas une étiquette posée
+     * dessus.
+     *
+     * <p>Le rectangle du bouton est le noyau du lieu, sans la marge de
+     * fondu : les planches voisines se recouvrent, pas les noyaux, donc
+     * chaque bâtiment garde son propre survol. L'image déborde du bouton,
+     * le CSS s'en charge.
+     */
+    function buildPlaceLayers() {
+        dom.lieux.innerHTML = Data.PLACES.filter(function (place) { return place.calque; })
+            .map(function (place) {
+                var c = place.calque;
+                return '<button class="lieu" type="button" data-place="' + place.id + '"' +
+                    ' data-state="idle" tabindex="-1" aria-hidden="true"' +
+                    ' style="left:' + c.x + 'px;top:' + c.y + 'px;width:' + c.w + 'px;height:' + c.h + 'px">' +
+                    '<img class="lieu__art" src="/images/lieux/' + place.id + '.webp"' +
+                    ' alt="" draggable="false" decoding="async" fetchpriority="low">' +
+                    '</button>';
+            }).join('');
+    }
+
     function buildMarkers() {
         dom.markers.innerHTML = Data.PLACES.map(function (place) {
             return '<button class="marker" type="button" data-place="' + place.id + '" data-state="idle"' +
@@ -1684,12 +1714,25 @@
                 ' aria-label="Ouvrir : ' + esc(place.label) + '">' +
                 '<span class="marker__plate">' +
                 icon(place.icon, 'marker__icon') +
-                '<span class="marker__label">' + esc(place.label) + '</span>' +
+                '<span class="marker__label"><span class="marker__text">' + esc(place.label) + '</span></span>' +
                 '<span class="marker__count" hidden></span>' +
                 '</span>' +
                 '<span class="marker__pin"></span>' +
                 '</button>';
         }).join('');
+    }
+
+    /**
+     * Allume le lieu visé — sa découpe dans le tableau et son médaillon — et
+     * éteint les autres. {@code null} éteint tout.
+     */
+    function viser(id) {
+        dom.lieux.querySelectorAll('.lieu').forEach(function (lieu) {
+            lieu.classList.toggle('is-lit', lieu.dataset.place === id);
+        });
+        dom.markers.querySelectorAll('.marker').forEach(function (marker) {
+            marker.classList.toggle('is-lit', marker.dataset.place === id);
+        });
     }
 
     function openPlace(id) {
@@ -1700,6 +1743,9 @@
 
         dom.markers.querySelectorAll('.marker').forEach(function (marker) {
             marker.classList.toggle('is-active', marker.dataset.place === id);
+        });
+        dom.lieux.querySelectorAll('.lieu').forEach(function (lieu) {
+            lieu.classList.toggle('is-active', lieu.dataset.place === id);
         });
         dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
             chip.classList.toggle('is-active', chip.dataset.place === id);
@@ -1732,6 +1778,9 @@
         dom.place.setAttribute('aria-hidden', 'true');
         dom.markers.querySelectorAll('.marker').forEach(function (marker) {
             marker.classList.remove('is-active');
+        });
+        dom.lieux.querySelectorAll('.lieu').forEach(function (lieu) {
+            lieu.classList.remove('is-active');
         });
         dom.places.querySelectorAll('.place-chip').forEach(function (chip) {
             chip.classList.remove('is-active');
@@ -1794,6 +1843,28 @@
             var marker = event.target.closest('.marker');
             if (marker) openPlace(marker.dataset.place);
         });
+
+        // Toucher le bâtiment lui-même ouvre son lieu.
+        dom.lieux.addEventListener('click', function (event) {
+            var lieu = event.target.closest('.lieu');
+            if (lieu) openPlace(lieu.dataset.place);
+        });
+
+        // Le bâtiment et son médaillon ne font qu'un : viser l'un allume
+        // l'autre. Sans ça, pointer l'écriteau « Brasserie » n'éclairait pas
+        // la brasserie, et pointer la brasserie ne disait pas son nom.
+        if (window.matchMedia('(hover: hover)').matches) {
+            [dom.lieux, dom.markers].forEach(function (zone) {
+                zone.addEventListener('pointerover', function (event) {
+                    var cible = event.target.closest('.lieu, .marker');
+                    if (cible) viser(cible.dataset.place);
+                });
+                zone.addEventListener('pointerout', function (event) {
+                    var cible = event.target.closest('.lieu, .marker');
+                    if (cible && !cible.contains(event.relatedTarget)) viser(null);
+                });
+            });
+        }
 
         dom.places.addEventListener('click', function (event) {
             var chip = event.target.closest('.place-chip');
@@ -1911,10 +1982,11 @@
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
-            'playerCard', 'settingsBtn', 'reapBtn', 'reapCount', 'places', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
+            'playerCard', 'settingsBtn', 'reapBtn', 'reapCount', 'places', 'lieux', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
             'weatherChip', 'weatherLabel'].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
+        buildPlaceLayers();
         buildPlaces();
         initAtmosphere();
         camera = global.BrewsteadWorld.create({ world: dom.world, scene: dom.scene });

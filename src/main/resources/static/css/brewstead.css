@@ -321,8 +321,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     width: 1.5em;
     height: 1.5em;
     color: var(--gold);
-    stroke: none;
-    fill: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
 @media (max-width: 720px) {
@@ -1247,6 +1248,36 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .tabs__tab:hover { color: #4a3316; background: rgba(150, 112, 47, .1); }
 .tabs__tab.is-active { color: #34240f; border-bottom-color: #96702f; background: rgba(150, 112, 47, .14); }
 
+/* Le compte de l'onglet : il dit où l'on en est sans avoir à l'ouvrir. */
+.tabs__count {
+    display: inline-block;
+    margin-left: .5em;
+    padding: .1em .5em;
+    font-family: system-ui, sans-serif;
+    font-size: .74em;
+    font-weight: 700;
+    color: #2a1d08;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    border-radius: 99px;
+}
+
+/* L'en-tête des hauts faits : la collection avant le retard. */
+.feats-head {
+    display: grid;
+    gap: .35em;
+    margin-bottom: 1em;
+    padding: .9em 1.1em;
+    background: rgba(150, 112, 47, .12);
+    border: 1px solid rgba(150, 112, 47, .3);
+    border-radius: .7em;
+}
+
+.feats-head strong { font: 600 1.5em "Cinzel", Georgia, serif; color: #34240f; }
+.feats-head small { color: var(--ink-soft); }
+.feats-head .bar { height: .5em; margin-top: .2em; }
+
+.achievement__done { color: #6b4e14 !important; font-weight: 600; }
+
 .chat {
     display: flex;
     flex-direction: column;
@@ -1709,4 +1740,114 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
        L'ordre est explicite : sous 860 px, .hud__center passe en `order: 3`
        et la barre, restée à zéro, se retrouvait au-dessus des ressources. */
     .places { display: flex; order: 4; }
+}
+
+/* La fanfare d'un haut fait ------------------------------------------------
+   Elle couvre l'écran une poignée de secondes. C'est le seul moment du jeu
+   qui s'autorise à interrompre : un haut fait ne se gagne qu'une fois. */
+
+.feat {
+    position: fixed;
+    inset: 0;
+    /* Au-dessus de tout sauf de l'écran d'erreur : une panne ne doit jamais
+       passer derrière une félicitation. */
+    z-index: 55;
+    display: grid;
+    place-items: center;
+    padding: 1.4em;
+    background: rgba(8, 5, 2, .58);
+    backdrop-filter: blur(3px);
+    pointer-events: auto;
+}
+
+.feat[hidden] { display: none; }
+
+.feat__card {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: .35em;
+    max-width: 24em;
+    padding: 2.2em 1.8em 1.6em;
+    text-align: center;
+    color: var(--cream);
+    background: linear-gradient(180deg, #3b2a14, #1d1308), var(--grain);
+    background-blend-mode: normal, overlay;
+    border: 2px solid var(--gold);
+    border-radius: 1.1em;
+    box-shadow: 0 1.4em 3em rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 224, 170, .3);
+}
+
+/* L'éclat derrière le trophée. Il part du centre et se dilate une fois :
+   la lumière fait l'événement, pas le texte. */
+.feat__burst {
+    position: absolute;
+    top: 2.6em;
+    width: 12em;
+    height: 12em;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 216, 130, .55), transparent 62%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Le trophée est un icône au trait, comme tous les autres : le remplir le
+   réduisait à une tache. On épaissit seulement le trait, pour la taille. */
+.feat__icon {
+    width: 3.4em;
+    height: 3.4em;
+    color: var(--gold-hi);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 .2em .5em rgba(0, 0, 0, .6));
+}
+
+.feat__kicker {
+    margin: .4em 0 0;
+    font-size: .76em;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--gold);
+}
+
+.feat__title { margin: .1em 0 0; font: 600 1.6em "Cinzel", Georgia, serif; }
+.feat__desc { margin: .1em 0 0; color: var(--cream-dim); }
+
+.feat__reward {
+    margin: .6em 0 0;
+    padding: .3em .9em;
+    font-family: system-ui, sans-serif;
+    font-size: .86em;
+    font-weight: 700;
+    color: #2a1d08;
+    background: linear-gradient(180deg, var(--gold-hi), var(--gold-lo));
+    border-radius: 99px;
+}
+
+.feat__close { margin-top: 1.1em; }
+
+.feat.is-in .feat__card { animation: feat-pop .5s cubic-bezier(.2, 1.25, .35, 1) both; }
+.feat.is-in .feat__burst { animation: feat-burst 1.1s ease-out both; }
+.feat.is-in .feat__icon { animation: feat-rise .7s cubic-bezier(.2, 1.3, .3, 1) .08s both; }
+
+@keyframes feat-pop {
+    from { opacity: 0; transform: scale(.82) translateY(1.2em); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes feat-burst {
+    0% { opacity: 0; transform: scale(.3); }
+    35% { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.5); }
+}
+
+@keyframes feat-rise {
+    from { transform: scale(.4) rotate(-14deg); }
+    to { transform: none; }
+}
+
+@media (max-width: 520px) {
+    .feat__card { padding: 1.8em 1.2em 1.3em; }
+    .feat__title { font-size: 1.35em; }
 }

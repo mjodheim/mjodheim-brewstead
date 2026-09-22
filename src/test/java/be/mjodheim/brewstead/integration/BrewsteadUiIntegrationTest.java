@@ -117,7 +117,13 @@ class BrewsteadUiIntegrationTest {
             wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
 
             click(driver, wait, By.cssSelector(".dock__tab[data-view='classement']"));
-            waitForScreen(wait, "Renommée & hauts faits");
+            waitForScreen(wait, "Renommée");
+
+            // L'écran s'ouvre sur les hauts faits : c'est ce qu'on vient y voir.
+            assertTrue(driver.findElement(By.cssSelector(".feats-head")).isDisplayed());
+            assertEquals(8, driver.findElements(By.cssSelector(".achievement")).size());
+
+            click(driver, wait, By.cssSelector("[data-action='renom-tab'][data-id='domaine']"));
             assertEquals(3, driver.findElements(By.cssSelector(".specialization")).size());
             assertEquals(4, driver.findElements(By.cssSelector(".theme-choice")).size());
             assertTrue(driver.findElement(By.cssSelector(".season-card")).isDisplayed());
@@ -473,6 +479,7 @@ class BrewsteadUiIntegrationTest {
 
             brewer.manage().window().setSize(new Dimension(390, 844));
             click(brewer, wait, By.cssSelector(".dock__tab[data-view='classement']"));
+            click(brewer, wait, By.cssSelector("[data-action='renom-tab'][data-id='domaine']"));
             assertTrue(brewer.findElement(By.cssSelector(".daily-card")).isDisplayed());
             assertTrue((Boolean) ((JavascriptExecutor) brewer).executeScript(
                     "const e=document.getElementById('screenBody'); return e.scrollWidth <= e.clientWidth + 1;"));
@@ -864,11 +871,24 @@ class BrewsteadUiIntegrationTest {
     private void click(WebDriver driver, WebDriverWait wait, By locator) {
         wait.ignoring(StaleElementReferenceException.class).ignoring(ElementClickInterceptedException.class)
                 .until(d -> {
+                    fermerLaFanfare(d);
                     WebElement element = d.findElement(locator);
                     if (!element.isDisplayed() || !element.isEnabled()) return false;
                     click(d, element);
                     return true;
                 });
+    }
+
+    /**
+     * Un haut fait gagné pose sa fanfare par-dessus tout l'écran. C'est voulu
+     * en jeu, mais un parcours automatique ne la regarde pas : on la referme
+     * avant chaque clic, comme le ferait une personne pressée.
+     */
+    private void fermerLaFanfare(WebDriver driver) {
+        List<WebElement> fanfare = driver.findElements(By.id("feat"));
+        if (fanfare.isEmpty() || !fanfare.getFirst().isDisplayed()) return;
+        ((JavascriptExecutor) driver).executeScript(
+                "document.getElementById('featClose').click();");
     }
 
     private void click(WebDriver driver, WebElement element) {

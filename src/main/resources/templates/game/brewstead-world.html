@@ -201,6 +201,20 @@
         <ul id="feedList"></ul>
     </aside>
 
+    <!-- La fanfare d'un haut fait. Elle passe devant tout le reste : un haut
+         fait se gagne une fois, il mérite qu'on lève les yeux. -->
+    <div class="hud feat" id="feat" role="status" aria-live="polite" hidden>
+        <div class="feat__card">
+            <span class="feat__burst" aria-hidden="true"></span>
+            <svg class="feat__icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg>
+            <p class="feat__kicker">Haut fait débloqué</p>
+            <h2 class="feat__title" id="featTitle">—</h2>
+            <p class="feat__desc" id="featDesc"></p>
+            <p class="feat__reward" id="featReward"></p>
+            <button class="btn btn--gold feat__close" id="featClose" type="button">Continuer</button>
+        </div>
+    </div>
+
     <button class="hud reap" id="reapBtn" type="button" hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-basket"/></svg>
         <span>Tout récolter</span>

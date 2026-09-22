@@ -25,6 +25,7 @@
     var navigationVersion = 0;
     var offerDraft = null;      // { batchId, recipeName, maxServings }
     var orders = { tab: 'marche', query: '', ingredient: null };
+    var renom = { tab: 'faits' };
     var lab = null;             // brouillon de recette au laboratoire
     var Scenes = global.BrewsteadScenes;
     var sceneSignature = {};    // par lieu : la composition déjà dessinée
@@ -33,9 +34,13 @@
     /* Les préférences restent dans ce navigateur : elles ne décrivent que
        l'affichage, jamais l'état du domaine. */
     var SETTINGS_KEY = 'brewstead.reglages';
-    var DEFAULTS = { taille: 'normale', mouvement: 'complet', ambiance: true, recentrage: true, alertes: true };
+    var DEFAULTS = { taille: 'normale', mouvement: 'complet', ambiance: true, recentrage: true, alertes: true, sons: true };
     var settings = Object.assign({}, DEFAULTS);
     var readySeen = {};
+    var featsConnus = null;     // les hauts faits déjà acquis à l'ouverture
+    var featsAFeter = [];       // ceux qui attendent leur fanfare
+    var featTimer = null;
+    var audio = null;           // créé au premier son, jamais avant
 
     function loadSettings() {
         try {
@@ -600,7 +605,9 @@
                     toggle('recentrage', 'Recentrer sur le lieu ouvert',
                         'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
-                        'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.');
+                        'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.') +
+                    toggle('sons', 'Carillon des hauts faits',
+                        'Deux notes quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
             }
         },
 
@@ -729,68 +736,29 @@
         },
 
         classement: {
-            title: 'Renommée & hauts faits',
+            title: 'Renommée',
             render: function (s) {
                 var progression = s.progression;
-                var achievementBlock = '';
-                if (progression) {
-                    var unlocked = progression.achievements.filter(function (a) { return a.unlocked; }).length;
-                    var season = progression.season;
-                    var selectedSpec = progression.specializations.find(function (spec) { return spec.selected; });
-                    var seasonNext = season.milestones.find(function (value) { return value > season.points; }) || season.milestones[season.milestones.length - 1];
-                    var seasonBlock = '<section class="season-card">' +
-                        '<div><small>Saison en cours · jusqu’au ' + esc(new Date(season.endsOn + 'T12:00:00').toLocaleDateString('fr-FR')) + '</small>' +
-                        '<h3>' + esc(season.name) + '</h3></div>' +
-                        '<strong>' + season.points + ' sceaux</strong>' +
-                        '<div class="season-card__track"><span style="width:' + Math.min(100, season.points / seasonNext * 100) + '%"></span></div>' +
-                        '<small>Palier personnel ' + season.rewardTier + '/' + season.milestones.length +
-                        ' · effort du fjord ' + season.communityPoints + '/' + season.communityTarget + '</small></section>';
-                    var specializationBlock = '<p class="section-title">Spécialisation du domaine</p>' +
-                        '<div class="specializations">' + progression.specializations.map(function (spec) {
-                            var locked = !!selectedSpec && !spec.selected;
-                            var lowLevel = !selectedSpec && s.player.level < 2;
-                            return '<button class="specialization' + (spec.selected ? ' is-selected' : '') + '" type="button"' +
-                                (locked || lowLevel ? ' disabled' : '') + ' data-action="choose-specialization" data-id="' + spec.code + '">' +
-                                '<strong>' + esc(spec.label) + '</strong><small>' + esc(spec.description) + '</small>' +
-                                '<em>' + (spec.selected ? 'Spécialité active' : (lowLevel ? 'Disponible au niveau 2' : 'Choisir définitivement')) + '</em></button>';
-                        }).join('') + '</div>';
-                    var themesBlock = '<p class="section-title">Ambiance du domaine</p><div class="theme-picker">' +
-                        progression.themes.map(function (theme) {
-                            return '<button type="button" class="theme-choice' + (theme.selected ? ' is-selected' : '') +
-                                '" data-action="choose-theme" data-id="' + theme.code + '">' + esc(theme.label) + '</button>';
-                        }).join('') + '</div>';
-                    var daily = progression.dailyQuest;
-                    var dailyBlock = daily ? '<section class="daily-card"><strong>Objectif du jour</strong>' +
-                        '<p>' + esc(daily.title) + ' · ' + daily.progress + '/' + daily.target + '</p>' +
-                        (daily.claimed ? chip('Récompense reçue', 'ok') : actionButton('daily-place', 'Poursuivre l’objectif', daily.place)) + '</section>' : '';
-                    achievementBlock = dailyBlock + seasonBlock + '<div class="progression-summary">' +
-                        '<strong>' + progression.visitStreak + ' jour' + (progression.visitStreak > 1 ? 's' : '') + ' de série</strong>' +
-                        '<span>' + unlocked + '/' + progression.achievements.length + ' hauts faits</span></div>' +
-                        specializationBlock + themesBlock + '<p class="section-title">Hauts faits</p>' +
-                        '<div class="achievements">' + progression.achievements.map(function (achievement) {
-                            var value = Math.min(achievement.progress, achievement.target);
-                            return '<article class="achievement' + (achievement.unlocked ? ' is-unlocked' : '') + '">' +
-                                icon(achievement.unlocked ? 'i-trophy' : 'i-compass', 'achievement__icon') +
-                                '<div><strong>' + esc(achievement.title) + '</strong>' +
-                                '<small>' + esc(achievement.description) + '</small>' +
-                                '<span class="bar"><i style="width:' + (value / achievement.target * 100) + '%"></i></span>' +
-                                '<em>' + value + '/' + achievement.target + ' · ' + achievement.rewardCoins + ' pièces · ' + achievement.rewardExperience + ' XP</em></div>' +
-                                '</article>';
-                        }).join('') + '</div><p class="section-title">Classement du fjord</p>';
-                }
-                var players = (s.tavern.notablePlayers || []).slice().sort(function (a, b) {
-                    return b.reputation - a.reputation;
-                });
-                if (!players.length) return achievementBlock + empty('Le classement n’est pas encore établi.');
-                return achievementBlock + players.map(function (player, index) {
-                    var mine = player.username === s.player.username;
-                    return row({
-                        icon: 'i-trophy',
-                        title: (index + 1) + '. ' + player.username + (mine ? ' — toi' : ''),
-                        meta: 'Niveau ' + player.level,
-                        side: chip(fmt.number(player.reputation) + ' réputation', index === 0 ? 'gold' : null)
-                    });
-                }).join('');
+                if (!progression) return renderClassement(s);
+
+                // Cet écran empilait cinq choses différentes et les hauts
+                // faits arrivaient en dernier, tout en bas. Ils ouvrent
+                // maintenant l'écran, et le reste tient derrière un onglet.
+                var acquis = progression.achievements.filter(function (a) { return a.unlocked; }).length;
+                var onglets = [
+                    ['faits', 'Hauts faits', acquis + '/' + progression.achievements.length],
+                    ['classement', 'Classement', ''],
+                    ['domaine', 'Saison & domaine', '']
+                ];
+                var barre = '<div class="tabs">' + onglets.map(function (o) {
+                    return '<button class="tabs__tab' + (renom.tab === o[0] ? ' is-active' : '') + '"' +
+                        ' type="button" data-action="renom-tab" data-id="' + o[0] + '">' + esc(o[1]) +
+                        (o[2] ? '<span class="tabs__count">' + esc(o[2]) + '</span>' : '') + '</button>';
+                }).join('') + '</div>';
+
+                if (renom.tab === 'classement') return barre + renderClassement(s);
+                if (renom.tab === 'domaine') return barre + renderDomaine(s);
+                return barre + renderHautsFaits(progression);
             }
         }
     };
@@ -1087,6 +1055,8 @@
         }
 
         if (action === 'orders-tab') { orders.tab = id; renderScreen(); return; }
+
+        if (action === 'renom-tab') { renom.tab = id; renderScreen(); return; }
 
         if (action === 'npc-generate') {
             send('/api/npc-orders/players/' + state.player.id + '/generate', undefined, function () { toast('Un marchand te propose un contrat.'); });
@@ -1656,6 +1626,7 @@
         renderEffects();
         renderQuest();
         renderGuide();
+        veilleHautsFaits();
         renderFeed();
         renderMarkers();
         renderPlace();
@@ -1867,10 +1838,210 @@
         if (fil.vue) selectView(fil.vue);
     }
 
+
+
+    /**
+     * Les hauts faits, en premier et à leur avantage.
+     *
+     * <p>Ce qui est gagné se lit d'abord, ce qui reste à faire ensuite : on
+     * ouvre cet écran pour voir sa collection, pas pour mesurer son retard.
+     */
+    function renderHautsFaits(progression) {
+        var faits = progression.achievements.slice().sort(function (a, b) {
+            if (a.unlocked !== b.unlocked) return a.unlocked ? -1 : 1;
+            // À égalité, le plus proche du but passe devant.
+            return (b.progress / b.target) - (a.progress / a.target);
+        });
+        var acquis = faits.filter(function (a) { return a.unlocked; }).length;
+        var pieces = faits.reduce(function (total, a) { return total + (a.unlocked ? a.rewardCoins : 0); }, 0);
+
+        return '<section class="feats-head">' +
+            '<strong>' + acquis + ' sur ' + faits.length + '</strong>' +
+            '<small>' + (acquis
+                ? fmt.number(pieces) + ' pièces déjà gagnées au tableau d’honneur.'
+                : 'Ta première récolte en débloquera un.') + '</small>' +
+            '<span class="bar bar--gold"><i style="width:' + (acquis / faits.length * 100) + '%"></i></span>' +
+            '</section>' +
+            '<div class="achievements">' + faits.map(function (a) {
+                var value = Math.min(a.progress, a.target);
+                return '<article class="achievement' + (a.unlocked ? ' is-unlocked' : '') + '">' +
+                    icon(a.unlocked ? 'i-trophy' : 'i-compass', 'achievement__icon') +
+                    '<div><strong>' + esc(a.title) + '</strong>' +
+                    '<small>' + esc(a.description) + '</small>' +
+                    (a.unlocked
+                        ? '<em class="achievement__done">Gagné le ' +
+                          esc(new Date(a.unlockedAt).toLocaleDateString('fr-FR')) + ' · ' +
+                          a.rewardCoins + ' pièces · ' + a.rewardExperience + ' XP</em>'
+                        : '<span class="bar"><i style="width:' + (value / a.target * 100) + '%"></i></span>' +
+                          '<em>' + value + '/' + a.target + ' · ' + a.rewardCoins + ' pièces · ' +
+                          a.rewardExperience + ' XP</em>') +
+                    '</div></article>';
+            }).join('') + '</div>';
+    }
+
+    function renderClassement(s) {
+        var players = (s.tavern.notablePlayers || []).slice().sort(function (a, b) {
+            return b.reputation - a.reputation;
+        });
+        if (!players.length) return empty('Le classement n’est pas encore établi.');
+        return players.map(function (player, index) {
+            var mine = player.username === s.player.username;
+            return row({
+                icon: 'i-trophy',
+                title: (index + 1) + '. ' + player.username + (mine ? ' — toi' : ''),
+                meta: 'Niveau ' + player.level,
+                side: chip(fmt.number(player.reputation) + ' réputation', index === 0 ? 'gold' : null)
+            });
+        }).join('');
+    }
+
+    function renderDomaine(s) {
+        var progression = s.progression;
+        var season = progression.season;
+        var selectedSpec = progression.specializations.find(function (spec) { return spec.selected; });
+        var seasonNext = season.milestones.find(function (value) { return value > season.points; })
+            || season.milestones[season.milestones.length - 1];
+        var daily = progression.dailyQuest;
+
+        var dailyBlock = daily ? '<section class="daily-card"><strong>Objectif du jour</strong>' +
+            '<p>' + esc(daily.title) + ' · ' + daily.progress + '/' + daily.target + '</p>' +
+            (daily.claimed ? chip('Récompense reçue', 'ok')
+                : actionButton('daily-place', 'Poursuivre l’objectif', daily.place)) + '</section>' : '';
+
+        var seasonBlock = '<section class="season-card">' +
+            '<div><small>Saison en cours · jusqu’au ' +
+            esc(new Date(season.endsOn + 'T12:00:00').toLocaleDateString('fr-FR')) + '</small>' +
+            '<h3>' + esc(season.name) + '</h3></div>' +
+            '<strong>' + season.points + ' sceaux</strong>' +
+            '<div class="season-card__track"><span style="width:' +
+            Math.min(100, season.points / seasonNext * 100) + '%"></span></div>' +
+            '<small>Palier personnel ' + season.rewardTier + '/' + season.milestones.length +
+            ' · effort du fjord ' + season.communityPoints + '/' + season.communityTarget + '</small></section>';
+
+        var specializationBlock = '<p class="section-title">Spécialisation du domaine</p>' +
+            '<div class="specializations">' + progression.specializations.map(function (spec) {
+                var locked = !!selectedSpec && !spec.selected;
+                var lowLevel = !selectedSpec && s.player.level < 2;
+                return '<button class="specialization' + (spec.selected ? ' is-selected' : '') + '" type="button"' +
+                    (locked || lowLevel ? ' disabled' : '') +
+                    ' data-action="choose-specialization" data-id="' + spec.code + '">' +
+                    '<strong>' + esc(spec.label) + '</strong><small>' + esc(spec.description) + '</small>' +
+                    '<em>' + (spec.selected ? 'Spécialité active'
+                        : (lowLevel ? 'Disponible au niveau 2' : 'Choisir définitivement')) + '</em></button>';
+            }).join('') + '</div>';
+
+        var themesBlock = '<p class="section-title">Ambiance du domaine</p><div class="theme-picker">' +
+            progression.themes.map(function (theme) {
+                return '<button type="button" class="theme-choice' + (theme.selected ? ' is-selected' : '') +
+                    '" data-action="choose-theme" data-id="' + theme.code + '">' + esc(theme.label) + '</button>';
+            }).join('') + '</div>';
+
+        return dailyBlock + seasonBlock + '<div class="progression-summary">' +
+            '<strong>' + progression.visitStreak + ' jour' +
+            (progression.visitStreak > 1 ? 's' : '') + ' de série</strong></div>' +
+            specializationBlock + themesBlock;
+    }
+
+    /* ------------------------------------------------------------ Hauts faits */
+
+    /**
+     * Un haut fait se gagne une fois. Avant, il tombait en silence : quelques
+     * pièces de plus au compteur, et rien qui dise pourquoi.
+     *
+     * <p>On compare l'état du domaine à celui qu'il avait en ouvrant la page.
+     * Ce qui vient de se débloquer passe par la file : un seul carton à la
+     * fois, sinon deux hauts faits gagnés ensemble se recouvrent.
+     */
+    function veilleHautsFaits() {
+        if (!state || !state.progression) return;
+        var acquis = state.progression.achievements.filter(function (a) { return a.unlocked; });
+
+        // Première lecture : on note ce qui est déjà gagné sans rien fêter.
+        if (featsConnus === null) {
+            featsConnus = {};
+            acquis.forEach(function (a) { featsConnus[a.code] = true; });
+            return;
+        }
+
+        acquis.forEach(function (a) {
+            if (featsConnus[a.code]) return;
+            featsConnus[a.code] = true;
+            featsAFeter.push(a);
+        });
+        if (featsAFeter.length && dom.feat.hidden) feterLeProchain();
+    }
+
+    function feterLeProchain() {
+        var fait = featsAFeter.shift();
+        if (!fait) return;
+
+        dom.featTitle.textContent = fait.title;
+        dom.featDesc.textContent = fait.description;
+        dom.featReward.textContent = fmt.number(fait.rewardCoins) + ' pièces · ' +
+            fmt.number(fait.rewardExperience) + ' XP';
+        dom.feat.hidden = false;
+        // Le souffle de l'animation doit repartir de zéro à chaque carton.
+        dom.feat.classList.remove('is-in');
+        void dom.feat.offsetWidth;
+        dom.feat.classList.add('is-in');
+        carillon();
+
+        clearTimeout(featTimer);
+        featTimer = setTimeout(fermerLaFanfare, 7000);
+    }
+
+    function fermerLaFanfare() {
+        clearTimeout(featTimer);
+        dom.feat.hidden = true;
+        dom.feat.classList.remove('is-in');
+        if (featsAFeter.length) setTimeout(feterLeProchain, 350);
+    }
+
+    /**
+     * Deux notes montantes, fabriquées à la volée.
+     *
+     * <p>Pas de fichier son : un carillon de deux notes tient en quelques
+     * lignes, ne pèse rien au chargement et se règle au demi-ton près. Le
+     * contexte audio n'est créé qu'au premier son — un navigateur refuse
+     * qu'une page en ouvre un avant que la personne ait cliqué quelque part.
+     */
+    function carillon() {
+        if (!settings.sons) return;
+        try {
+            var Ctx = global.AudioContext || global.webkitAudioContext;
+            if (!Ctx) return;
+            if (!audio) audio = new Ctx();
+            if (audio.state === 'suspended') audio.resume();
+
+            var debut = audio.currentTime;
+            [[880, 0], [1318.51, 0.13]].forEach(function (note) {
+                var osc = audio.createOscillator();
+                var vol = audio.createGain();
+                osc.type = 'triangle';
+                osc.frequency.value = note[0];
+                var t = debut + note[1];
+                // Une attaque courte et une extinction longue : une cloche,
+                // pas un bip.
+                vol.gain.setValueAtTime(0.0001, t);
+                vol.gain.exponentialRampToValueAtTime(0.16, t + 0.015);
+                vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+                osc.connect(vol).connect(audio.destination);
+                osc.start(t);
+                osc.stop(t + 0.9);
+            });
+        } catch (ignored) {
+            // Un navigateur sans audio ne doit pas priver de la fanfare.
+        }
+    }
+
     /* ---------------------------------------------------------- Événements */
 
     function bind() {
         dom.guide.addEventListener('click', suivreLeFil);
+        dom.featClose.addEventListener('click', fermerLaFanfare);
+        dom.feat.addEventListener('click', function (event) {
+            if (event.target === dom.feat) fermerLaFanfare();
+        });
 
         dom.markers.addEventListener('click', function (event) {
             var marker = event.target.closest('.marker');
@@ -1980,7 +2151,8 @@
 
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape') {
-                if (dom.screen.classList.contains('is-open')) selectView('monde');
+                if (!dom.feat.hidden) fermerLaFanfare();
+                else if (dom.screen.classList.contains('is-open')) selectView('monde');
                 else if (activePlace) closePlace();
             }
         });
@@ -2009,7 +2181,7 @@
     }
 
     function start() {
-        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'playerName', 'playerAvatar', 'playerLevel',
+        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featTitle', 'featDesc', 'featReward', 'featClose', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'xpLabel', 'resources', 'quest', 'questRow', 'questText', 'questBar', 'questCount',
             'questBox', 'feedList', 'dock', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',

@@ -1117,6 +1117,121 @@
             '</g>';
     }
 
+
+    /* ---------------------------------------------------------- Paillasse */
+
+    /* La couleur de chaque matière dans la cuve. Elles se mélangent vraiment :
+       trois parts d'orge et une de bruyère donnent un blond qui tire à peine
+       au vert, et c'est ce qu'on veut voir. */
+    var TEINTES = {
+        CEREAL: [216, 160, 58], HONEY: [224, 167, 44], HOP: [127, 155, 70],
+        HERB: [111, 155, 82], FRUIT: [184, 66, 47], SPICE: [165, 100, 42],
+        YEAST: [201, 189, 160], WATER: [127, 163, 184], OTHER: [141, 130, 114]
+    };
+
+    /**
+     * La couleur du mélange : une part par matière.
+     *
+     * <p>Pondérer par la dose semblait évident et donnait un résultat faux :
+     * 400 g de bruyère et 9 kg d'orge ne sont pas des nombres comparables,
+     * et l'unité décidait de la teinte à la place de la recette. Une part
+     * chacun se lit juste, et chaque ajout se voit.
+     */
+    function melange(lignes) {
+        if (!lignes.length) return [120, 132, 140];
+        var somme = [0, 0, 0];
+        lignes.forEach(function (l) {
+            var t = TEINTES[l.type] || TEINTES.OTHER;
+            for (var c = 0; c < 3; c++) somme[c] += t[c];
+        });
+        return somme.map(function (v) { return Math.round(v / lignes.length); });
+    }
+
+    /**
+     * La paillasse du laboratoire.
+     *
+     * <p>Composer une recette était un formulaire : un nom, deux nombres et
+     * une liste de lignes avec des boutons « + » et « − ». Le joueur dosait
+     * à l'aveugle et ne voyait rien de ce qu'il fabriquait.
+     *
+     * <p>La cuve montre maintenant le mélange : sa couleur est la moyenne
+     * des matières qu'on y verse, pondérée par la dose, et elle se remplit à
+     * mesure qu'on ajoute. Elle ne dit pas l'effet — c'est l'alchimie qui le
+     * décide, et le découvrir est le jeu — mais elle montre qu'on fabrique
+     * quelque chose plutôt que de remplir un bordereau.
+     */
+    function paillasse(state) {
+        var lignes = (state.labLines || []).slice(0, 8);
+        var couleur = melange(lignes);
+        var rgb = 'rgb(' + couleur.join(',') + ')';
+        var clair = 'rgb(' + couleur.map(function (v) { return Math.min(255, v + 46); }).join(',') + ')';
+
+        var cx = STAGE_WIDTH / 2;
+        var sol = 470;
+        var rCuve = 132;
+        var hCuve = 150;
+        var hautCuve = sol - hCuve;
+        var remplissage = lignes.length ? 0.24 + Math.min(1, lignes.length / 8) * 0.56 : 0.1;
+        var niveau = sol - 14 - (hCuve - 28) * remplissage;
+
+        var bulles = '';
+        for (var b = 0; b < (lignes.length ? 7 : 0); b++) {
+            var bx = cx + (jitter(23, b) - 0.5) * rCuve * 1.1;
+            bulles += '<circle class="sc-bulle-cuve" cx="' + bx.toFixed(1) + '" cy="' + (sol - 20).toFixed(1) +
+                '" r="' + (3 + jitter(23, b + 20) * 4).toFixed(1) +
+                '" style="--bul-delay:' + (-b * 0.55).toFixed(2) + 's;--bul-haut:' +
+                (-(sol - 20 - niveau - 8)).toFixed(0) + 'px"/>';
+        }
+
+        // Les matières posées sur la paillasse, de part et d'autre de la cuve.
+        var poses = lignes.map(function (ligne, i) {
+            var cote = i % 2 === 0 ? -1 : 1;
+            var rang = Math.floor(i / 2);
+            var x = cx + cote * (rCuve + 78 + rang * 112);
+            return '<g class="sc-node sc-fiole" data-state="ready" data-id="' + ligne.id + '"' +
+                ' data-action="lab-remove" tabindex="0" role="button"' +
+                ' aria-label="Retirer ' + esc(ligne.name || '') + ' du mélange">' +
+                '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (sol + 4) +
+                '" rx="38" ry="7"/>' +
+                contenant({ type: ligne.type, ingredientName: ligne.name,
+                            quantity: ligne.quantity, unit: ligne.unit }, x, sol, 0.66, i, 0) +
+                hit(x, sol - 76, 92, 128) +
+                '</g>';
+        }).join('');
+
+        return defs() + painted('brasserie') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            '<g class="sc-lanterns"><ellipse cx="' + cx + '" cy="220" rx="250" ry="120" fill="url(#sc-halo)"/></g>' +
+
+            '<path class="sc-paillasse" d="M0 ' + sol + 'h' + STAGE_WIDTH + 'v' + (STAGE_HEIGHT - sol) + 'H0Z"/>' +
+            '<path class="sc-paillasse__nez" d="M0 ' + sol + 'h' + STAGE_WIDTH + '"/>' +
+
+            poses +
+
+            '<ellipse class="sc-contact" cx="' + cx + '" cy="' + (sol + 6) + '" rx="' + (rCuve * 0.92) + '" ry="14"/>' +
+            '<clipPath id="sc-cuve-clip"><path d="M' + (cx - rCuve) + ' ' + hautCuve +
+            'q' + (-10) + ' ' + hCuve + ' ' + (rCuve * 0.18) + ' ' + hCuve +
+            'h' + (rCuve * 1.64) + 'q' + (rCuve * 0.18 + 10) + ' 0 ' + (rCuve * 0.18) + ' ' + (-hCuve) + 'Z"/></clipPath>' +
+            '<path class="sc-cuve__paroi" d="M' + (cx - rCuve) + ' ' + hautCuve +
+            'q' + (-10) + ' ' + hCuve + ' ' + (rCuve * 0.18) + ' ' + hCuve +
+            'h' + (rCuve * 1.64) + 'q' + (rCuve * 0.18 + 10) + ' 0 ' + (rCuve * 0.18) + ' ' + (-hCuve) + 'Z"/>' +
+            '<g clip-path="url(#sc-cuve-clip)">' +
+            '<rect x="' + (cx - rCuve - 20) + '" y="' + niveau.toFixed(1) + '" width="' + (rCuve * 2 + 40) +
+            '" height="' + (sol - niveau + 10).toFixed(1) + '" fill="' + rgb + '"/>' +
+            '<ellipse class="sc-cuve__surface" cx="' + cx + '" cy="' + niveau.toFixed(1) +
+            '" rx="' + (rCuve * 0.94) + '" ry="16" fill="' + clair + '"/>' +
+            bulles +
+            '</g>' +
+            '<ellipse class="sc-cuve__col" cx="' + cx + '" cy="' + hautCuve + '" rx="' + rCuve + '" ry="22"/>' +
+
+            (lignes.length
+                ? '<text class="sc-cuve__compte" x="' + cx + '" y="' + (hautCuve - 44) + '">' +
+                  lignes.length + ' sur 8</text>'
+                : '<text class="sc-cuve__vide" x="' + cx + '" y="' + (hautCuve - 44) + '">' +
+                  'La cuve est vide</text>') +
+            light();
+    }
+
     /* ------------------------------------------------------------- Montage */
 
     var SCENES = {
@@ -1125,7 +1240,8 @@
         brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' },
         taverne: { build: taverne, empty: '' },
         entrepot: { build: entrepot, empty: 'L’entrepôt est vide.' },
-        commandes: { build: commandes, empty: 'Aucun marchand n’est encore passé. Le premier ne tardera pas.' }
+        commandes: { build: commandes, empty: 'Aucun marchand n’est encore passé. Le premier ne tardera pas.' },
+        atelier: { build: paillasse, empty: '' }
     };
 
     /**
@@ -1160,6 +1276,11 @@
             return (state.npcOrders || []).filter(function (o) {
                 return o.status === 'OPEN' || o.status === 'IN_PROGRESS';
             }).map(function (o) { return o.id + ':' + o.status; }).join('|');
+        }
+        if (place === 'atelier') {
+            return (state.labLines || []).map(function (l) {
+                return l.id + ':' + l.quantity;
+            }).join('|');
         }
         return '';
     }

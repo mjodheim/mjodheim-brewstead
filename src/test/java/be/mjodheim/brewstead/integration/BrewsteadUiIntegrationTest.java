@@ -712,7 +712,13 @@ class BrewsteadUiIntegrationTest {
             addIngredient(driver, wait, "eau");
             assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"),
                     "Le nom saisi doit survivre aux ajouts d'ingrédients.");
-            assertEquals(2, driver.findElements(By.cssSelector("[data-action='lab-remove']")).size());
+            // Deux ingrédients : deux lignes dans la liste, et deux matières
+            // posées sur la paillasse. Compter « lab-remove » tout court
+            // additionnait les deux.
+            assertEquals(2, driver.findElements(
+                    By.cssSelector("#screenBody .row [data-action='lab-remove']")).size());
+            assertEquals(2, driver.findElements(By.cssSelector(".sc-fiole")).size(),
+                    "La cuve doit montrer ce qu'on y a versé.");
 
             // La dose se règle sans champ de saisie : rien à perdre au réaffichage.
             click(driver, wait, By.cssSelector("[data-action='lab-more']"));

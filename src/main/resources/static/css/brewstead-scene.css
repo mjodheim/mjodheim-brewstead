@@ -324,6 +324,49 @@
     stroke-width: 3.5;
 }
 
+/* Paillasse ---------------------------------------------------------------- */
+
+/* La cuve coiffe le formulaire : elle n'occupe pas tout l'écran comme un
+   décor entier, elle montre ce que les champs en dessous fabriquent. */
+/* Pas de marge négative en haut : elle glissait la cuve sous le titre de
+   l'écran. Le débord latéral, lui, reste — la paillasse touche les bords. */
+.scene--coiffe {
+    margin: 0 -1.3em 1.2em;
+    border-radius: 0;
+}
+
+.scene--coiffe .sc-stage { height: clamp(12rem, 30vh, 19rem); }
+
+.sc-paillasse { fill: #4e361b; }
+.sc-paillasse__nez { fill: none; stroke: rgba(255, 226, 172, .32); stroke-width: 3; }
+
+.sc-cuve__paroi { fill: #5d442a; stroke: rgba(18, 11, 4, .5); stroke-width: 3; }
+.sc-cuve__col { fill: none; stroke: #9a7340; stroke-width: 7; }
+.sc-cuve__surface { opacity: .85; }
+
+.sc-bulle-cuve {
+    fill: rgba(255, 250, 230, .6);
+    animation: sc-bul 3.4s ease-in infinite;
+    animation-delay: var(--bul-delay, 0s);
+}
+
+@keyframes sc-bul {
+    0% { transform: translateY(0); opacity: 0; }
+    14% { opacity: .75; }
+    100% { transform: translateY(var(--bul-haut, -60px)); opacity: 0; }
+}
+
+.sc-cuve__compte, .sc-cuve__vide {
+    text-anchor: middle;
+    fill: var(--cream);
+    font: 600 20px "Cinzel", Georgia, serif;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .85);
+    stroke-width: 4;
+}
+
+.sc-cuve__vide { fill: var(--cream-dim); font-size: 18px; }
+
 /* Commandes ---------------------------------------------------------------- */
 
 .sc-tableau__cadre { fill: #4a3218; stroke: rgba(14, 8, 2, .55); stroke-width: 3; }
@@ -413,9 +456,11 @@
 :root[data-mouvement="sobre"] .sc-plot[data-state="empty"] .sc-plot__edge,
 :root[data-mouvement="sobre"] .sc-plot[data-state="ready"] .sc-row,
 :root[data-mouvement="sobre"] .sc-node[data-state="ready"] .sc-badge__bob,
-:root[data-mouvement="sobre"] .sc-bougie__flamme { animation: none; }
+:root[data-mouvement="sobre"] .sc-bougie__flamme,
+:root[data-mouvement="sobre"] .sc-bulle-cuve { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
     .sc-bee, .sc-bubble, .sc-node__glow, .sc-lanterns ellipse,
-    .sc-plot__edge, .sc-row, .sc-badge__bob, .sc-bougie__flamme { animation: none !important; }
+    .sc-plot__edge, .sc-row, .sc-badge__bob, .sc-bougie__flamme,
+    .sc-bulle-cuve { animation: none !important; }
 }

@@ -496,7 +496,13 @@
                     }).join('')
                     : empty('Rien dans la cuve. C’est le mélange qui fait la recette.');
 
-                return '<p class="hint">Tu choisis le mélange, jamais l’effet : c’est lui qui décide. ' +
+                var cuve = Scenes && Scenes.has('atelier')
+                    ? '<div class="scene scene--atelier scene--coiffe">' +
+                      Scenes.markup('atelier', decor()) + '</div>'
+                    : '';
+
+                return cuve +
+                    '<p class="hint">Tu choisis le mélange, jamais l’effet : c’est lui qui décide. ' +
                     'Un même dosage donne toujours le même résultat, alors note ce qui marche. ' +
                     'Les épices et les plantes réveillent les breuvages plus sûrement que l’orge.</p>' +
 
@@ -1625,7 +1631,10 @@
      * plutôt que de donner deux paramètres à chaque décor.
      */
     function decor() {
-        return Object.assign({}, state, { tavernCounter: tavern.counter });
+        return Object.assign({}, state, {
+            tavernCounter: tavern.counter,
+            labLines: lab ? lab.lines : []
+        });
     }
 
     function renderScreen() {

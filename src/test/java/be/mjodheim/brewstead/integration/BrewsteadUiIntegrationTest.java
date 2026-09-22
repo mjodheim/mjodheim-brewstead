@@ -238,7 +238,34 @@ class BrewsteadUiIntegrationTest {
 
             ouvrirVue(driver, wait, "recettes");
             waitForScreen(wait, "Grimoire des recettes");
-            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
+            var fiches = driver.findElements(By.cssSelector("#screenBody .row"));
+            assertFalse(fiches.isEmpty());
+
+            // Le catalogue compte près de trois cents recettes. Les dessiner
+            // toutes faisait un mur de vingt mille pixels dans lequel il
+            // fallait chercher la seule qu'on pouvait brasser.
+            long auCatalogue = recipeRepository.count();
+            assertTrue(auCatalogue > 100, "le catalogue doit être fourni, vu : " + auCatalogue);
+            assertTrue(fiches.size() <= 30,
+                    "le grimoire ne doit pas tout dessiner, vu : " + fiches.size() + " lignes");
+
+            // Ce qu'on peut brasser passe devant : aucune recette à portée ne
+            // doit apparaître après une recette hors de portée. L'invariant
+            // tient aussi quand la réserve ne permet plus rien.
+            boolean horsDePortee = false;
+            for (WebElement fiche : fiches) {
+                boolean aPortee = !fiche.findElements(By.cssSelector(".chip--ok")).isEmpty();
+                assertFalse(aPortee && horsDePortee,
+                        "le grimoire doit montrer d'abord ce qu'on peut brasser, vu : "
+                                + fiche.getText().replace('\n', ' '));
+                horsDePortee = horsDePortee || !aPortee;
+
+                // « Préparer » ne s'allume que sur ce qu'on peut brasser :
+                // ailleurs il menait à un formulaire invalidable.
+                assertEquals(aPortee, !fiche.findElements(By.cssSelector("[data-action='prepare-recipe']")).isEmpty(),
+                        "bouton et disponibilité doivent dire la même chose : "
+                                + fiche.getText().replace('\n', ' '));
+            }
 
             ouvrirTaverneEnListe(driver, wait);
             waitForScreen(wait, "Taverne");
@@ -489,9 +516,18 @@ class BrewsteadUiIntegrationTest {
             assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("45 min"));
             brewer.findElement(By.id("pickerSearch")).clear();
             brewer.findElement(By.id("pickerSearch")).sendKeys("Cervoise du fjord");
-            click(brewer, wait, By.cssSelector("[data-action='prepare-recipe']"));
-            assertFalse(brewer.findElement(By.cssSelector("[data-action='pick-recipe']")).isEnabled());
-            assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("10 L"));
+            // La cave a servi : cette recette n'est plus à portée. Elle ne
+            // propose donc plus « Préparer » — le bouton menait à un
+            // formulaire qu'on ne pouvait pas valider — et dit à la place ce
+            // qui manque, sans faire cliquer pour l'apprendre.
+            WebElement horsPortee = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("#screenBody .row")));
+            String ligne = horsPortee.getText().replace('\n', ' ');
+            assertTrue(ligne.contains("Cervoise du fjord"), ligne);
+            assertTrue(ligne.contains("Il te manque"), ligne);
+            assertTrue(horsPortee.findElements(By.cssSelector("[data-action='prepare-recipe']")).isEmpty(), ligne);
+            assertFalse(horsPortee.findElement(By.cssSelector("button[disabled]")).isEnabled(), ligne);
+            assertTrue(ligne.contains("35 L"), ligne);
 
             openSection(brewer, wait, "brasserie");
             click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "'] .sc-node__hit, " +

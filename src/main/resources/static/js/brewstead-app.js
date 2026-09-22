@@ -477,34 +477,44 @@
                     icon('i-plus') + 'Composer une recette</button></div>';
 
                 if (!s.recipes.length) return head + empty('Aucune recette au grimoire.');
-                var recipes = s.recipes.filter(function (recipe) {
+
+                // Une seule fois par recette : la disponibilité relit tout
+                // l'inventaire, et elle était calculée deux fois par ligne.
+                var fiches = s.recipes.filter(function (recipe) {
                     return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
+                }).map(function (recipe) {
+                    return { recipe: recipe, brassable: brewability(s, recipe) };
                 });
-                return head + searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
-                    // Ce qu'il faut, pas combien il en faut. « Orge maltée
-                    // 9 kg · Houblon du fjord 180 g · Eau de source 32 L »
-                    // est la fiche d'un brasseur, pas d'un joueur ; les
-                    // dosages restent, un cran plus loin, pour qui les veut.
-                    var ingredients = (recipe.ingredients || []).map(function (i) {
-                        return i.ingredientName;
-                    }).join(' · ');
-                    var dosage = (recipe.ingredients || []).map(function (i) {
-                        return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
-                    }).join(' · ');
-                    return row({
-                        icon: 'i-recipe',
-                        title: recipe.name,
-                        meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
-                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
-                            (ingredients ? ' — ' + ingredients : ''),
-                        detail: dosage ? 'Dosage : ' + dosage : '',
-                        side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
-                            (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
-                            (recipe.effectKind && recipe.effectKind !== 'AUCUN'
-                                ? chip(recipe.effectLabel, 'info') : '') +
-                            chip(brewability(s, recipe).ok ? 'Ingrédients disponibles' : 'Ingrédients à réunir', brewability(s, recipe).ok ? 'ok' : 'warn')
-                    });
-                }).join('') : empty('Aucune recette ne correspond.'));
+
+                // Ce qu'on peut brasser tout de suite passe devant, puis ses
+                // propres inventions. Deux cent soixante-dix-neuf recettes
+                // dans l'ordre du catalogue, c'est un mur : on y cherchait la
+                // seule faisable en faisant défiler les deux cent soixante
+                // autres.
+                fiches.sort(function (a, b) {
+                    if (a.brassable.ok !== b.brassable.ok) return a.brassable.ok ? -1 : 1;
+                    if (!a.recipe.isPublic !== !b.recipe.isPublic) return a.recipe.isPublic ? 1 : -1;
+                    return String(a.recipe.name).localeCompare(String(b.recipe.name), 'fr');
+                });
+
+                if (!fiches.length) {
+                    return head + searchField('Chercher une recette…', recipeQuery) +
+                        empty('Aucune recette ne correspond.');
+                }
+
+                var portee = fiches.filter(function (f) { return f.brassable.ok; }).length;
+                var montrees = fiches.slice(0, RECETTES_MONTREES);
+                var reste = fiches.length - montrees.length;
+
+                return head + searchField('Chercher une recette…', recipeQuery) +
+                    '<p class="empty" style="margin:0 0 .7em">' +
+                    (portee ? esc(portee + (portee > 1 ? ' recettes à ta portée' : ' recette à ta portée') +
+                        ' sur ' + fiches.length + '.')
+                        : esc('Aucune des ' + fiches.length + ' recettes n’est brassable avec ta réserve.')) +
+                    '</p>' +
+                    montrees.map(function (fiche) { return ligneRecette(fiche); }).join('') +
+                    (reste > 0 ? empty(reste + ' autre' + (reste > 1 ? 's' : '') +
+                        ' au grimoire. Cherche par nom pour les atteindre.') : '');
             }
         },
 
@@ -1644,6 +1654,43 @@
      * jusqu'à l'entrepôt — où « Voir la liste » basculait un drapeau que
      * personne ne relisait.
      */
+    /** Combien de recettes on dessine avant de renvoyer à la recherche. */
+    var RECETTES_MONTREES = 24;
+
+    /**
+     * Une ligne du grimoire.
+     *
+     * <p>« Préparer » était proposé sur les deux cent soixante-dix recettes
+     * qu'on ne peut pas faire : le bouton menait à un formulaire impossible
+     * à valider. Il est maintenant éteint, et la ligne dit ce qui manque.
+     */
+    function ligneRecette(fiche) {
+        var recipe = fiche.recipe;
+        var ingredients = (recipe.ingredients || []).map(function (i) { return i.ingredientName; }).join(' · ');
+        var dosage = (recipe.ingredients || []).map(function (i) {
+            return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
+        }).join(' · ');
+        var manque = fiche.brassable.missing.map(function (l) { return l.ingredientName; });
+
+        return row({
+            icon: 'i-recipe',
+            title: recipe.name,
+            meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
+                ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
+                (ingredients ? ' — ' + ingredients : ''),
+            detail: dosage ? 'Dosage : ' + dosage : '',
+            side: (fiche.brassable.ok
+                    ? actionButton('prepare-recipe', 'Préparer', recipe.id)
+                    : '<button class="btn btn--sm" type="button" disabled>Préparer</button>') +
+                (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
+                (recipe.effectKind && recipe.effectKind !== 'AUCUN' ? chip(recipe.effectLabel, 'info') : '') +
+                (fiche.brassable.ok
+                    ? chip('Ingrédients disponibles', 'ok')
+                    : chip('Il te manque ' + manque.slice(0, 2).join(', ') +
+                        (manque.length > 2 ? ' et ' + (manque.length - 2) + ' autre' + (manque.length > 3 ? 's' : '') : ''), 'warn'))
+        });
+    }
+
     function sceneBar(view, vue) {
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
@@ -2337,6 +2384,25 @@
         return refreshJob;
     }
 
+    /**
+     * La hauteur réelle du bandeau, publiée en variable CSS.
+     *
+     * <p>Les écrans se plaçaient sous un décalage écrit en em. Le bandeau
+     * tient sur une ligne au large et sur trois sur un téléphone : le même
+     * chiffre ne pouvait pas convenir aux deux, et le titre du lieu passait
+     * sous la barre des lieux. On mesure plutôt que d'estimer.
+     */
+    function mesurerLeBandeau() {
+        var barre = $('bandeau');
+        if (!barre) return;
+        var poser = function () {
+            document.documentElement.style.setProperty('--bandeau', barre.offsetHeight + 'px');
+        };
+        poser();
+        if (global.ResizeObserver) new ResizeObserver(poser).observe(barre);
+        else global.addEventListener('resize', poser);
+    }
+
     function start() {
         ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featTitle', 'featDesc', 'featReward', 'featClose', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'resources', 'quest', 'questText', 'questCount',
@@ -2346,6 +2412,7 @@
         ].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
+        mesurerLeBandeau();
         buildPlaceLayers();
         buildPlaces();
         initAtmosphere();

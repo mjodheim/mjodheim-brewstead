@@ -18,6 +18,11 @@
 .world__life .cloud-bank { animation: cloud-sailing 36s ease-in-out infinite alternate; opacity: .8; }
 .world__life .cloud-bank--far { animation-duration: 58s; animation-delay: -22s; opacity: .55; }
 .world__life .chimney-smoke { animation: smoke-rising 8s ease-out infinite; opacity: .35; }
+/* Tout ce qui est de l'eau passe sous un même masque. Un groupe masqué
+   isole le mélange de ses enfants : c'est donc le groupe entier qui doit
+   éclaircir la peinture, sinon les fils d'eau redeviennent de la peinture
+   blanche posée dessus. */
+.world__life .waters { mix-blend-mode: screen; }
 .world__life .fall { mix-blend-mode: screen; opacity: .88; }
 .world__life .fall--far { opacity: .7; }
 .world__life .fall__flow { animation: waterfall-flow 1.15s linear infinite; }

@@ -156,6 +156,13 @@ class BrewsteadUiIntegrationTest {
                     .getCssValue("animation-name");
             assertEquals("none", animation);
 
+            // L'eau est taillée par un masque relevé sur la peinture. Sans lui,
+            // les rectangles animés repassent sur le ponton et sur le toit de
+            // la tour de guet, ce qui était le défaut d'avant.
+            String masque = driver.findElement(By.cssSelector(".world__life .waters"))
+                    .getCssValue("mask");
+            assertTrue(masque.contains("url("), "l'eau doit rester masquée, vu : " + masque);
+
             ouvrirVue(driver, wait, "classement");
 
             driver.manage().window().setSize(new Dimension(390, 844));

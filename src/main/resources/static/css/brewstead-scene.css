@@ -276,6 +276,54 @@
     45% { transform: scaleY(1.22) scaleX(.9); opacity: 1; }
 }
 
+/* Entrepôt ----------------------------------------------------------------- */
+
+.sc-bati { fill: #3a2712; stroke: rgba(12, 7, 2, .6); stroke-width: 2; }
+.sc-bati__fond { fill: rgba(28, 18, 8, .72); }
+.sc-bati__latte { fill: none; stroke: rgba(12, 7, 2, .38); stroke-width: 2; }
+.sc-rayon { fill: #6a4a26; stroke: rgba(14, 8, 2, .55); stroke-width: 2; }
+.sc-rayon__nez { fill: none; stroke: rgba(255, 226, 172, .3); stroke-width: 2.6; }
+
+.sc-sac { fill: #b49a68; stroke: rgba(30, 19, 7, .45); stroke-width: 2; }
+.sc-sac__gueule { fill: #8f7645; stroke: rgba(30, 19, 7, .4); stroke-width: 1.6; }
+.sc-sac__col { fill: none; stroke: #8a6136; stroke-width: 4.5; stroke-linecap: round; }
+.sc-sac__pli { fill: none; stroke: rgba(60, 40, 16, .3); stroke-width: 2; }
+
+.sc-jarre { fill: #8d5f2c; stroke: rgba(24, 14, 5, .45); stroke-width: 2; }
+.sc-jarre__bouchon { fill: #c8a25c; stroke: rgba(24, 14, 5, .4); stroke-width: 2; }
+.sc-jarre__reflet { fill: none; stroke: rgba(255, 232, 178, .34); stroke-width: 3; stroke-linecap: round; }
+
+.sc-botte__tige { fill: none; stroke: #8f9f52; stroke-width: 2.6; stroke-linecap: round; }
+.sc-botte__lien { fill: none; stroke: #b0894a; stroke-width: 4; stroke-linecap: round; }
+
+.sc-tonnelet { fill: #79562e; stroke: rgba(18, 11, 4, .45); stroke-width: 2; }
+.sc-tonnelet__cercle { fill: none; stroke: #c39f5e; stroke-width: 3.4; stroke-linecap: round; }
+
+.sc-cageot { fill: #6b4a28; stroke: rgba(18, 11, 4, .45); stroke-width: 2; }
+.sc-cageot__latte { fill: none; stroke: rgba(30, 19, 7, .4); stroke-width: 2.4; }
+.sc-cageot__fruit { fill: #b8422f; stroke: rgba(30, 12, 6, .4); stroke-width: 1.6; }
+
+.sc-pot { fill: #6f6552; stroke: rgba(22, 16, 6, .45); stroke-width: 2; }
+.sc-pot__etiquette { fill: #ddcba1; }
+
+.sc-stock__nom {
+    fill: var(--cream);
+    font: 600 14px "Cinzel", Georgia, serif;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .85);
+    stroke-width: 3.5;
+}
+
+.sc-stock__qte {
+    fill: var(--gold);
+    font: 700 14px system-ui, sans-serif;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(10, 6, 2, .8);
+    stroke-width: 3.5;
+}
+
 /* Pastille d'action -------------------------------------------------------- */
 
 .sc-badge__disc { fill: rgba(22, 14, 5, .82); stroke: rgba(233, 188, 85, .55); stroke-width: 2; }

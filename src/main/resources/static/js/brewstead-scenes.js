@@ -133,7 +133,8 @@
         champs: { x: 241, y: 262, width: 470 },
         rucher: { x: 285, y: 150, width: 430 },
         brasserie: { x: 841, y: 232, width: 400 },
-        taverne: { x: 1020, y: 470, width: 420 }
+        taverne: { x: 1020, y: 470, width: 420 },
+        entrepot: { x: 292, y: 448, width: 400 }
     };
 
     var ART = '/images/brewstead-domaine.webp';
@@ -840,13 +841,178 @@
         return out + '</g>';
     }
 
+
+    /* ----------------------------------------------------------- Entrepôt */
+
+    /**
+     * L'entrepôt.
+     *
+     * <p>C'était une grille de lignes : « Orge maltée · 14 kg en stock ».
+     * Une réserve se regarde, elle ne se lit pas. Chaque matière prend ici la
+     * forme sous laquelle on la range vraiment — le grain en sacs, le miel en
+     * jarres, le houblon en bottes, l'eau en tonnelets — sur trois planches
+     * d'étagère. On ne clique sur rien : une réserve n'est pas un menu, c'est
+     * un état des lieux.
+     */
+    function entrepot(state) {
+        var stock = (state.inventory || []).filter(function (item) {
+            return Number(item.quantity) > 0;
+        });
+        if (!stock.length) return '';
+
+        var parPlanche = Math.ceil(Math.min(stock.length, 18) / 3);
+        // Les planches vont du fond vers l'avant : plus basses, plus grandes.
+        var planches = [
+            { y: 212, k: 0.78 },
+            { y: 334, k: 0.88 },
+            { y: 456, k: 0.98 }
+        ];
+        var marge = 64;
+
+        // Le bâti : deux montants pleine hauteur et un fond, sinon les
+        // planches flottent comme des règles posées en l'air.
+        var bati = '<path class="sc-bati" d="M' + marge + ' 150h26v390h-26ZM' +
+            (STAGE_WIDTH - marge - 26) + ' 150h26v390h-26Z"/>' +
+            '<path class="sc-bati__fond" d="M' + (marge + 26) + ' 150h' +
+            (STAGE_WIDTH - marge * 2 - 52) + 'v390h' + (-(STAGE_WIDTH - marge * 2 - 52)) + 'Z"/>';
+        for (var v = 1; v < 7; v++) {
+            var vx = marge + 26 + v * ((STAGE_WIDTH - marge * 2 - 52) / 7);
+            bati += '<path class="sc-bati__latte" d="M' + vx.toFixed(0) + ' 150v390"/>';
+        }
+
+        var bois = '';
+        var objets = '';
+        planches.forEach(function (planche, rang) {
+            var lot = stock.slice(rang * parPlanche, (rang + 1) * parPlanche);
+            if (!lot.length) return;
+
+            var ep = 15 * planche.k;
+            bois += '<path class="sc-rayon" d="M' + (marge + 8) + ' ' + planche.y + 'h' +
+                (STAGE_WIDTH - marge * 2 - 16) + 'v' + ep.toFixed(1) + 'h' +
+                (-(STAGE_WIDTH - marge * 2 - 16)) + 'Z"/>' +
+                '<path class="sc-rayon__nez" d="M' + (marge + 8) + ' ' + planche.y + 'h' +
+                (STAGE_WIDTH - marge * 2 - 16) + '"/>';
+
+            var utile = STAGE_WIDTH - marge * 2 - 60;
+            var pas = utile / lot.length;
+            lot.forEach(function (item, i) {
+                var x = marge + 30 + pas * (i + 0.5);
+                objets += contenant(item, x, planche.y, planche.k, rang * 7 + i, ep);
+            });
+        });
+
+        return defs() + painted('entrepot') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            bati +
+            '<g class="sc-lanterns"><ellipse cx="480" cy="168" rx="240" ry="92" fill="url(#sc-halo)"/></g>' +
+            bois + objets + light();
+    }
+
+    /** La forme sous laquelle on range chaque matière. */
+    function contenant(item, x, y, k, seed, epaisseur) {
+        var type = item.type || 'OTHER';
+        var sous = y + (epaisseur || 14) + 16 * k;
+        var corps;
+
+        if (type === 'CEREAL') corps = sac(x, y, k);
+        else if (type === 'HONEY') corps = jarre(x, y, k);
+        else if (type === 'HOP' || type === 'HERB') corps = botte(x, y, k, seed);
+        else if (type === 'WATER') corps = tonnelet(x, y, k);
+        else if (type === 'FRUIT') corps = cageot(x, y, k);
+        else corps = pot(x, y, k);
+
+        return '<g class="sc-stock" data-type="' + esc(type) + '">' +
+            '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (y + 2).toFixed(1) +
+            '" rx="' + (46 * k).toFixed(1) + '" ry="' + (7 * k).toFixed(1) + '"/>' +
+            corps +
+            '<text class="sc-stock__nom" x="' + x.toFixed(1) + '" y="' + sous.toFixed(1) + '">' +
+            esc(item.ingredientName) + '</text>' +
+            '<text class="sc-stock__qte" x="' + x.toFixed(1) + '" y="' + (sous + 16 * k).toFixed(1) + '">' +
+            esc(quantite(item)) + '</text>' +
+            '</g>';
+    }
+
+    var UNITES = { GRAM: 'g', KILOGRAM: 'kg', MILLILITER: 'ml', LITER: 'L', UNIT: '' };
+
+    function quantite(item) {
+        var n = Number(item.quantity || 0);
+        var arrondi = Math.abs(n % 1) < 0.005 ? Math.round(n) : Math.round(n * 10) / 10;
+        var suffixe = UNITES[item.unit] === undefined ? '' : UNITES[item.unit];
+        return arrondi.toLocaleString('fr-FR') + (suffixe ? ' ' + suffixe : '');
+    }
+
+    function sac(x, y, k) {
+        var w = 58 * k, h = 76 * k;
+        var col = y - h * 0.72;
+        return '<path class="sc-sac" d="M' + (x - w / 2) + ' ' + y +
+            'q' + (-5 * k) + ' ' + (-h * 0.34) + ' ' + (w * 0.19) + ' ' + (-h * 0.56) +
+            'q' + (w * 0.1) + ' ' + (-h * 0.08) + ' ' + (w * 0.12) + ' ' + (-h * 0.16) +
+            'h' + (w * 0.38) +
+            'q' + (w * 0.02) + ' ' + (h * 0.08) + ' ' + (w * 0.12) + ' ' + (h * 0.16) +
+            'q' + (w * 0.24) + ' ' + (h * 0.22) + ' ' + (w * 0.19) + ' ' + (h * 0.56) + 'Z"/>' +
+            // Le col noué et l'ouverture évasée : sans eux, c'est un galet.
+            '<path class="sc-sac__gueule" d="M' + (x - w * 0.19) + ' ' + col +
+            'q' + (w * 0.19) + ' ' + (-h * 0.16) + ' ' + (w * 0.38) + ' 0' +
+            'q' + (-w * 0.19) + ' ' + (h * 0.07) + ' ' + (-w * 0.38) + ' 0Z"/>' +
+            '<path class="sc-sac__col" d="M' + (x - w * 0.2) + ' ' + (col + h * 0.05) + 'h' + (w * 0.4) + '"/>' +
+            '<path class="sc-sac__pli" d="M' + (x - w * 0.3) + ' ' + (y - h * 0.3) +
+            'q' + (w * 0.3) + ' ' + (h * 0.12) + ' ' + (w * 0.6) + ' 0"/>';
+    }
+
+    function jarre(x, y, k) {
+        var w = 50 * k, h = 70 * k;
+        return '<path class="sc-jarre" d="M' + (x - w * 0.28) + ' ' + (y - h) +
+            'h' + (w * 0.56) + 'l' + (w * 0.2) + ' ' + (h * 0.22) +
+            'a' + (w * 0.5) + ' ' + (h * 0.44) + ' 0 0 1 ' + (-w * 0.96) + ' 0Z"/>' +
+            '<ellipse class="sc-jarre__bouchon" cx="' + x + '" cy="' + (y - h) + '" rx="' + (w * 0.32) + '" ry="' + (5 * k) + '"/>' +
+            '<path class="sc-jarre__reflet" d="M' + (x - w * 0.24) + ' ' + (y - h * 0.58) + 'q' + (-3 * k) + ' ' + (h * 0.3) + ' ' + (4 * k) + ' ' + (h * 0.42) + '"/>';
+    }
+
+    function botte(x, y, k, seed) {
+        var h = 74 * k;
+        var tiges = '';
+        for (var i = 0; i < 7; i++) {
+            var d = (jitter(seed, i) - 0.5) * 44 * k;
+            tiges += '<path class="sc-botte__tige" d="M' + x.toFixed(1) + ' ' + y.toFixed(1) +
+                'q' + (d * 0.4).toFixed(1) + ' ' + (-h * 0.6) + ' ' + d.toFixed(1) + ' ' + (-h).toFixed(1) + '"/>';
+        }
+        return tiges + '<path class="sc-botte__lien" d="M' + (x - 18 * k) + ' ' + (y - h * 0.32) + 'h' + (36 * k) + '"/>';
+    }
+
+    function tonnelet(x, y, k) {
+        var w = 54 * k, h = 68 * k;
+        return '<path class="sc-tonnelet" d="M' + (x - w * 0.4) + ' ' + y +
+            'q' + (-6 * k) + ' ' + (-h / 2) + ' 0 ' + (-h) + 'h' + (w * 0.8) +
+            'q' + (6 * k) + ' ' + (h / 2) + ' 0 ' + h + 'Z"/>' +
+            '<path class="sc-tonnelet__cercle" d="M' + (x - w * 0.46) + ' ' + (y - h * 0.68) + 'h' + (w * 0.92) +
+            'M' + (x - w * 0.46) + ' ' + (y - h * 0.3) + 'h' + (w * 0.92) + '"/>';
+    }
+
+    function cageot(x, y, k) {
+        var w = 60 * k, h = 52 * k;
+        return '<path class="sc-cageot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h) + 'h' + w + 'v' + h + 'Z"/>' +
+            '<path class="sc-cageot__latte" d="M' + (x - w / 2) + ' ' + (y - h * 0.62) + 'h' + w +
+            'M' + (x - w / 2) + ' ' + (y - h * 0.3) + 'h' + w + '"/>' +
+            '<circle class="sc-cageot__fruit" cx="' + (x - 8 * k) + '" cy="' + (y - h - 6 * k) + '" r="' + (8 * k) + '"/>' +
+            '<circle class="sc-cageot__fruit" cx="' + (x + 8 * k) + '" cy="' + (y - h - 5 * k) + '" r="' + (7 * k) + '"/>';
+    }
+
+    function pot(x, y, k) {
+        var w = 40 * k, h = 50 * k;
+        return '<path class="sc-pot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h * 0.8) +
+            'q0 ' + (-h * 0.2) + ' ' + (w / 2) + ' ' + (-h * 0.2) +
+            'q' + (w / 2) + ' 0 ' + (w / 2) + ' ' + (h * 0.2) + 'V' + y + 'Z"/>' +
+            '<path class="sc-pot__etiquette" d="M' + (x - w * 0.34) + ' ' + (y - h * 0.5) + 'h' + (w * 0.68) + 'v' + (h * 0.3) + 'h' + (-w * 0.68) + 'Z"/>';
+    }
+
     /* ------------------------------------------------------------- Montage */
 
     var SCENES = {
         champs: { build: champs, empty: 'Aucune parcelle sur ce domaine.' },
         rucher: { build: rucher, empty: 'Aucune ruche installée.' },
         brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' },
-        taverne: { build: taverne, empty: '' }
+        taverne: { build: taverne, empty: '' },
+        entrepot: { build: entrepot, empty: 'L’entrepôt est vide.' }
     };
 
     /**
@@ -870,6 +1036,11 @@
         if (place === 'taverne') {
             return (state.tavernCounter || []).map(function (o) {
                 return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
+            }).join('|');
+        }
+        if (place === 'entrepot') {
+            return (state.inventory || []).map(function (i) {
+                return i.ingredientId + ':' + i.quantity;
             }).join('|');
         }
         return '';

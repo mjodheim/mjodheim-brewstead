@@ -168,7 +168,13 @@ class BrewsteadUiIntegrationTest {
 
             ouvrirVue(driver, wait, "inventaire");
             waitForScreen(wait, "Entrepôt");
-            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
+            // L'entrepôt s'ouvre sur ses planches : chaque matière y prend la
+            // forme sous laquelle on la range.
+            assertFalse(driver.findElements(By.cssSelector("#screenBody .sc-stock")).isEmpty(),
+                    "La réserve doit montrer ses contenants.");
+            click(driver, wait, By.cssSelector("[data-action='show-list'][data-id='inventaire']"));
+            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty(),
+                    "La liste détaillée reste à un clic.");
 
             click(driver, wait, By.id("screenClose"));
             click(driver, wait, By.id("settingsBtn"));

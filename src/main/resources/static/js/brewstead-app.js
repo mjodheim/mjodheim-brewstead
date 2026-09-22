@@ -382,6 +382,7 @@
 
         inventaire: {
             title: 'Entrepôt',
+            scene: 'entrepot',
             render: function (s) {
                 if (!s.inventory.length) return empty('L’entrepôt est vide.');
                 return '<div class="grid">' + s.inventory.map(function (item) {
@@ -1551,12 +1552,22 @@
      * <p>Ce qui vise un objet précis se fait sur l'objet ; ici ne restent que
      * les gestes qui portent sur le lieu entier.
      */
-    function sceneBar(view) {
+    /**
+     * La barre sous un décor.
+     *
+     * <p>Deux noms qui se ressemblent mais ne sont pas les mêmes : le décor
+     * (« entrepot ») et la vue qui l'affiche (« inventaire »). Ils
+     * coïncidaient pour les premiers lieux, ce qui a masqué la confusion
+     * jusqu'à l'entrepôt — où « Voir la liste » basculait un drapeau que
+     * personne ne relisait.
+     */
+    function sceneBar(view, vue) {
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
             brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
-            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.'
+            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.',
+            entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.'
         }[view] || '';
 
         var actions = '';
@@ -1571,7 +1582,7 @@
             actions += '<button class="btn btn--gold" type="button" data-action="open-brew">' +
                 icon('i-plus') + 'Lancer un brassin</button>';
         }
-        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + view + '">' +
+        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">' +
             'Voir la liste</button>';
 
         return '<div class="scene__bar">' +
@@ -1600,7 +1611,7 @@
         // innerHTML direct : updateMarkup réconcilie nœud par nœud, ce qui
         // n'a aucun sens pour un décor entier qu'on redessine.
         dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
-            Scenes.markup(place, vu) + sceneBar(place) + '</div>';
+            Scenes.markup(place, vu) + sceneBar(place, activeView) + '</div>';
         dom.screenBody._markup = null;
     }
 

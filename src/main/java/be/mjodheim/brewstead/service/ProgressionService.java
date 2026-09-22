@@ -133,17 +133,53 @@ public class ProgressionService {
         });
     }
 
+    private static final ProgressAction[] DAILY_ROTATION = {
+            ProgressAction.HARVEST_FIELD, ProgressAction.HARVEST_HIVE,
+            ProgressAction.START_BATCH, ProgressAction.COMPLETE_ORDER,
+            ProgressAction.PLAYER_TRADE, ProgressAction.TASTE_AT_TAVERN
+    };
+
     private void prepareDaily(PlayerProgress progress, LocalDate today) {
         if (today.equals(progress.getDailyDate())) return;
-        ProgressAction[] rotation = {
-                ProgressAction.HARVEST_FIELD, ProgressAction.HARVEST_HIVE,
-                ProgressAction.START_BATCH, ProgressAction.COMPLETE_ORDER,
-                ProgressAction.PLAYER_TRADE, ProgressAction.TASTE_AT_TAVERN
-        };
         progress.setDailyDate(today);
-        progress.setDailyAction(rotation[Math.floorMod(today.getDayOfYear(), rotation.length)]);
+        progress.setDailyAction(dailyAction(progress, today));
         progress.setDailyProgress(0);
         progress.setDailyClaimed(false);
+    }
+
+    /**
+     * L'objectif du jour, pris dans ce que ce domaine sait déjà faire.
+     *
+     * <p>La rotation reste celle du calendrier — le jour de l'année donne le
+     * point de départ, identique pour tout le monde — mais on avance jusqu'à
+     * une tâche que le joueur peut réellement accomplir. Demander « Aide trois
+     * domaines voisins » à quelqu'un qui n'a jamais rien brassé n'est pas un
+     * objectif, c'est un mur : le fil conducteur lui dit de semer pendant que
+     * le bandeau lui réclame l'impossible.
+     */
+    private ProgressAction dailyAction(PlayerProgress progress, LocalDate today) {
+        int depart = Math.floorMod(today.getDayOfYear(), DAILY_ROTATION.length);
+        for (int pas = 0; pas < DAILY_ROTATION.length; pas++) {
+            ProgressAction candidate = DAILY_ROTATION[(depart + pas) % DAILY_ROTATION.length];
+            if (alreadyLearned(progress, candidate)) return candidate;
+        }
+        return ProgressAction.HARVEST_FIELD;
+    }
+
+    /**
+     * Les deux récoltes sont là dès le premier jour : un domaine neuf arrive
+     * avec ses parcelles et ses ruches. Tout le reste s'ouvre le jour où le
+     * joueur l'a fait une première fois de lui-même, en suivant le fil
+     * conducteur — et rejoint alors la rotation.
+     */
+    private boolean alreadyLearned(PlayerProgress progress, ProgressAction action) {
+        return switch (action) {
+            case HARVEST_FIELD, HARVEST_HIVE -> true;
+            case START_BATCH -> progress.getStartedBatches() > 0;
+            case COMPLETE_ORDER -> progress.getCompletedOrders() > 0;
+            case PLAYER_TRADE -> progress.getPlayerTrades() > 0;
+            case TASTE_AT_TAVERN -> progress.getTavernTastings() > 0;
+        };
     }
 
     private void prepareSeason(PlayerProgress progress, LocalDate today) {

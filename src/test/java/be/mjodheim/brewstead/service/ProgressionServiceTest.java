@@ -16,6 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 import static be.mjodheim.brewstead.TestData.player;
 import static org.junit.jupiter.api.Assertions.*;
@@ -89,6 +91,48 @@ class ProgressionServiceTest {
         assertTrue(response.dailyQuest().claimed());
         assertEquals(3, response.dailyQuest().progress());
         assertTrue(player.getCoin() >= initialCoins + 75);
+    }
+
+    @Test
+    void newEstateOnlyEverGetsAQuestItCanActuallyDo() {
+        ProgressionResponse response = service.visit(1L);
+
+        // Quel que soit le jour de l'année, un domaine neuf n'a ni cave ni
+        // voisins : seules les deux récoltes lui sont accessibles.
+        assertTrue(Set.of("HARVEST_FIELD", "HARVEST_HIVE").contains(response.dailyQuest().action()),
+                "objectif impossible pour un débutant : " + response.dailyQuest().title());
+    }
+
+    @Test
+    void anAccomplishedEstateGetsTheCalendarRotationBack() {
+        progress.setStartedBatches(4);
+        progress.setCompletedOrders(4);
+        progress.setPlayerTrades(4);
+        progress.setTavernTastings(4);
+
+        String[] rotation = {"HARVEST_FIELD", "HARVEST_HIVE", "START_BATCH",
+                "COMPLETE_ORDER", "PLAYER_TRADE", "TASTE_AT_TAVERN"};
+        int today = LocalDate.now(ZoneOffset.UTC).getDayOfYear();
+
+        assertEquals(rotation[today % rotation.length], service.visit(1L).dailyQuest().action());
+    }
+
+    @Test
+    void doingSomethingOnceOpensItAsATomorrowQuest() {
+        assertTrue(Set.of("HARVEST_FIELD", "HARVEST_HIVE")
+                .contains(service.visit(1L).dailyQuest().action()));
+
+        // Le joueur découvre le reste du domaine en suivant le fil conducteur.
+        service.record(1L, ProgressAction.START_BATCH);
+        service.record(1L, ProgressAction.COMPLETE_ORDER);
+        service.record(1L, ProgressAction.PLAYER_TRADE);
+        service.record(1L, ProgressAction.TASTE_AT_TAVERN);
+
+        progress.setDailyDate(null); // demain
+        String[] rotation = {"HARVEST_FIELD", "HARVEST_HIVE", "START_BATCH",
+                "COMPLETE_ORDER", "PLAYER_TRADE", "TASTE_AT_TAVERN"};
+        assertEquals(rotation[LocalDate.now(ZoneOffset.UTC).getDayOfYear() % rotation.length],
+                service.visit(1L).dailyQuest().action());
     }
 
     @Test

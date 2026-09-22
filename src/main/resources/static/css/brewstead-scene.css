@@ -39,8 +39,14 @@
 /* Le tableau du domaine, agrandi et hors mise au point. Le flou n'est pas un
    pis-aller : il envoie le décor à l'arrière-plan et fait ressortir ce qu'on
    vient manipuler. */
-.sc-far { filter: blur(5px) saturate(1.05) brightness(.94); }
-.sc-far image { transform-origin: center; transform: scale(1.06); }
+/* Le fond est un morceau de la peinture du domaine, poussé au loin. À la
+   taille d'une vignette, cinq pixels de flou suffisaient ; en plein écran on
+   y reconnaissait les planches et les clôtures, et le décor avait l'air
+   posé sur une photo ratée. Plus de flou, moins de couleur, et un
+   agrandissement qui sort les détails du cadre. */
+.sc-far { filter: blur(7px) saturate(.84) brightness(.86) contrast(.94); }
+.sc-far image { transform-origin: center; transform: scale(1.13); }
+.sc-brume { fill: url(#sc-brume); pointer-events: none; }
 
 .sc-floor-plate { fill: url(#sc-grass); }
 .sc-floor-lip { fill: none; stroke: rgba(255, 236, 186, .2); stroke-width: 2.5; }

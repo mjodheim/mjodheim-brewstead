@@ -151,7 +151,10 @@
             '<image href="' + ART + '" x="' + (-left * scale).toFixed(1) + '" y="' + (-top * scale).toFixed(1) +
             '" width="' + (1536 * scale).toFixed(1) + '" height="' + (742 * scale).toFixed(1) +
             '" preserveAspectRatio="none"/>' +
-            '</g>';
+            '</g>' +
+            // Hors du groupe flouté : une brume nette se lit comme de l'air,
+            // une brume floue comme une tache.
+            '<rect class="sc-brume" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
     }
 
     /**
@@ -250,6 +253,14 @@
             '<radialGradient id="sc-dark" cx=".5" cy=".46" r=".78">' +
             '<stop offset=".55" stop-color="#000" stop-opacity="0"/>' +
             '<stop offset="1" stop-color="#140c04" stop-opacity=".62"/></radialGradient>' +
+
+            // La brume du fond. Sans elle, l'arrière-plan reste une photo
+            // floue collée derrière le décor ; avec elle, il devient de la
+            // distance.
+            '<linearGradient id="sc-brume" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#e6ddc6" stop-opacity=".2"/>' +
+            '<stop offset=".58" stop-color="#dcd3bb" stop-opacity=".3"/>' +
+            '<stop offset="1" stop-color="#cdc6ad" stop-opacity=".04"/></linearGradient>' +
 
             '<filter id="sc-blur"><feGaussianBlur stdDeviation="5.5"/></filter>' +
             '<filter id="sc-drop" x="-.4" y="-.4" width="1.8" height="1.8">' +
@@ -473,7 +484,10 @@
         // Une ruche ne se lance plus : elle tourne seule. Le seul geste est
         // de la vider quand le miel est prêt.
         var action = state === 'ready' ? 'harvest-hive' : '';
-        var h = slot.height * 1.15;
+        // La hauteur du dessin, pas celle de la case du terrain. Les deux
+        // avaient été confondues : la pastille d'état flottait cent vingt
+        // pixels au-dessus de sa ruche, sans rien pour la relier.
+        var h = 46 * slot.scale;
 
         return '<g class="sc-node sc-hive" data-state="' + state + '" data-id="' + hive.id + '"' +
             (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
@@ -481,7 +495,7 @@
 
             (state === 'ready'
                 ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5) +
-                  '" rx="' + (slot.width * 0.5) + '" ry="' + (h * 0.75) + '" fill="url(#sc-halo)"/>'
+                  '" rx="' + (slot.width * 0.42) + '" ry="' + (h * 1.25) + '" fill="url(#sc-halo)"/>'
                 : '') +
 
             '<ellipse class="sc-shadow" cx="' + slot.x + '" cy="' + slot.y + '" rx="' + (slot.width * 0.3) + '" ry="' + (9 * slot.scale) + '"/>' +
@@ -493,10 +507,10 @@
             '</g>' +
             (state === 'growing' || state === 'ready' ? bees(slot, hive.id * 13) : '') +
 
-            badge(slot.x, slot.y - h - 34 * slot.scale, slot.scale, state) +
+            badge(slot.x, slot.y - h - 30 * slot.scale, slot.scale, state) +
             '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 22 * slot.scale) + '">' +
             (state === 'growing' ? esc(countdown(hive.readyAt)) : '') + '</text>' +
-            hit(slot.x, slot.y - h - 52 * slot.scale, slot.width * 1.1, h + 74 * slot.scale) +
+            hit(slot.x, slot.y - h - 48 * slot.scale, slot.width * 1.1, h + 66 * slot.scale) +
             '</g>';
     }
 

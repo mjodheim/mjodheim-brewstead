@@ -615,8 +615,8 @@
                         'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
                         'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.') +
-                    toggle('sons', 'Carillon des hauts faits',
-                        'Deux notes quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
+                    toggle('sons', 'Sons du domaine',
+                        'Une note à chaque récolte, deux quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
             }
         },
 
@@ -1225,6 +1225,7 @@
                 var parts = [];
                 if (report.fields) parts.push(report.fields + (report.fields > 1 ? ' parcelles' : ' parcelle'));
                 if (report.hives) parts.push(report.hives + (report.hives > 1 ? ' ruches' : ' ruche'));
+                cliquetis();
                 toast('Tournée faite : ' + parts.join(' et ') + '.');
             });
             return;
@@ -1323,7 +1324,10 @@
 
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
-        send(endpoint(Number(id)), undefined, function () { toast('Récolte rentrée à l’entrepôt.'); });
+        send(endpoint(Number(id)), undefined, function () {
+            cliquetis();
+            toast('Récolte rentrée à l’entrepôt.');
+        });
     }
 
     /** Le laboratoire : tout passe par le brouillon, jamais par le DOM seul. */
@@ -2065,7 +2069,15 @@
      * contexte audio n'est créé qu'au premier son — un navigateur refuse
      * qu'une page en ouvre un avant que la personne ait cliqué quelque part.
      */
-    function carillon() {
+    /**
+     * Quelques notes synthétisées, sans fichier à télécharger.
+     *
+     * <p>Chaque note est un couple hauteur/retard ; l'attaque est courte et
+     * l'extinction longue, ce qui fait une cloche plutôt qu'un bip. Le
+     * contexte audio ne naît qu'au premier son, donc toujours à la suite
+     * d'un geste du joueur — les navigateurs refusent le reste.
+     */
+    function jouer(notes, force, tenue) {
         if (!settings.sons) return;
         try {
             var Ctx = global.AudioContext || global.webkitAudioContext;
@@ -2074,24 +2086,37 @@
             if (audio.state === 'suspended') audio.resume();
 
             var debut = audio.currentTime;
-            [[880, 0], [1318.51, 0.13]].forEach(function (note) {
+            notes.forEach(function (note) {
                 var osc = audio.createOscillator();
                 var vol = audio.createGain();
                 osc.type = 'triangle';
                 osc.frequency.value = note[0];
                 var t = debut + note[1];
-                // Une attaque courte et une extinction longue : une cloche,
-                // pas un bip.
                 vol.gain.setValueAtTime(0.0001, t);
-                vol.gain.exponentialRampToValueAtTime(0.16, t + 0.015);
-                vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+                vol.gain.exponentialRampToValueAtTime(force, t + 0.015);
+                vol.gain.exponentialRampToValueAtTime(0.0001, t + tenue);
                 osc.connect(vol).connect(audio.destination);
                 osc.start(t);
-                osc.stop(t + 0.9);
+                osc.stop(t + tenue + 0.05);
             });
         } catch (ignored) {
             // Un navigateur sans audio ne doit pas priver de la fanfare.
         }
+    }
+
+    /** Le haut fait : deux notes qui montent, franches, on les entend. */
+    function carillon() {
+        jouer([[880, 0], [1318.51, 0.13]], 0.16, 0.85);
+    }
+
+    /**
+     * La récolte : une seule note, plus grave et deux fois plus discrète.
+     *
+     * <p>C'est le geste qu'on répète cent fois par partie. S'il sonnait
+     * comme un haut fait, le haut fait ne vaudrait plus rien.
+     */
+    function cliquetis() {
+        jouer([[587.33, 0]], 0.075, 0.34);
     }
 
     /* ---------------------------------------------------------- Événements */

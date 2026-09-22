@@ -254,9 +254,16 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
 }
 .game[data-light="crepuscule"] .world__fx::after { background: rgba(72, 38, 45, .22); }
-.game[data-theme="automne"] .world__art { filter: saturate(1.12) sepia(.18) hue-rotate(-12deg); }
-.game[data-theme="hiver"] .world__art { filter: saturate(.7) brightness(1.08) hue-rotate(12deg); }
-.game[data-theme="solstice"] .world__art { filter: saturate(1.18) contrast(1.04) brightness(.92); }
+/* L'ambiance teinte le tableau ET ses découpes. Posée sur la seule peinture
+   de fond, elle laissait le bâtiment allumé aux couleurs d'origine : une
+   tache franche au milieu d'un domaine passé au bleu d'hiver, exactement à
+   l'endroit où la couture doit rester invisible. */
+.game[data-theme="automne"] .world__art,
+.game[data-theme="automne"] .world__lieux { filter: saturate(1.12) sepia(.18) hue-rotate(-12deg); }
+.game[data-theme="hiver"] .world__art,
+.game[data-theme="hiver"] .world__lieux { filter: saturate(.7) brightness(1.08) hue-rotate(12deg); }
+.game[data-theme="solstice"] .world__art,
+.game[data-theme="solstice"] .world__lieux { filter: saturate(1.18) contrast(1.04) brightness(.92); }
 .game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
 

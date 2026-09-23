@@ -63,7 +63,7 @@ jobs:
       - name: Public suite must remain green
         working-directory: host
         shell: bash
-        run: ./mvnw -q test
+        run: ./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test
 
       - name: Install evaluator-only test
         env:

@@ -1,4 +1,4 @@
-name: Genesis V21 physical shared first wave
+name: Genesis V21 first-wave physical transfer evaluation
 
 on:
   push:
@@ -8,22 +8,23 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
-  APPARATUS_HEAD: 3b78a5f201b16c5db7fb248e06389792aed1ff9b
   HOST_COMMIT: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+  APPARATUS_HEAD: 3b78a5f201b16c5db7fb248e06389792aed1ff9b
+  MIRA_FREEZE: c2fbcd54deac7b75cfeeaebf38b6a837dc92915d
 
 jobs:
   evaluate:
     strategy:
       fail-fast: false
       matrix:
+        arm: [g1, g2]
         task:
           - brewstead-chat-rate-window
           - brewstead-farm-plant-ownership
           - brewstead-brew-quality-bonus
-        arm: [g1, g2]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -31,11 +32,13 @@ jobs:
         with:
           ref: ${{ env.APPARATUS_HEAD }}
           path: apparatus
+          fetch-depth: 1
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.HOST_COMMIT }}
           path: host
+          fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
@@ -44,7 +47,7 @@ jobs:
           cache: maven
           cache-dependency-path: host/pom.xml
 
-      - name: Reconstruct exact defected root
+      - name: Reconstruct exact defected parent and apply accepted patch
         env:
           TASK: ${{ matrix.task }}
         shell: bash
@@ -58,20 +61,13 @@ jobs:
           p=Path("host")/task["source_path"]
           s=p.read_text()
           if s.count(task["old_text"])!=1:
-              raise SystemExit("defect site mismatch")
+              raise SystemExit("frozen defect site mismatch")
           p.write_text(s.replace(task["old_text"],task["defect_text"],1))
           PY
-
-      - name: Apply frozen accepted shared patch
-        env:
-          TASK: ${{ matrix.task }}
-        shell: bash
-        run: |
-          set -euo pipefail
           cd host
           git apply "../apparatus/.genesis-v21/candidates/$TASK/proposal.patch"
 
-      - name: Reverify frozen public guard
+      - name: Reconfirm frozen public guard
         working-directory: host
         shell: bash
         run: ./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test
@@ -92,7 +88,7 @@ jobs:
           shutil.copy2(src,dst)
           PY
 
-      - name: Execute one transfer-evaluator observation
+      - name: Spend exactly one transfer-evaluator observation
         env:
           TASK: ${{ matrix.task }}
           ARM: ${{ matrix.arm }}
@@ -111,31 +107,141 @@ jobs:
           (cd host && ./mvnw -q -Dtest="$selector" test)
           rc=$?
           set -e
-          if [ "$rc" -eq 0 ]; then quality=1000; passed=true; else quality=0; passed=false; fi
-          patch_sha=$(sha256sum "apparatus/.genesis-v21/candidates/$TASK/proposal.patch" | awk '{print $1}')
-          python - <<PY
-          import json
-          result={
+          if [ "$rc" -eq 0 ]; then quality=1000; objective=true; else quality=0; objective=false; fi
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          task=os.environ["TASK"]; arm=os.environ["ARM"]
+          t=json.loads((Path("apparatus/.genesis-v21/candidates")/task/"transcript.json").read_text())
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          item=next(x for x in bank["tasks"] if x["id"]==task)
+          p=Path("host")/item["source_path"]
+          source_sha=hashlib.sha256(p.read_bytes()).hexdigest()
+          q=int(os.environ["quality"]) if "quality" in os.environ else None
+          PY
+          export QUALITY="$quality" OBJECTIVE="$objective"
+          python - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          task=os.environ["TASK"]; arm=os.environ["ARM"]
+          t=json.loads((Path("apparatus/.genesis-v21/candidates")/task/"transcript.json").read_text())
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          item=next(x for x in bank["tasks"] if x["id"]==task)
+          source=Path("host")/item["source_path"]
+          source_sha=hashlib.sha256(source.read_bytes()).hexdigest()
+          child_tree=hashlib.sha256(json.dumps({
+            "schema":"mira-genesis-rsi-v21-transfer-child-v1",
+            "task_id":task,
+            "proposal_patch_sha256":t["proposal_patch_sha256"],
+            "patched_source_sha256":source_sha
+          },sort_keys=True,separators=(",",":")).encode()).hexdigest()
+          node_id=f"v21-{task}-child-{child_tree[:12]}"
+          out={
             "schema":"mira-genesis-rsi-v21-transfer-observation-v1",
-            "task_id":"$TASK",
-            "arm_id":"$ARM",
-            "host_commit":"$HOST_COMMIT",
-            "apparatus_commit":"$APPARATUS_HEAD",
-            "proposal_patch_sha256":"$patch_sha",
+            "arm_id":arm,
+            "task_id":task,
+            "round":1,
+            "slot_id":f"{task}-r1-shared-s1",
+            "host_commit":os.environ["HOST_COMMIT"],
+            "mira_execution_freeze":os.environ["MIRA_FREEZE"],
+            "parent_node_id":t["parent_node_id"],
+            "parent_tree_digest":t["parent_tree_digest"],
+            "proposal_patch_sha256":t["proposal_patch_sha256"],
             "public_guard_pass":True,
+            "evaluation_completed":True,
             "transfer_evaluator_spent":True,
-            "evaluator_objective_pass":$passed,
-            "quality_milli":int("$quality"),
-            "github_actions_run_id":int("$GITHUB_RUN_ID"),
-            "github_actions_job":"$GITHUB_JOB",
+            "objective_pass":os.environ["OBJECTIVE"]=="true",
+            "quality_milli":int(os.environ["QUALITY"]),
+            "patched_source_sha256":source_sha,
+            "child_tree_digest":child_tree,
+            "child_node_id":node_id
           }
-          print("GENESIS_RSI_V21_OBSERVATION="+json.dumps(result,sort_keys=True))
-          open("/tmp/result.json","w").write(json.dumps(result,indent=2,sort_keys=True)+"\n")
+          d=Path("apparatus/.genesis-v21/results/first-wave")/arm/task
+          d.mkdir(parents=True,exist_ok=True)
+          (d/"result.json").write_text(json.dumps(out,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(out,sort_keys=True))
           PY
 
-      - uses: actions/upload-artifact@v4
+      - name: Commit immutable arm/task result
+        env:
+          TASK: ${{ matrix.task }}
+          ARM: ${{ matrix.arm }}
+          GH_TOKEN: ${{ github.token }}
+        working-directory: apparatus
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="lab/genesis-v21-$ARM-$TASK-r1"
+          git config user.name "Anthony Mets"
+          git config user.email "110968830+mjodheim@users.noreply.github.com"
+          git checkout -B "$branch" "$APPARATUS_HEAD"
+          git add ".genesis-v21/results/first-wave/$ARM/$TASK/result.json"
+          git commit -m "research(genesis): record V21 $ARM $TASK first-wave observation"
+          git push origin HEAD:"$branch"
+
+  finalize:
+    needs: evaluate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: v21-${{ matrix.task }}-${{ matrix.arm }}-result
-          path: /tmp/result.json
-          if-no-files-found: error
-          retention-days: 90
+          ref: research/genesis-v21-transfer-calibration
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Retrieve and compare all six immutable results
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v21"
+          python - <<'PY'
+          import json,subprocess,os
+          from pathlib import Path
+          repo=Path("."); out=Path(os.environ["RUNNER_TEMP"])/"v21"
+          tasks=["brewstead-chat-rate-window","brewstead-farm-plant-ownership","brewstead-brew-quality-bonus"]
+          rows={}
+          for arm in ("g1","g2"):
+            rows[arm]={}
+            for task in tasks:
+              branch=f"lab/genesis-v21-{arm}-{task}-r1"
+              subprocess.run(["git","fetch","-q","origin",branch],check=True)
+              p=f".genesis-v21/results/first-wave/{arm}/{task}/result.json"
+              raw=subprocess.check_output(["git","show",f"FETCH_HEAD:{p}"],text=True)
+              x=json.loads(raw); rows[arm][task]=x
+          for task in tasks:
+            a=rows["g1"][task]; b=rows["g2"][task]
+            keys=["proposal_patch_sha256","parent_tree_digest","quality_milli","objective_pass","child_tree_digest","child_node_id"]
+            assert all(a[k]==b[k] for k in keys), (task,a,b)
+          summary={
+            "schema":"mira-genesis-rsi-v21-first-wave-result-v1",
+            "mira_execution_freeze":os.environ["MIRA_FREEZE"],
+            "paired_projection_identical":True,
+            "tasks":{
+              task:{
+                "proposal_patch_sha256":rows["g1"][task]["proposal_patch_sha256"],
+                "quality_milli":rows["g1"][task]["quality_milli"],
+                "objective_pass":rows["g1"][task]["objective_pass"],
+                "child_tree_digest":rows["g1"][task]["child_tree_digest"],
+                "child_node_id":rows["g1"][task]["child_node_id"],
+                "g1_observations":1,
+                "g2_observations":1
+              } for task in tasks
+            },
+            "total_transfer_observations_spent":6
+          }
+          Path(".genesis-v21/FIRST_WAVE_RESULT.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(summary,sort_keys=True))
+          PY
+
+      - name: Persist first-wave result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Anthony Mets"
+          git config user.email "110968830+mjodheim@users.noreply.github.com"
+          git pull --rebase origin research/genesis-v21-transfer-calibration
+          git add .genesis-v21/FIRST_WAVE_RESULT.json
+          git commit -m "research(genesis): record V21 paired first-wave transfer result"
+          git push origin HEAD:research/genesis-v21-transfer-calibration

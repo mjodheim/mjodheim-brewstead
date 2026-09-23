@@ -1,0 +1,208 @@
+name: Genesis V21 derive round2 plan and build G1 bundles
+
+on:
+  push:
+    branches: [research/genesis-v21-transfer-calibration]
+    paths:
+      - ".github/workflows/genesis-v21-round2-bundles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HOST_COMMIT: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+  TAG: genesis-rsi-v21-transfer-round2-g1-bundles-20260923
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/genesis-v21-transfer-calibration
+          path: apparatus
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HOST_COMMIT }}
+          path: host
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Derive exact round2 policy decisions and bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy,hashlib,importlib.util,json,os,shutil,subprocess,tarfile,zipfile
+          from pathlib import Path
+
+          ws=Path(os.environ["GITHUB_WORKSPACE"])
+          app=ws/"apparatus"; host=ws/"host"
+          out=Path(os.environ["RUNNER_TEMP"])/"v21r2"; out.mkdir(parents=True)
+          bundles=out/"bundles"; bundles.mkdir()
+          bank=json.loads((app/".genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          first=json.loads((app/".genesis-v21/FIRST_WAVE_RESULT.json").read_text())
+
+          def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          def load(path,name):
+              spec=importlib.util.spec_from_file_location(name,path)
+              mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); return mod
+          g1=load(app/".genesis-v21/policies/g1.py","v21g1")
+          g2=load(app/".genesis-v21/policies/g2.py","v21g2")
+          assert sha(app/".genesis-v21/policies/g1.py")=="3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434"
+          assert sha(app/".genesis-v21/policies/g2.py")=="69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf"
+
+          protocol=app/".genesis-v21/V21_TRANSFER_PROPOSER_PROTOCOL.md"
+          verifier=app/".genesis-v21/VERIFY_OUTPUT.py"
+          rows=[]; plans=[]
+
+          for task in bank["tasks"]:
+              tid=task["id"]; fr=first["tasks"][tid]
+              root=f"v21-{tid}-root"; child=fr["child_node_id"]
+              nodes=[
+                {
+                  "node_id":root,"parent_node_id":None,"origin_attempt":0,"lineage_depth":0,
+                  "action":{"family":"","target_axes":[],"mechanisms":[],"changed_regions":[]},
+                  "outcome":{"quality_milli":0,"evolver_profile_generation":0,"ever_champion":True,"root_branch_node_id":root},
+                },
+                {
+                  "node_id":child,"parent_node_id":root,"origin_attempt":1,"lineage_depth":1,
+                  "action":{"family":"transfer-repair","target_axes":[task["subsystem"]],"mechanisms":["public-causal-repair"],"changed_regions":[task["source_path"]]},
+                  "outcome":{"quality_milli":1000,"evolver_profile_generation":0,"ever_champion":True,"root_branch_node_id":child},
+                }
+              ]
+              view={"world_id":f"v21-transfer-{tid}","root_node_id":root,"revealed_nodes":nodes,"revealed_requests":[{"parent_node_id":root,"child_node_id":child,"quality_milli":1000}],"eligible_parent_ids":[root,child],"exhausted_parent_ids":[]}
+              g1sel=g1.select_parent_batch(copy.deepcopy(view),2)
+              g2sel=g2.select_parent_batch(copy.deepcopy(view),1)
+              if len(g1sel)!=2 or set(g1sel)!={root,child}: raise SystemExit(f"unexpected G1 selection {tid}: {g1sel}")
+              if g2sel!=[]: raise SystemExit(f"unexpected G2 continuation {tid}: {g2sel}")
+              plan={"task_id":tid,"g1_selected_parent_ids":g1sel,"g2_selected_parent_ids":g2sel,"g2_pre_observation_stop":True,"best_quality_milli":1000}
+              plans.append(plan)
+
+              for idx,parent in enumerate(g1sel,1):
+                  work=out/f"{tid}-s{idx}"
+                  shutil.copytree(host,work,ignore=shutil.ignore_patterns(".git","target"))
+                  p=work/task["source_path"]; s=p.read_text()
+                  if s.count(task["old_text"])!=1: raise SystemExit("defect site mismatch "+tid)
+                  p.write_text(s.replace(task["old_text"],task["defect_text"],1))
+                  if parent==child:
+                      q=subprocess.run(["git","apply",str((app/".genesis-v21/candidates"/tid/"proposal.patch").resolve())],cwd=work,capture_output=True,text=True)
+                      if q.returncode: raise SystemExit("first-wave child reconstruction failed: "+q.stderr)
+                      parent_tree=fr["child_tree_digest"]
+                      parent_quality=1000
+                  else:
+                      parent_tree=next(x["parent_tree_digest"] for x in [json.loads((app/".genesis-v21/candidates"/tid/"transcript.json").read_text())])
+                      parent_quality=0
+
+                  slot=f"v21-{tid}-r2-g1-s{idx}"
+                  d=bundles/slot; d.mkdir()
+                  parent_tar=d/"parent.tar.gz"
+                  with tarfile.open(parent_tar,"w:gz") as tf:
+                      for q in sorted(work.rglob("*")):
+                          if q.is_file(): tf.add(q,arcname=q.relative_to(work).as_posix(),recursive=False)
+
+                  manifest={
+                    "schema":"mira-genesis-rsi-v21-transfer-task-manifest-v1",
+                    "task_id":tid,
+                    "campaign_slot_id":slot,
+                    "parent_node_id":parent,
+                    "parent_tree_digest":parent_tree,
+                    "parent_quality_milli":parent_quality,
+                    "host_repository":"mjodheim/mjodheim-brewstead",
+                    "host_commit":os.environ["HOST_COMMIT"],
+                    "public_symptom":task["public_symptom"],
+                    "allowed_source_path":task["source_path"],
+                    "parent_source_sha256":sha(p),
+                    "parent_archive_sha256":sha(parent_tar),
+                    "public_guard_command":bank["evaluator_contract"]["public_suite_command"],
+                    "evaluator_only_test_included":False,
+                    "arm_id":"g1",
+                    "round":2,
+                    "policy_selected_parent_order":g1sel,
+                  }
+                  mp=d/"task-manifest.json"; mp.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
+                  shutil.copy2(protocol,d/"V21_TRANSFER_PROPOSER_PROTOCOL.md")
+                  shutil.copy2(verifier,d/"VERIFY_OUTPUT.py")
+                  prompt=[
+                    "GENESIS RSI V21 — BREWSTEAD CROSS-STACK TRANSFER REPAIR",
+                    "",
+                    f"Task: {tid}",
+                    f"Public symptom: {task['public_symptom']}",
+                    "",
+                    "Use ONLY this bundle. No web, GitHub, plugins, connectors, saved memory, previous chats, Mira Genesis project context, evaluator-only test source, other V21 attempts/slots, or human candidate-specific hints.",
+                    "",
+                    "Read V21_TRANSFER_PROPOSER_PROTOCOL.md completely. It is authoritative.",
+                    "",
+                    f"Allowed production source path: {task['source_path']}",
+                    "",
+                    "Extract parent.tar.gz as the exact supplied parent.",
+                    "Inspect the supplied public source and public tests.",
+                    "Produce the smallest causal repair for the public symptom while preserving existing correct behavior.",
+                    "",
+                    "Before returning, run:",
+                    "python3 VERIFY_OUTPUT.py proposal.patch transcript.json",
+                    "",
+                    "Do not return until it prints exactly:",
+                    "GENESIS_RSI_V21_TRANSFER_OUTPUT=PASS",
+                    "",
+                    "Return exactly proposal.patch and transcript.json.",
+                    "No prose outside the two files.",
+                  ]
+                  (d/"PROMPT.txt").write_text("\n".join(prompt)+"\n")
+
+                  z=bundles/f"genesis-{slot}.zip"
+                  with zipfile.ZipFile(z,"w") as zz:
+                      for q in sorted(d.rglob("*")):
+                          if q.is_file():
+                              info=zipfile.ZipInfo(q.relative_to(d).as_posix(),date_time=(2026,9,23,0,0,0))
+                              info.compress_type=zipfile.ZIP_DEFLATED; info.external_attr=(0o644&0xffff)<<16
+                              zz.writestr(info,q.read_bytes())
+                  rows.append({
+                    **manifest,
+                    "task_manifest_sha256":sha(mp),
+                    "proposer_protocol_sha256":sha(d/"V21_TRANSFER_PROPOSER_PROTOCOL.md"),
+                    "verify_output_sha256":sha(d/"VERIFY_OUTPUT.py"),
+                    "prompt_sha256":sha(d/"PROMPT.txt"),
+                    "bundle_zip":z.name,
+                    "bundle_zip_sha256":sha(z),
+                    "bundle_zip_bytes":z.stat().st_size
+                  })
+
+          outdata={"schema":"mira-genesis-rsi-v21-round2-g1-bundle-set-v1","first_wave_result_source":".genesis-v21/FIRST_WAVE_RESULT.json","transfer_observations_spent_before_round2_bundle_generation":6,"g1_policy_sha256":"3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434","g2_policy_sha256":"69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf","round2_plans":plans,"bundles":rows}
+          (out/"ROUND2_BUNDLE_SET.json").write_text(json.dumps(outdata,indent=2,sort_keys=True)+"\n")
+          print(json.dumps({"plans":plans,"bundles":[{"slot":x["campaign_slot_id"],"sha":x["bundle_zip_sha256"]} for x in rows]},sort_keys=True))
+          PY
+
+      - name: Persist plan and bundle hashes before proposer use
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/v21r2/ROUND2_BUNDLE_SET.json" apparatus/.genesis-v21/ROUND2_BUNDLE_SET.json
+          cd apparatus
+          git config user.name "Anthony Mets"
+          git config user.email "110968830+mjodheim@users.noreply.github.com"
+          git pull --rebase origin research/genesis-v21-transfer-calibration
+          git add .genesis-v21/ROUND2_BUNDLE_SET.json
+          git commit -m "research(genesis): freeze V21 G1 round2 plan and bundle hashes"
+          git push origin HEAD:research/genesis-v21-transfer-calibration
+
+      - name: Publish exact G1 round2 bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$HOST_COMMIT" \
+              --title "Genesis RSI V21 G1 round2 transfer bundles" \
+              --notes "Six prospectively derived G1 round2 proposer bundles after the paired V21 first wave. G2 has stopped on all three tasks. Evaluator-only objectives are excluded."
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$RUNNER_TEMP"/v21r2/bundles/genesis-v21-*.zip \
+            "$RUNNER_TEMP/v21r2/ROUND2_BUNDLE_SET.json"

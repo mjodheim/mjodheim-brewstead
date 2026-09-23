@@ -25,6 +25,7 @@ public class SecurityConfig {
                                 "/css/**",
                                 "/js/**",
                                 "/images/**",
+                                "/fonts/**",
                                 "/favicon.ico"
                         ).permitAll()
                         // le domaine lui-même demande une session : on joue connecté

@@ -434,7 +434,8 @@
     function badge(x, y, scale, state) {
         return '<g class="sc-badge" transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' +
             '<g class="sc-badge__bob">' +
-            '<circle class="sc-badge__disc" r="' + (17 * scale).toFixed(1) + '"/>' +
+            '<circle class="sc-badge__lip" cy="' + (3 * scale).toFixed(1) + '" r="' + (18 * scale).toFixed(1) + '"/>' +
+            '<circle class="sc-badge__disc" r="' + (18 * scale).toFixed(1) + '"/>' +
             '<g class="sc-badge__mark" transform="scale(' + (scale * 0.9).toFixed(3) + ')">' +
             badgeMark(state) + '</g></g></g>';
     }
@@ -685,7 +686,7 @@
             offres.slice(0, 6).forEach(function (offre, i) {
                 var n = Math.min(offres.length, 6);
                 var x = STAGE_WIDTH / 2 + (i - (n - 1) / 2) * largeur;
-                chopes += chopeNode(offre, x, 342, Math.min(1.15, largeur / 118));
+                chopes += chopeNode(offre, x, 342, Math.min(1.15, largeur / 118), largeur - 8);
             });
         }
 
@@ -697,7 +698,7 @@
             '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
             '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
             '</g>' +
-            zinc + chopes + tables() + light() +
+            zinc + tables() + chopes + light() +
             (offres.length ? '' :
                 '<text class="sc-salle__vide" x="' + (STAGE_WIDTH / 2) + '" y="300">' +
                 'Le comptoir est vide. Mets un fût en vente depuis la brasserie.</text>');
@@ -762,7 +763,40 @@
     }
 
     /** Une chope sur le zinc : un fût qu'un voisin propose à la dégustation. */
-    function chopeNode(offre, x, y, scale) {
+    /**
+     * Coupe un libellé en lignes qui tiennent dans la place de son objet.
+     *
+     * <p>Cinq chopes au comptoir, c'est cent vingt unités chacune : un nom
+     * de recette en entier débordait sur la voisine et les cinq finissaient
+     * en une seule ligne illisible. On compte large (une lettre, un peu plus
+     * d'une demi-hauteur de police) et on coupe aux mots.
+     */
+    function lignes(texte, largeur, taille, max) {
+        var parLigne = Math.max(4, Math.floor(largeur / (taille * 0.56)));
+        var mots = String(texte || '').split(/\s+/).filter(Boolean);
+        var out = [];
+        var courante = '';
+        mots.forEach(function (mot) {
+            var essai = courante ? courante + ' ' + mot : mot;
+            if (essai.length <= parLigne || !courante) { courante = essai; }
+            else { out.push(courante); courante = mot; }
+        });
+        if (courante) out.push(courante);
+        if (out.length > max) {
+            out = out.slice(0, max);
+            out[max - 1] = out[max - 1] + '…';
+        }
+        return out.map(function (l) { return l.length > parLigne ? l.slice(0, parLigne - 1) + '…' : l; });
+    }
+
+    function texteEnLignes(classe, x, y, pas, contenu) {
+        return '<text class="' + classe + '" x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '">' +
+            contenu.map(function (l, i) {
+                return '<tspan x="' + x.toFixed(1) + '" dy="' + (i ? pas : 0) + '">' + esc(l) + '</tspan>';
+            }).join('') + '</text>';
+    }
+
+    function chopeNode(offre, x, y, scale, place) {
         var mienne = !!offre.mine;
         var h = 64 * scale;
         var w = 42 * scale;
@@ -796,13 +830,14 @@
             // descend sous le nom, sinon elle se pose sur les fûts du fond.
             (mienne ? '' : badge(x, top - 22 * scale, scale, 'ready')) +
 
-            '<text class="sc-chope__nom" x="' + x.toFixed(1) + '" y="' + (y + 26 * scale).toFixed(1) + '">' +
-            esc(offre.recipeName || '') + '</text>' +
-            '<text class="sc-chope__hote" x="' + x.toFixed(1) + '" y="' + (y + 42 * scale).toFixed(1) + '">' +
-            esc(offre.seller || '') + (offre.price ? ' · ' + offre.price + ' pièces' : ' · offert') + '</text>' +
-            (mienne
-                ? '<text class="sc-chope__sien" x="' + x.toFixed(1) + '" y="' + (y + 60 * scale).toFixed(1) + '">à toi</text>'
-                : '') +
+            (function () {
+                var nom = lignes(offre.recipeName, place, 15, 2);
+                var basNom = y + 26 + (nom.length - 1) * 17;
+                var prix = offre.price ? offre.price + ' pièces' : 'offert';
+                return texteEnLignes('sc-chope__nom', x, y + 26, 17, nom) +
+                    texteEnLignes('sc-chope__hote', x, basNom + 17, 15,
+                        [prix].concat(lignes(mienne ? 'à toi' : offre.seller, place, 12, 1)));
+            })() +
             hit(x, top - 34 * scale, w * 2.4, h + 70 * scale) +
             '</g>';
     }
@@ -863,11 +898,10 @@
      * L'entrepôt.
      *
      * <p>C'était une grille de lignes : « Orge maltée · 14 kg en stock ».
-     * Une réserve se regarde, elle ne se lit pas. Chaque matière prend ici la
-     * forme sous laquelle on la range vraiment — le grain en sacs, le miel en
-     * jarres, le houblon en bottes, l'eau en tonnelets — sur trois planches
-     * d'étagère. On ne clique sur rien : une réserve n'est pas un menu, c'est
-     * un état des lieux.
+     * Une réserve se regarde, elle ne se lit pas. Chaque matière y est posée
+     * avec son illustration — le sac de grain, le pot de miel, le cône de
+     * houblon, la goutte d'eau — sur trois planches d'étagère. On ne clique
+     * sur rien : une réserve n'est pas un menu, c'est un état des lieux.
      */
     function entrepot(state) {
         var stock = (state.inventory || []).filter(function (item) {
@@ -912,7 +946,7 @@
             var pas = utile / lot.length;
             lot.forEach(function (item, i) {
                 var x = marge + 30 + pas * (i + 0.5);
-                objets += contenant(item, x, planche.y, planche.k, rang * 7 + i, ep);
+                objets += contenant(item, x, planche.y, planche.k, ep);
             });
         });
 
@@ -924,17 +958,17 @@
     }
 
     /** La forme sous laquelle on range chaque matière. */
-    function contenant(item, x, y, k, seed, epaisseur) {
+    function contenant(item, x, y, k, epaisseur) {
         var type = item.type || 'OTHER';
         var sous = y + (epaisseur || 14) + 16 * k;
-        var corps;
-
-        if (type === 'CEREAL') corps = sac(x, y, k);
-        else if (type === 'HONEY') corps = jarre(x, y, k);
-        else if (type === 'HOP' || type === 'HERB') corps = botte(x, y, k, seed);
-        else if (type === 'WATER') corps = tonnelet(x, y, k);
-        else if (type === 'FRUIT') corps = cageot(x, y, k);
-        else corps = pot(x, y, k);
+        // Les mêmes illustrations que dans les listes et le bandeau : le sac
+        // d'orge du rayon est celui qu'on voit en haut de l'écran. Le
+        // document porte la planche de dessins, le décor s'en sert.
+        var connu = ['CEREAL', 'HONEY', 'HOP', 'HERB', 'FRUIT', 'SPICE', 'YEAST', 'WATER'].indexOf(type) >= 0;
+        var cote = 78 * k;
+        var corps = '<use class="sc-stock__art" href="#art-' + (connu ? type : 'OTHER') + '"' +
+            ' x="' + (x - cote / 2).toFixed(1) + '" y="' + (y - cote + 5 * k).toFixed(1) + '"' +
+            ' width="' + cote.toFixed(1) + '" height="' + cote.toFixed(1) + '"/>';
 
         return '<g class="sc-stock" data-type="' + esc(type) + '">' +
             '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (y + 2).toFixed(1) +
@@ -955,73 +989,6 @@
         var suffixe = UNITES[item.unit] === undefined ? '' : UNITES[item.unit];
         return arrondi.toLocaleString('fr-FR') + (suffixe ? ' ' + suffixe : '');
     }
-
-    function sac(x, y, k) {
-        var w = 58 * k, h = 76 * k;
-        var col = y - h * 0.72;
-        return '<path class="sc-sac" d="M' + (x - w / 2) + ' ' + y +
-            'q' + (-5 * k) + ' ' + (-h * 0.34) + ' ' + (w * 0.19) + ' ' + (-h * 0.56) +
-            'q' + (w * 0.1) + ' ' + (-h * 0.08) + ' ' + (w * 0.12) + ' ' + (-h * 0.16) +
-            'h' + (w * 0.38) +
-            'q' + (w * 0.02) + ' ' + (h * 0.08) + ' ' + (w * 0.12) + ' ' + (h * 0.16) +
-            'q' + (w * 0.24) + ' ' + (h * 0.22) + ' ' + (w * 0.19) + ' ' + (h * 0.56) + 'Z"/>' +
-            // Le col noué et l'ouverture évasée : sans eux, c'est un galet.
-            '<path class="sc-sac__gueule" d="M' + (x - w * 0.19) + ' ' + col +
-            'q' + (w * 0.19) + ' ' + (-h * 0.16) + ' ' + (w * 0.38) + ' 0' +
-            'q' + (-w * 0.19) + ' ' + (h * 0.07) + ' ' + (-w * 0.38) + ' 0Z"/>' +
-            '<path class="sc-sac__col" d="M' + (x - w * 0.2) + ' ' + (col + h * 0.05) + 'h' + (w * 0.4) + '"/>' +
-            '<path class="sc-sac__pli" d="M' + (x - w * 0.3) + ' ' + (y - h * 0.3) +
-            'q' + (w * 0.3) + ' ' + (h * 0.12) + ' ' + (w * 0.6) + ' 0"/>';
-    }
-
-    function jarre(x, y, k) {
-        var w = 50 * k, h = 70 * k;
-        return '<path class="sc-jarre" d="M' + (x - w * 0.28) + ' ' + (y - h) +
-            'h' + (w * 0.56) + 'l' + (w * 0.2) + ' ' + (h * 0.22) +
-            'a' + (w * 0.5) + ' ' + (h * 0.44) + ' 0 0 1 ' + (-w * 0.96) + ' 0Z"/>' +
-            '<ellipse class="sc-jarre__bouchon" cx="' + x + '" cy="' + (y - h) + '" rx="' + (w * 0.32) + '" ry="' + (5 * k) + '"/>' +
-            '<path class="sc-jarre__reflet" d="M' + (x - w * 0.24) + ' ' + (y - h * 0.58) + 'q' + (-3 * k) + ' ' + (h * 0.3) + ' ' + (4 * k) + ' ' + (h * 0.42) + '"/>';
-    }
-
-    function botte(x, y, k, seed) {
-        var h = 74 * k;
-        var tiges = '';
-        for (var i = 0; i < 7; i++) {
-            var d = (jitter(seed, i) - 0.5) * 44 * k;
-            tiges += '<path class="sc-botte__tige" d="M' + x.toFixed(1) + ' ' + y.toFixed(1) +
-                'q' + (d * 0.4).toFixed(1) + ' ' + (-h * 0.6) + ' ' + d.toFixed(1) + ' ' + (-h).toFixed(1) + '"/>';
-        }
-        return tiges + '<path class="sc-botte__lien" d="M' + (x - 18 * k) + ' ' + (y - h * 0.32) + 'h' + (36 * k) + '"/>';
-    }
-
-    function tonnelet(x, y, k) {
-        var w = 54 * k, h = 68 * k;
-        return '<path class="sc-tonnelet" d="M' + (x - w * 0.4) + ' ' + y +
-            'q' + (-6 * k) + ' ' + (-h / 2) + ' 0 ' + (-h) + 'h' + (w * 0.8) +
-            'q' + (6 * k) + ' ' + (h / 2) + ' 0 ' + h + 'Z"/>' +
-            '<path class="sc-tonnelet__cercle" d="M' + (x - w * 0.46) + ' ' + (y - h * 0.68) + 'h' + (w * 0.92) +
-            'M' + (x - w * 0.46) + ' ' + (y - h * 0.3) + 'h' + (w * 0.92) + '"/>';
-    }
-
-    function cageot(x, y, k) {
-        var w = 60 * k, h = 52 * k;
-        return '<path class="sc-cageot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h) + 'h' + w + 'v' + h + 'Z"/>' +
-            '<path class="sc-cageot__latte" d="M' + (x - w / 2) + ' ' + (y - h * 0.62) + 'h' + w +
-            'M' + (x - w / 2) + ' ' + (y - h * 0.3) + 'h' + w + '"/>' +
-            '<circle class="sc-cageot__fruit" cx="' + (x - 8 * k) + '" cy="' + (y - h - 6 * k) + '" r="' + (8 * k) + '"/>' +
-            '<circle class="sc-cageot__fruit" cx="' + (x + 8 * k) + '" cy="' + (y - h - 5 * k) + '" r="' + (7 * k) + '"/>';
-    }
-
-    function pot(x, y, k) {
-        var w = 40 * k, h = 50 * k;
-        return '<path class="sc-pot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h * 0.8) +
-            'q0 ' + (-h * 0.2) + ' ' + (w / 2) + ' ' + (-h * 0.2) +
-            'q' + (w / 2) + ' 0 ' + (w / 2) + ' ' + (h * 0.2) + 'V' + y + 'Z"/>' +
-            '<path class="sc-pot__etiquette" d="M' + (x - w * 0.34) + ' ' + (y - h * 0.5) + 'h' + (w * 0.68) + 'v' + (h * 0.3) + 'h' + (-w * 0.68) + 'Z"/>';
-    }
-
-
-    /* ---------------------------------------------------------- Commandes */
 
     /**
      * Le tableau d'affichage.

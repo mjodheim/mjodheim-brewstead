@@ -47,10 +47,11 @@
     }
   ],
   "evaluator_contract": {
-    "public_suite_command": "./mvnw -q test",
+    "public_suite_command": "./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test",
     "hidden_objective_pass_quality_milli": 1000,
     "hidden_objective_fail_quality_milli": 0,
     "public_suite_failure": "hard_fail_not_archive_viable",
-    "note": "Binary task quality is defined independently of G2's 780 stopping threshold: hidden objective solved = 1000, unsolved = 0."
+    "note": "Binary task quality is defined independently of G2's 780 stopping threshold: hidden objective solved = 1000, unsolved = 0.",
+    "public_suite_scope": "Deterministic unit/service/controller/domain tests only; SpringBoot/UI/Postgres integration tests are excluded because they require external runtime services and are not part of the transfer authority."
   }
 }

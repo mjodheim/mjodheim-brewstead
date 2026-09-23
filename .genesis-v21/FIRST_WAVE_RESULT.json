@@ -1,0 +1,37 @@
+{
+  "schema": "mira-genesis-rsi-v21-first-wave-result-v1",
+  "mira_execution_freeze": "c2fbcd54deac7b75cfeeaebf38b6a837dc92915d",
+  "source_run_id": 35891428142,
+  "paired_projection_identical": true,
+  "archive_recovery_from_logs": true,
+  "tasks": {
+    "brewstead-chat-rate-window": {
+      "proposal_patch_sha256": "ea94afe2d6e6606d6afe06ec15431f16cbb40def5ab71b6030ee72375fd35215",
+      "quality_milli": 1000,
+      "objective_pass": true,
+      "child_tree_digest": "e9959d71ac625170e9d522be509e454816c2258d0514727de13f40ae81b4d137",
+      "child_node_id": "v21-brewstead-chat-rate-window-child-e9959d71ac62",
+      "g1_observations": 1,
+      "g2_observations": 1
+    },
+    "brewstead-farm-plant-ownership": {
+      "proposal_patch_sha256": "c729c8c2103636fd1796f800360f72417950fc2fdf0af32837d9134b5652a3e7",
+      "quality_milli": 1000,
+      "objective_pass": true,
+      "child_tree_digest": "82618bd9b063e0f62374664856d60f5f1a3ba51c69959f97aa1de63d434660aa",
+      "child_node_id": "v21-brewstead-farm-plant-ownership-child-82618bd9b063",
+      "g1_observations": 1,
+      "g2_observations": 1
+    },
+    "brewstead-brew-quality-bonus": {
+      "proposal_patch_sha256": "7d9901b6e4dc1a0d24bffe36c4bd431abfe491ebeb945cd9620395936f37959d",
+      "quality_milli": 1000,
+      "objective_pass": true,
+      "child_tree_digest": "c0530c8c439953571cdef1531b0a50d205f069f879911ca046fdb5be401a980a",
+      "child_node_id": "v21-brewstead-brew-quality-bonus-child-c0530c8c4399",
+      "g1_observations": 1,
+      "g2_observations": 1
+    }
+  },
+  "total_transfer_observations_spent": 6
+}

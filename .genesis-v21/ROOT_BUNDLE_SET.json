@@ -1,0 +1,136 @@
+{
+  "bundles": [
+    {
+      "allowed_source_path": "src/main/java/be/mjodheim/brewstead/service/TavernChatService.java",
+      "bundle_zip": "genesis-v21-brewstead-chat-rate-window.zip",
+      "bundle_zip_bytes": 1127615,
+      "bundle_zip_sha256": "2744981b9dd14063a8da8ea7ba5759a027030403b3ab920a37578469a72e9809",
+      "campaign_slot_id": "v21-brewstead-chat-rate-window-r1-shared-s1",
+      "evaluator_only_test_included": false,
+      "g1_initial_selection": [
+        "v21-brewstead-chat-rate-window-root"
+      ],
+      "g2_initial_selection": [
+        "v21-brewstead-chat-rate-window-root"
+      ],
+      "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+      "host_repository": "mjodheim/mjodheim-brewstead",
+      "parent_archive_sha256": "2fec9cee3046c7ceab14e03d1735b77170e78ae52f9e903d10e5d9817d604615",
+      "parent_defected_source_sha256": "ff4f7d269596914bd0ab8920c377fe3988df11bf7c4c244c5fe95a337315a205",
+      "parent_node_id": "v21-brewstead-chat-rate-window-root",
+      "parent_tree_digest": "07f01bc42243d60b38abff538b90d83e7984715d768534a3b029e5936551f8ff",
+      "prompt_sha256": "77a2d7cb43ebe21fb5487730f09a803afa94552bc91fb4d2204603a63b93dab5",
+      "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+      "public_guard_command": "./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test",
+      "public_symptom": "The chat anti-spam window must count messages from the preceding one minute, not a wider historical window.",
+      "schema": "mira-genesis-rsi-v21-transfer-task-manifest-v1",
+      "shared_first_wave": true,
+      "task_id": "brewstead-chat-rate-window",
+      "task_manifest_sha256": "d88cfd27cb885a390dfb8c1403ccf138510993e3370d15ebfe5944f22ebf48c2",
+      "verify_output_sha256": "189189bc84cf681f8c206ddfcdbbc866e987214014d82c4f5916c8892840ebae"
+    },
+    {
+      "allowed_source_path": "src/main/java/be/mjodheim/brewstead/service/FarmService.java",
+      "bundle_zip": "genesis-v21-brewstead-farm-plant-ownership.zip",
+      "bundle_zip_bytes": 1127590,
+      "bundle_zip_sha256": "b6b8a09b517a47aa2b24049ddc8227b29141329c0a1ca75fa58cc0b07826feb8",
+      "campaign_slot_id": "v21-brewstead-farm-plant-ownership-r1-shared-s1",
+      "evaluator_only_test_included": false,
+      "g1_initial_selection": [
+        "v21-brewstead-farm-plant-ownership-root"
+      ],
+      "g2_initial_selection": [
+        "v21-brewstead-farm-plant-ownership-root"
+      ],
+      "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+      "host_repository": "mjodheim/mjodheim-brewstead",
+      "parent_archive_sha256": "44fb2d3985482ff8abf606d99fd27d0d6f64aee02c565860677e4f659a17dc19",
+      "parent_defected_source_sha256": "82c0c6eb9bf3aaa14d5b6781ddc59c441c7f22bab84a030f65ba4459a74fcfab",
+      "parent_node_id": "v21-brewstead-farm-plant-ownership-root",
+      "parent_tree_digest": "e63919f98c6ea07e4cd6155a4327fe1f9ae9d5aaf4c5a719cb7bd69c65e8e0c5",
+      "prompt_sha256": "10f3a3bfde7d18f30f3cb90ca5c0aa5471c3e8b49e6aa76ba8a0f962040a8aeb",
+      "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+      "public_guard_command": "./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test",
+      "public_symptom": "Planting must reject a field owned by another player before any growth effect is applied.",
+      "schema": "mira-genesis-rsi-v21-transfer-task-manifest-v1",
+      "shared_first_wave": true,
+      "task_id": "brewstead-farm-plant-ownership",
+      "task_manifest_sha256": "d3290988d16a224bd5739c4ed26a44061aa045f4d13bfeae95d0d58109f43502",
+      "verify_output_sha256": "189189bc84cf681f8c206ddfcdbbc866e987214014d82c4f5916c8892840ebae"
+    },
+    {
+      "allowed_source_path": "src/main/java/be/mjodheim/brewstead/service/BrewService.java",
+      "bundle_zip": "genesis-v21-brewstead-brew-quality-bonus.zip",
+      "bundle_zip_bytes": 1127599,
+      "bundle_zip_sha256": "460d8e0c90efbc84591856833dcd774061f6b2529bd0a4ac05695a79dfa16acb",
+      "campaign_slot_id": "v21-brewstead-brew-quality-bonus-r1-shared-s1",
+      "evaluator_only_test_included": false,
+      "g1_initial_selection": [
+        "v21-brewstead-brew-quality-bonus-root"
+      ],
+      "g2_initial_selection": [
+        "v21-brewstead-brew-quality-bonus-root"
+      ],
+      "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+      "host_repository": "mjodheim/mjodheim-brewstead",
+      "parent_archive_sha256": "4d1e32ef468b092acdad0b5b0ad2531ba932d053978cd793283fd445613af914",
+      "parent_defected_source_sha256": "fe3aa3b74cd7ba960418d7635fe8718c02caed2d5917e30c988bed506c378584",
+      "parent_node_id": "v21-brewstead-brew-quality-bonus-root",
+      "parent_tree_digest": "afda91fa161d45d9f1ef530815ada8f597645450eb9a16c9ac17da1856434836",
+      "prompt_sha256": "a1c93ac74b83f3c2605a1f711731b962cc016c599cc3883afbb59acb4b74ed3f",
+      "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+      "public_guard_command": "./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test",
+      "public_symptom": "Finished-batch quality must include the player's brewing progression bonus in addition to the active effect shift.",
+      "schema": "mira-genesis-rsi-v21-transfer-task-manifest-v1",
+      "shared_first_wave": true,
+      "task_id": "brewstead-brew-quality-bonus",
+      "task_manifest_sha256": "8d4f5fc09020d59d32c46e42da67d25ef676cbf0d5da798f6808f2eae2a0eff7",
+      "verify_output_sha256": "189189bc84cf681f8c206ddfcdbbc866e987214014d82c4f5916c8892840ebae"
+    }
+  ],
+  "first_wave_plans": [
+    {
+      "g1_selected_parent_ids": [
+        "v21-brewstead-chat-rate-window-root"
+      ],
+      "g2_selected_parent_ids": [
+        "v21-brewstead-chat-rate-window-root"
+      ],
+      "root_node_id": "v21-brewstead-chat-rate-window-root",
+      "root_quality_milli": 0,
+      "shared_first_wave": true,
+      "task_id": "brewstead-chat-rate-window"
+    },
+    {
+      "g1_selected_parent_ids": [
+        "v21-brewstead-farm-plant-ownership-root"
+      ],
+      "g2_selected_parent_ids": [
+        "v21-brewstead-farm-plant-ownership-root"
+      ],
+      "root_node_id": "v21-brewstead-farm-plant-ownership-root",
+      "root_quality_milli": 0,
+      "shared_first_wave": true,
+      "task_id": "brewstead-farm-plant-ownership"
+    },
+    {
+      "g1_selected_parent_ids": [
+        "v21-brewstead-brew-quality-bonus-root"
+      ],
+      "g2_selected_parent_ids": [
+        "v21-brewstead-brew-quality-bonus-root"
+      ],
+      "root_node_id": "v21-brewstead-brew-quality-bonus-root",
+      "root_quality_milli": 0,
+      "shared_first_wave": true,
+      "task_id": "brewstead-brew-quality-bonus"
+    }
+  ],
+  "g1_policy_sha256": "3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434",
+  "g2_policy_sha256": "69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf",
+  "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+  "proposer_outputs_seen_before_bundle_generation": 0,
+  "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+  "schema": "mira-genesis-rsi-v21-transfer-root-bundle-set-v1",
+  "transfer_observations_spent_before_bundle_generation": 0
+}

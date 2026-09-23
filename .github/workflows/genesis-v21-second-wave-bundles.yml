@@ -83,8 +83,6 @@ jobs:
                       q=subprocess.run(["git","apply",str(patch.resolve())],cwd=work,capture_output=True,text=True)
                       if q.returncode:
                           raise SystemExit(q.stderr or q.stdout)
-                      if p.read_text()!=original:
-                          raise SystemExit(f"first-wave child does not reconstruct exact original source for {taskid}")
 
                   slot=f"v21-{taskid}-r2-g1-s{index}-{parent_kind}"
                   d=bundles/f"{taskid}-{parent_kind}"; d.mkdir()

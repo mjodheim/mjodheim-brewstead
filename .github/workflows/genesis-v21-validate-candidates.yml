@@ -1,0 +1,71 @@
+name: Genesis V21 validate staged first-attempt candidates
+
+on:
+  push:
+    branches: [research/genesis-v21-transfer-calibration]
+    paths:
+      - ".github/workflows/genesis-v21-validate-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - brewstead-chat-rate-window
+          - brewstead-farm-plant-ownership
+          - brewstead-brew-quality-bonus
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/genesis-v21-transfer-calibration
+          path: apparatus
+      - uses: actions/checkout@v4
+        with:
+          ref: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+          path: host
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: maven
+          cache-dependency-path: host/pom.xml
+
+      - name: Inject frozen defect
+        env:
+          TASK: ${{ matrix.task }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          p=Path("host")/task["source_path"]
+          s=p.read_text()
+          if s.count(task["old_text"])!=1:
+              raise SystemExit("defect site mismatch")
+          p.write_text(s.replace(task["old_text"],task["defect_text"],1))
+          PY
+
+      - name: Apply candidate patch
+        env:
+          TASK: ${{ matrix.task }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd host
+          git apply "../apparatus/.genesis-v21/candidates/$TASK/proposal.patch"
+
+      - name: Run frozen public guard
+        working-directory: host
+        shell: bash
+        run: ./mvnw -q -Dtest='*ServiceTest,*ControllerTest,DomainBehaviorTest,RequestValidationTest,MapperTest,GameClockTest,ApiExceptionHandlerTest' test

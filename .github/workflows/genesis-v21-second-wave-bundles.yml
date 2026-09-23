@@ -1,0 +1,211 @@
+name: Genesis V21 build frozen second-wave transfer bundles
+
+on:
+  push:
+    branches: [research/genesis-v21-transfer-calibration]
+    paths:
+      - ".github/workflows/genesis-v21-second-wave-bundles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HOST_COMMIT: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+  TAG: genesis-rsi-v21-transfer-second-wave-bundles-20260923
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/genesis-v21-transfer-calibration
+          path: apparatus
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HOST_COMMIT }}
+          path: host
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build six exact G1 second-wave bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,os,shutil,subprocess,tarfile,zipfile
+          from pathlib import Path
+
+          ws=Path(os.environ["GITHUB_WORKSPACE"])
+          app=ws/"apparatus"; host=ws/"host"
+          out=Path(os.environ["RUNNER_TEMP"])/"v21-r2"; out.mkdir()
+          bundles=out/"bundles"; bundles.mkdir()
+          bank=json.loads((app/".genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          plan=json.loads((app/".genesis-v21/SECOND_WAVE_PLAN.json").read_text())
+          protocol=app/".genesis-v21/V21_TRANSFER_PROPOSER_PROTOCOL.md"
+          verifier=app/".genesis-v21/VERIFY_OUTPUT.py"
+
+          def sha(p):
+              return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+
+          rows=[]
+          for task_plan in plan["tasks"]:
+              taskid=task_plan["task_id"]
+              task=next(x for x in bank["tasks"] if x["id"]==taskid)
+              for index,parent_kind in enumerate(("child","root"),start=1):
+                  if parent_kind=="child":
+                      parent_id=task_plan["first_wave_child_node_id"]
+                      parent_tree=task_plan["first_wave_child_tree_digest"]
+                      parent_quality=1000
+                  else:
+                      parent_id=task_plan["root_node_id"]
+                      parent_tree=task_plan["root_tree_digest"]
+                      parent_quality=0
+
+                  work=out/f"work-{taskid}-{parent_kind}"
+                  shutil.copytree(host,work,ignore=shutil.ignore_patterns(".git","target"))
+
+                  # Root is the frozen defected source. Child is reconstructed by
+                  # applying the accepted first-wave patch to that exact root.
+                  p=work/task["source_path"]
+                  original=p.read_text()
+                  if original.count(task["old_text"])!=1:
+                      raise SystemExit(f"defect site mismatch {taskid}")
+                  p.write_text(original.replace(task["old_text"],task["defect_text"],1))
+                  if parent_kind=="child":
+                      patch=app/".genesis-v21/candidates"/taskid/"proposal.patch"
+                      q=subprocess.run(["git","apply",str(patch.resolve())],cwd=work,capture_output=True,text=True)
+                      if q.returncode:
+                          raise SystemExit(q.stderr or q.stdout)
+                      if p.read_text()!=original:
+                          raise SystemExit(f"first-wave child does not reconstruct exact original source for {taskid}")
+
+                  slot=f"v21-{taskid}-r2-g1-s{index}-{parent_kind}"
+                  d=bundles/f"{taskid}-{parent_kind}"; d.mkdir()
+                  parent_tar=d/"parent.tar.gz"
+                  with tarfile.open(parent_tar,"w:gz") as tf:
+                      for q in sorted(work.rglob("*")):
+                          if q.is_file():
+                              tf.add(q,arcname=q.relative_to(work).as_posix(),recursive=False)
+
+                  manifest={
+                    "schema":"mira-genesis-rsi-v21-transfer-task-manifest-v1",
+                    "task_id":taskid,
+                    "campaign_slot_id":slot,
+                    "parent_node_id":parent_id,
+                    "parent_tree_digest":parent_tree,
+                    "parent_quality_milli":parent_quality,
+                    "parent_kind":parent_kind,
+                    "arm_id":"g1",
+                    "round":2,
+                    "host_repository":"mjodheim/mjodheim-brewstead",
+                    "host_commit":os.environ["HOST_COMMIT"],
+                    "public_symptom":task["public_symptom"],
+                    "allowed_source_path":task["source_path"],
+                    "parent_source_sha256":sha(p),
+                    "parent_archive_sha256":sha(parent_tar),
+                    "public_guard_command":bank["evaluator_contract"]["public_suite_command"],
+                    "evaluator_only_test_included":False,
+                  }
+                  mp=d/"task-manifest.json"
+                  mp.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
+                  shutil.copy2(protocol,d/"V21_TRANSFER_PROPOSER_PROTOCOL.md")
+                  shutil.copy2(verifier,d/"VERIFY_OUTPUT.py")
+                  prompt=[
+                    "GENESIS RSI V21 — BREWSTEAD CROSS-STACK TRANSFER REPAIR",
+                    "",
+                    f"Task: {taskid}",
+                    f"Campaign slot: {slot}",
+                    f"Parent kind: {parent_kind}",
+                    f"Parent quality (public): {parent_quality}",
+                    f"Public symptom: {task['public_symptom']}",
+                    "",
+                    "Use ONLY this bundle. No web, GitHub, plugins, connectors, saved memory, previous chats, Mira Genesis project context, evaluator-only test source, other V21 attempts/slots, or human candidate-specific hints.",
+                    "",
+                    "Read V21_TRANSFER_PROPOSER_PROTOCOL.md completely. It is authoritative.",
+                    "",
+                    f"Allowed production source path: {task['source_path']}",
+                    "",
+                    "Extract parent.tar.gz as the exact parent.",
+                    "Inspect the supplied public source and public tests.",
+                    "Produce the smallest causal patch you can justify for the supplied symptom while preserving existing behavior.",
+                    "The parent may already partially or fully satisfy the symptom; do not invent evaluator details. Any patch must still be a genuine, minimal production change within the one allowed file.",
+                    "",
+                    "Before returning, run:",
+                    "python3 VERIFY_OUTPUT.py proposal.patch transcript.json",
+                    "",
+                    "Do not return until it prints exactly:",
+                    "GENESIS_RSI_V21_TRANSFER_OUTPUT=PASS",
+                    "",
+                    "Return exactly proposal.patch and transcript.json.",
+                    "No prose outside the two files.",
+                  ]
+                  (d/"PROMPT.txt").write_text("\n".join(prompt)+"\n")
+
+                  manifest["task_manifest_sha256"]=sha(mp)
+                  manifest["proposer_protocol_sha256"]=sha(protocol)
+                  manifest["verify_output_sha256"]=sha(verifier)
+                  manifest["prompt_sha256"]=sha(d/"PROMPT.txt")
+
+                  zpath=bundles/f"genesis-v21-{taskid}-r2-{parent_kind}.zip"
+                  names=[q.relative_to(d).as_posix() for q in d.rglob("*") if q.is_file()]
+                  with zipfile.ZipFile(zpath,"w") as z:
+                      for name in sorted(names):
+                          info=zipfile.ZipInfo(name,date_time=(2026,9,23,0,0,0))
+                          info.compress_type=zipfile.ZIP_DEFLATED
+                          info.external_attr=(0o644 & 0xffff)<<16
+                          z.writestr(info,(d/name).read_bytes())
+                  rows.append({
+                    **manifest,
+                    "bundle_zip":zpath.name,
+                    "bundle_zip_sha256":sha(zpath),
+                    "bundle_zip_bytes":zpath.stat().st_size,
+                  })
+
+          bundle_set={
+            "schema":"mira-genesis-rsi-v21-transfer-second-wave-bundle-set-v1",
+            "host_commit":os.environ["HOST_COMMIT"],
+            "g1_policy_sha256":"3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434",
+            "g2_policy_sha256":"69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf",
+            "second_wave_plan":plan,
+            "bundles":rows,
+            "transfer_observations_spent_before_bundle_generation":6,
+            "second_wave_proposer_outputs_seen_before_bundle_generation":0,
+          }
+          (out/"bundle-set.json").write_text(json.dumps(bundle_set,indent=2,sort_keys=True)+"\n")
+          print(json.dumps({"bundles":[{"slot":x["campaign_slot_id"],"sha":x["bundle_zip_sha256"]} for x in rows]},sort_keys=True))
+          PY
+
+      - name: Persist exact bundle hashes before proposer use
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/v21-r2/bundle-set.json" apparatus/.genesis-v21/SECOND_WAVE_BUNDLE_SET.json
+          cd apparatus
+          git config user.name "Anthony Mets"
+          git config user.email "110968830+mjodheim@users.noreply.github.com"
+          git pull --rebase origin research/genesis-v21-transfer-calibration
+          git add .genesis-v21/SECOND_WAVE_BUNDLE_SET.json
+          git commit -m "research(genesis): freeze V21 second-wave bundle hashes"
+          git push origin HEAD:research/genesis-v21-transfer-calibration
+
+      - name: Publish exact second-wave bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Genesis RSI V21 Brewstead transfer second-wave bundles" \
+              --notes "Six prospectively frozen G1 round-two proposal slots after V21 first-wave 3/3 paired solves. G2 requested no further slots."
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$RUNNER_TEMP"/v21-r2/bundles/genesis-v21-*.zip \
+            "$RUNNER_TEMP/v21-r2/bundle-set.json"

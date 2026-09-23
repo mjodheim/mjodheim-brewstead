@@ -44,13 +44,13 @@
    y reconnaissait les planches et les clôtures, et le décor avait l'air
    posé sur une photo ratée. Plus de flou, moins de couleur, et un
    agrandissement qui sort les détails du cadre. */
-.sc-far { filter: blur(7px) saturate(.84) brightness(.86) contrast(.94); }
+.sc-far { filter: blur(7px) saturate(1.08) brightness(1.02); }
 .sc-far image { transform-origin: center; transform: scale(1.13); }
 .sc-brume { fill: url(#sc-brume); pointer-events: none; }
 
 .sc-floor-plate { fill: url(#sc-grass); }
-.sc-floor-lip { fill: none; stroke: rgba(255, 236, 186, .2); stroke-width: 2.5; }
-.sc-meadow path { fill: none; stroke: rgba(196, 214, 138, .13); stroke-width: 9; stroke-linecap: round; }
+.sc-floor-lip { fill: none; stroke: rgba(236, 255, 190, .45); stroke-width: 3; }
+.sc-meadow path { fill: none; stroke: rgba(214, 240, 150, .2); stroke-width: 9; stroke-linecap: round; }
 
 /* Le plancher d'une cave : des lames qui fuient vers le fond. */
 .sc-floor-plate--cellar { fill: url(#sc-boards); }
@@ -88,8 +88,9 @@
 .sc-act:focus-visible { outline: none; }
 .sc-act:focus-visible .sc-badge__disc { stroke: #fff6da; stroke-width: 3; }
 /* Le geste secondaire reste doré : le vert est réservé à « c'est prêt ». */
-.sc-node .sc-act .sc-badge__disc { fill: rgba(30, 20, 6, .92); stroke: var(--gold); }
-.sc-node .sc-act .sc-badge__mark { stroke: var(--gold-hi); fill: none; }
+.sc-node .sc-act .sc-badge__lip { fill: var(--bleu-levre); }
+.sc-node .sc-act .sc-badge__disc { fill: var(--bleu); stroke: #fff; stroke-width: 3; }
+.sc-node .sc-act .sc-badge__mark { stroke: #fff; fill: none; }
 .sc-node:not([data-action]) .sc-node__hit { pointer-events: none; }
 .sc-node[data-action] { cursor: pointer; }
 
@@ -143,16 +144,17 @@
 
 .sc-plot__time, .sc-vat__name {
     text-anchor: middle;
-    font-family: "Cinzel", Georgia, serif;
+    font-family: var(--police-titre);
+    font-weight: 600;
     font-size: 15px;
-    fill: #f6e9cd;
+    fill: #fff;
     paint-order: stroke;
-    stroke: rgba(14, 9, 3, .8);
-    stroke-width: 3.5;
+    stroke: var(--bois-bord);
+    stroke-width: 4.5;
     stroke-linejoin: round;
 }
 
-.sc-vat__name { font-size: 16px; fill: #ffe6b4; }
+.sc-vat__name { font-size: 16px; fill: #fff3cf; }
 
 /* Ruches ------------------------------------------------------------------- */
 
@@ -228,28 +230,28 @@
 .sc-chope__anse { fill: none; stroke: #8a6a42; stroke-width: 5; stroke-linecap: round; }
 
 .sc-chope__nom {
-    fill: var(--cream);
-    font: 600 15px "Cinzel", Georgia, serif;
+    fill: #fff;
+    font: 600 15px var(--police-titre);
     text-anchor: middle;
     paint-order: stroke;
-    stroke: rgba(10, 6, 2, .85);
-    stroke-width: 4;
+    stroke: var(--bois-bord);
+    stroke-width: 4.5;
 }
 
 .sc-chope__hote, .sc-chope__sien {
-    fill: var(--cream-dim);
-    font: 400 12px "Spectral", Georgia, serif;
+    fill: #ffe9bf;
+    font: 700 12px var(--police-texte);
     text-anchor: middle;
     paint-order: stroke;
     stroke: rgba(10, 6, 2, .8);
     stroke-width: 3.5;
 }
 
-.sc-chope__sien { fill: var(--gold); font-family: "Cinzel", Georgia, serif; }
+.sc-chope__sien { fill: var(--gold); font-family: var(--police-titre); }
 
 .sc-salle__vide {
     fill: var(--cream-dim);
-    font: 400 17px "Spectral", Georgia, serif;
+    font: 400 17px var(--police-texte);
     text-anchor: middle;
     paint-order: stroke;
     stroke: rgba(10, 6, 2, .8);
@@ -284,50 +286,36 @@
 
 /* Entrepôt ----------------------------------------------------------------- */
 
-.sc-bati { fill: #3a2712; stroke: rgba(12, 7, 2, .6); stroke-width: 2; }
-.sc-bati__fond { fill: rgba(28, 18, 8, .72); }
-.sc-bati__latte { fill: none; stroke: rgba(12, 7, 2, .38); stroke-width: 2; }
-.sc-rayon { fill: #6a4a26; stroke: rgba(14, 8, 2, .55); stroke-width: 2; }
-.sc-rayon__nez { fill: none; stroke: rgba(255, 226, 172, .3); stroke-width: 2.6; }
+.sc-bati { fill: #a8692f; stroke: var(--bois-bord); stroke-width: 2.5; }
+.sc-bati__fond { fill: rgba(92, 52, 22, .82); }
+.sc-bati__latte { fill: none; stroke: rgba(40, 20, 6, .35); stroke-width: 2; }
+.sc-rayon { fill: #c0823f; stroke: var(--bois-bord); stroke-width: 2.5; }
+.sc-rayon__nez { fill: none; stroke: #f0b774; stroke-width: 3; }
 
-.sc-sac { fill: #b49a68; stroke: rgba(30, 19, 7, .45); stroke-width: 2; }
-.sc-sac__gueule { fill: #8f7645; stroke: rgba(30, 19, 7, .4); stroke-width: 1.6; }
-.sc-sac__col { fill: none; stroke: #8a6136; stroke-width: 4.5; stroke-linecap: round; }
-.sc-sac__pli { fill: none; stroke: rgba(60, 40, 16, .3); stroke-width: 2; }
 
-.sc-jarre { fill: #8d5f2c; stroke: rgba(24, 14, 5, .45); stroke-width: 2; }
-.sc-jarre__bouchon { fill: #c8a25c; stroke: rgba(24, 14, 5, .4); stroke-width: 2; }
-.sc-jarre__reflet { fill: none; stroke: rgba(255, 232, 178, .34); stroke-width: 3; stroke-linecap: round; }
 
-.sc-botte__tige { fill: none; stroke: #8f9f52; stroke-width: 2.6; stroke-linecap: round; }
-.sc-botte__lien { fill: none; stroke: #b0894a; stroke-width: 4; stroke-linecap: round; }
 
-.sc-tonnelet { fill: #79562e; stroke: rgba(18, 11, 4, .45); stroke-width: 2; }
-.sc-tonnelet__cercle { fill: none; stroke: #c39f5e; stroke-width: 3.4; stroke-linecap: round; }
 
-.sc-cageot { fill: #6b4a28; stroke: rgba(18, 11, 4, .45); stroke-width: 2; }
-.sc-cageot__latte { fill: none; stroke: rgba(30, 19, 7, .4); stroke-width: 2.4; }
-.sc-cageot__fruit { fill: #b8422f; stroke: rgba(30, 12, 6, .4); stroke-width: 1.6; }
 
-.sc-pot { fill: #6f6552; stroke: rgba(22, 16, 6, .45); stroke-width: 2; }
-.sc-pot__etiquette { fill: #ddcba1; }
+
+.sc-stock__art { filter: drop-shadow(0 3px 0 rgba(40, 20, 5, .35)); }
 
 .sc-stock__nom {
-    fill: var(--cream);
-    font: 600 14px "Cinzel", Georgia, serif;
+    fill: #fff;
+    font: 600 14px var(--police-titre);
     text-anchor: middle;
     paint-order: stroke;
-    stroke: rgba(10, 6, 2, .85);
-    stroke-width: 3.5;
+    stroke: var(--bois-bord);
+    stroke-width: 4.5;
 }
 
 .sc-stock__qte {
-    fill: var(--gold);
-    font: 700 14px system-ui, sans-serif;
+    fill: var(--jaune);
+    font: 700 14px var(--police-titre);
     text-anchor: middle;
     paint-order: stroke;
-    stroke: rgba(10, 6, 2, .8);
-    stroke-width: 3.5;
+    stroke: var(--bois-bord);
+    stroke-width: 4.5;
 }
 
 /* Paillasse ---------------------------------------------------------------- */
@@ -365,7 +353,7 @@
 .sc-cuve__compte, .sc-cuve__vide {
     text-anchor: middle;
     fill: var(--cream);
-    font: 600 20px "Cinzel", Georgia, serif;
+    font: 600 20px var(--police-titre);
     paint-order: stroke;
     stroke: rgba(10, 6, 2, .85);
     stroke-width: 4;
@@ -395,14 +383,14 @@
 .sc-feuille__delai,
 .sc-cachet__texte { text-anchor: middle; fill: #3d2a10; }
 
-.sc-feuille__client { font: 600 17px "Cinzel", Georgia, serif; }
-.sc-feuille__quoi { font: 700 28px "Cinzel", Georgia, serif; fill: #6b4a14; }
-.sc-feuille__recette { font: 400 15px "Spectral", Georgia, serif; }
-.sc-feuille__note { font: 400 12px "Spectral", Georgia, serif; fill: #6d5730; }
-.sc-feuille__prix { font: 700 18px "Cinzel", Georgia, serif; fill: #7a5410; }
+.sc-feuille__client { font: 600 17px var(--police-titre); }
+.sc-feuille__quoi { font: 700 28px var(--police-titre); fill: #6b4a14; }
+.sc-feuille__recette { font: 400 15px var(--police-texte); }
+.sc-feuille__note { font: 400 12px var(--police-texte); fill: #6d5730; }
+.sc-feuille__prix { font: 700 18px var(--police-titre); fill: #7a5410; }
 
 .sc-feuille__delai {
-    font: 600 13px system-ui, sans-serif;
+    font: 600 13px var(--police-titre);
     fill: #7d6338;
     paint-order: normal;
     stroke: none;
@@ -412,15 +400,23 @@
 .sc-punaise__reflet { fill: rgba(255, 224, 200, .6); }
 
 .sc-cachet { fill: rgba(150, 44, 32, .88); stroke: rgba(70, 18, 10, .6); stroke-width: 2; }
-.sc-cachet__texte { font: 600 13px "Cinzel", Georgia, serif; fill: #f6e2cf; }
+.sc-cachet__texte { font: 600 13px var(--police-titre); fill: #f6e2cf; }
 
 /* Pastille d'action -------------------------------------------------------- */
 
-.sc-badge__disc { fill: rgba(22, 14, 5, .82); stroke: rgba(233, 188, 85, .55); stroke-width: 2; }
-.sc-badge__mark { fill: none; stroke: var(--gold-hi); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Une bulle bombée posée sur une lèvre sombre, comme les boutons : on
+   comprend qu'elle s'enfonce. Crème quand ça pousse, verte quand c'est
+   prêt, jaune quand la place attend qu'on sème. */
+.sc-badge__lip { fill: var(--bois-bord); }
+.sc-badge__disc { fill: #fff6df; stroke: var(--bois-fonce); stroke-width: 2.5; }
+.sc-badge__mark { fill: none; stroke: var(--bois-fonce); stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
 
-.sc-node[data-state="ready"] .sc-badge__disc { fill: rgba(28, 54, 18, .9); stroke: var(--ok); }
-.sc-node[data-state="ready"] .sc-badge__mark { fill: #b9e9a6; stroke: #d8ffc4; }
+.sc-node[data-state="ready"] .sc-badge__lip { fill: var(--vert-levre); }
+.sc-node[data-state="ready"] .sc-badge__disc { fill: var(--vert); stroke: #fff; stroke-width: 3; }
+.sc-node[data-state="ready"] .sc-badge__mark { fill: rgba(255, 255, 255, .35); stroke: #fff; }
+.sc-node[data-state="empty"] .sc-badge__lip { fill: var(--jaune-levre); }
+.sc-node[data-state="empty"] .sc-badge__disc { fill: var(--jaune); stroke: #fff; stroke-width: 3; }
+.sc-node[data-state="empty"] .sc-badge__mark { stroke: #fff; stroke-width: 3.4; }
 .sc-node[data-state="ready"] .sc-badge__bob { animation: sc-call 2.2s ease-in-out infinite; }
 
 @keyframes sc-call {
@@ -428,8 +424,7 @@
     45% { transform: translateY(-5px); }
 }
 
-.sc-node[data-state="growing"] .sc-badge__mark { stroke: #f0d28a; }
-.sc-node[data-state="growing"] .sc-badge__disc { stroke: rgba(233, 188, 85, .35); }
+
 
 /* Barre d'actions sous la scène --------------------------------------------- */
 
@@ -440,17 +435,19 @@
     align-items: center;
     gap: .6em;
     flex-wrap: wrap;
-    padding: .8em 1.3em;
-    background: linear-gradient(180deg, rgba(24, 16, 6, .9), rgba(16, 10, 3, .96));
-    border-top: 1px solid rgba(233, 188, 85, .22);
+    padding: .7em 1.3em;
+    background: linear-gradient(180deg, var(--creme), var(--creme-2));
+    border-top: .3em solid var(--bois);
+    box-shadow: 0 -2px 0 var(--bois-bord);
 }
 
 .scene__hint {
     flex: 1;
     min-width: 12em;
     margin: 0;
-    font-size: .92em;
-    color: var(--cream-dim);
+    font-size: .95em;
+    font-weight: 600;
+    color: var(--encre-douce);
 }
 
 /* Le mode sobre coupe tout ce qui bouge, sans rien casser du décor. */

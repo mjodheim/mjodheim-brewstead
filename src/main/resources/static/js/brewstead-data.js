@@ -27,43 +27,43 @@
 
     var PLACES = [
         {
-            id: 'rucher', tiroir: true, calque: { x: 123, y: 87, w: 264, h: 136 }, label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
+            id: 'rucher', art: 'art-hive', tiroir: true, calque: { x: 123, y: 87, w: 264, h: 136 }, label: 'Rucher', kicker: 'Miel & cire', icon: 'i-honey',
             x: 285, y: 147, screen: 'rucher',
             intro: "Les ruches du coteau donnent le miel de bruyère qui fait la rondeur de tes hydromels.",
             action: 'Récolter le miel'
         },
         {
-            id: 'champs', tiroir: true, calque: { x: 82, y: 238, w: 316, h: 124 }, label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
+            id: 'champs', art: 'art-field', tiroir: true, calque: { x: 82, y: 238, w: 316, h: 124 }, label: 'Champs', kicker: 'Cultures du domaine', icon: 'i-grain',
             x: 241, y: 277, screen: 'champs',
             intro: "Orge, houblon et plantes aromatiques poussent ici, au rythme des saisons du fjord.",
             action: 'Gérer les cultures'
         },
         {
-            id: 'entrepot', calque: { x: 174, y: 382, w: 252, h: 136 }, label: 'Entrepôt', kicker: 'Stocks & matières', icon: 'i-pouch',
+            id: 'entrepot', art: 'art-crate', calque: { x: 174, y: 382, w: 252, h: 136 }, label: 'Entrepôt', kicker: 'Stocks & matières', icon: 'i-pouch',
             x: 292, y: 443, screen: 'inventaire',
             intro: "Tout ce que le domaine produit finit ici avant de repartir en brassin ou en livraison.",
             action: 'Ouvrir l’inventaire'
         },
         {
-            id: 'brasserie', tiroir: true, calque: { x: 618, y: 110, w: 388, h: 236 }, label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
+            id: 'brasserie', art: 'art-vat', tiroir: true, calque: { x: 618, y: 110, w: 388, h: 236 }, label: 'Brasserie', kicker: 'Le cœur de Brewstead', icon: 'i-barrel',
             x: 841, y: 227, screen: 'brasserie',
             intro: "Cuves, fûts et fermentation : c’est ici que les recettes deviennent des bières et des hydromels.",
             action: 'Suivre les brassins'
         },
         {
-            id: 'laboratoire', calque: { x: 1188, y: 190, w: 284, h: 204 }, label: 'Laboratoire', kicker: 'Recherche & recettes', icon: 'i-recipe',
+            id: 'laboratoire', art: 'art-flask', calque: { x: 1188, y: 190, w: 284, h: 204 }, label: 'Laboratoire', kicker: 'Recherche & recettes', icon: 'i-recipe',
             x: 1334, y: 260, screen: 'recettes',
             intro: "On y assemble les recettes, on y note les dosages, on y rate parfois de belles idées.",
             action: 'Ouvrir le grimoire'
         },
         {
-            id: 'taverne', calque: { x: 856, y: 376, w: 328, h: 200 }, label: 'Taverne', kicker: 'Voyageurs & réputation', icon: 'i-tavern',
+            id: 'taverne', art: 'art-BEER', calque: { x: 856, y: 376, w: 328, h: 200 }, label: 'Taverne', kicker: 'Voyageurs & réputation', icon: 'i-tavern',
             x: 934, y: 463, screen: 'taverne',
             intro: "Les voyageurs s’y arrêtent, goûtent, racontent. Ta réputation se construit à cette table.",
             action: 'Entrer dans la taverne'
         },
         {
-            id: 'commandes', calque: { x: 1284, y: 474, w: 176, h: 124 }, label: 'Commandes', kicker: 'Commerce', icon: 'i-orders',
+            id: 'commandes', art: 'art-scroll', calque: { x: 1284, y: 474, w: 176, h: 124 }, label: 'Commandes', kicker: 'Commerce', icon: 'i-orders',
             x: 1364, y: 523, screen: 'commandes',
             intro: "Les demandes des marchands et des autres domaines. Livre à l’heure, la réputation suit.",
             action: 'Voir les commandes'
@@ -86,11 +86,11 @@
     }
 
     var RESOURCES = [
-        { key: 'coins', label: 'Pièces', icon: 'i-coin', read: function (s) { return s.player.coins; } },
-        { key: 'grain', label: 'Céréales', icon: 'i-grain', read: function (s) { return sumOfType(s.inventory, 'CEREAL'); } },
-        { key: 'honey', label: 'Miel', icon: 'i-honey', read: function (s) { return sumOfType(s.inventory, 'HONEY'); } },
-        { key: 'hop', label: 'Houblon', icon: 'i-wood', read: function (s) { return sumOfType(s.inventory, 'HOP'); } },
-        { key: 'cellar', label: 'En cave', icon: 'i-barrel', read: function (s) { return cellarVolume(s.batches); } }
+        { key: 'coins', label: 'Pièces', art: 'art-coin', read: function (s) { return s.player.coins; } },
+        { key: 'grain', label: 'Céréales', art: 'art-CEREAL', read: function (s) { return sumOfType(s.inventory, 'CEREAL'); } },
+        { key: 'honey', label: 'Miel', art: 'art-HONEY', read: function (s) { return sumOfType(s.inventory, 'HONEY'); } },
+        { key: 'hop', label: 'Houblon', art: 'art-HOP', read: function (s) { return sumOfType(s.inventory, 'HOP'); } },
+        { key: 'cellar', label: 'En cave', art: 'art-barrel', read: function (s) { return cellarVolume(s.batches); } }
     ];
 
     /* ------------------------------------------------------------- Formatage */

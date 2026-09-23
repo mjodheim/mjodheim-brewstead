@@ -113,13 +113,42 @@
         return '<svg class="' + (className || '') + '" viewBox="0 0 24 24" aria-hidden="true"><use href="#' + name + '"/></svg>';
     }
 
+    /**
+     * Une illustration en couleur. Les icônes au trait restent pour les
+     * gestes (fermer, régler, ajouter) ; les objets du jeu — une matière, une
+     * boisson, un lieu — se montrent tels qu'on les range.
+     */
+    function art(id, className) {
+        return '<svg class="art ' + (className || '') + '" viewBox="0 0 32 32" aria-hidden="true"><use href="#' + id + '"/></svg>';
+    }
+
+    var TYPES_ILLUSTRES = ['CEREAL', 'HONEY', 'HOP', 'HERB', 'FRUIT', 'SPICE', 'YEAST', 'WATER'];
+
+    /** L'illustration d'une matière, d'après son type. */
+    function artMatiere(type) {
+        return 'art-' + (TYPES_ILLUSTRES.indexOf(type) >= 0 ? type : 'OTHER');
+    }
+
+    /** L'illustration d'une boisson : la chope, la corne, la bouteille. */
+    function artBoisson(drinkType) {
+        return 'art-' + ({ BEER: 'BEER', MEAD: 'MEAD', CIDER: 'CIDER' }[drinkType] || 'OTHER');
+    }
+
+    /** Le type d'une matière d'après son nom, lu dans la réserve ou le catalogue. */
+    function typeDe(s, nom) {
+        var trouve = (s.inventory || []).find(function (i) { return i.ingredientName === nom; })
+            || (s.ingredients || []).find(function (i) { return i.name === nom; });
+        return trouve ? trouve.type : null;
+    }
+
     function chip(label, tone) {
         return '<span class="chip' + (tone ? ' chip--' + tone : '') + '">' + esc(label) + '</span>';
     }
 
     function row(parts) {
         return '<div class="row">' +
-            (parts.icon ? icon(parts.icon, 'row__icon') : '') +
+            (parts.art ? art(parts.art, 'row__icon row__art')
+                : (parts.icon ? icon(parts.icon, 'row__icon') : '')) +
             '<div class="row__body">' +
             '<span class="row__title">' + esc(parts.title) + '</span>' +
             (parts.meta ? '<small class="row__meta">' + esc(parts.meta) + '</small>' : '') +
@@ -147,12 +176,22 @@
         return '<button class="btn btn--sm btn--gold" type="button" data-action="' + action + '" data-id="' + id + '">' + esc(label) + '</button>';
     }
 
+    /**
+     * Le message d'une panne, en français. Une requête coupée remonte avec
+     * le texte brut du navigateur (« Failed to fetch », « NetworkError… ») :
+     * le joueur n'a pas à le lire.
+     */
+    function lisible(message) {
+        if (!message || /fetch|network|load failed/i.test(message)) return 'Le domaine n’a pas répondu.';
+        return /[.!?…]$/.test(message) ? message : message + '.';
+    }
+
     function showFault(error) {
         var expired = !!error.sessionExpired;
         dom.faultTitle.textContent = expired ? 'Session expirée' : 'Domaine injoignable';
         dom.faultText.textContent = expired
             ? 'Ta session n’est plus valable. Reconnecte-toi pour retrouver ton domaine.'
-            : (error.message || 'Le domaine n’a pas répondu.') + ' Rien n’est perdu : réessaie dans un instant.';
+            : lisible(error.message) + ' Rien n’est perdu : réessaie dans un instant.';
         dom.faultRetry.hidden = expired;
         dom.faultLogin.hidden = !expired;
         dom.fault.classList.add('is-open');
@@ -333,7 +372,7 @@
 
         if (prix === null || prix === undefined) {
             return row({
-                icon: parcelles ? 'i-grain' : 'i-honey',
+                art: parcelles ? 'art-field' : 'art-hive',
                 title: parcelles ? 'Toutes les terres sont défrichées' : 'Le coteau est plein',
                 meta: combien + ' sur ' + plafond,
                 side: chip('au complet', 'ok')
@@ -342,7 +381,7 @@
 
         var assez = s.player.coins >= prix;
         return row({
-            icon: parcelles ? 'i-grain' : 'i-honey',
+            art: parcelles ? 'art-field' : 'art-hive',
             title: parcelles ? 'Défricher une parcelle' : 'Installer une ruche',
             meta: combien + ' sur ' + plafond + ' · ' + fmt.number(prix) + ' pièces'
                 + (assez ? '' : ' · il t’en manque ' + fmt.number(prix - s.player.coins)),
@@ -374,7 +413,7 @@
                     // Les ruches tournent d'elles-mêmes : il n'y a plus
                     // qu'un geste possible ici, récolter quand c'est prêt.
                     return row({
-                        icon: 'i-honey',
+                        art: 'art-hive',
                         title: 'Ruche n°' + hive.id,
                         meta: 'Niveau ' + hive.level + ' · ' + hive.level
                             + (hive.level > 1 ? ' pots' : ' pot') + ' par tournée',
@@ -396,7 +435,7 @@
                 return reapHeader(s, 'champs') + s.fields.map(function (field) {
                     var ready = field.status === 'READY' || (field.readyAt && fmt.isDone(field.readyAt));
                     return row({
-                        icon: 'i-grain',
+                        art: field.cropName ? 'art-field' : 'art-CEREAL',
                         title: field.cropName || 'Parcelle libre',
                         meta: field.status === 'EMPTY' ? 'Prête à semer' : 'Parcelle n°' + field.id,
                         progress: !ready && field.readyAt ? progress(field.plantedAt, field.readyAt) : '',
@@ -440,7 +479,7 @@
                     (fiches.length ? '<div class="grid">' + fiches.slice(0, 60).map(function (fiche) {
                         var crop = fiche.crop;
                         return '<button class="row row--pick" type="button" data-action="pick-crop" data-id="' + crop.id + '">' +
-                            icon('i-grain', 'row__icon') +
+                            art(artMatiere(typeDe(s, crop.ingredientName)), 'row__icon row__art') +
                             '<span class="row__body"><span class="row__title">' + esc(crop.ingredientName) + '</span>' +
                             '<small class="row__meta">' + esc(crop.name) + ' · ' +
                             crop.growDurationMinutes + ' min · rend ' +
@@ -474,7 +513,7 @@
                     return '<button class="row row--pick" type="button"' +
                         (can.ok ? '' : ' disabled') +
                         ' data-action="pick-recipe" data-id="' + recipe.id + '">' +
-                        icon('i-barrel', 'row__icon') +
+                        art(artBoisson(recipe.drinkType), 'row__icon row__art') +
                         '<span class="row__body">' +
                         '<span class="row__title">' + esc(recipe.name) + '</span>' +
                         '<small class="row__meta">' + esc(DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
@@ -504,7 +543,7 @@
                 if (!s.inventory.length) return empty('L’entrepôt est vide.');
                 return '<div class="grid">' + s.inventory.map(function (item) {
                     return row({
-                        icon: 'i-pouch',
+                        art: artMatiere(item.type),
                         title: item.ingredientName,
                         meta: fmt.quantity(item.quantity, item.unit) + ' en stock'
                     });
@@ -524,8 +563,9 @@
                 return head + s.batches.map(function (batch) {
                     var ready = batch.status === 'READY';
                     var finished = batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED';
+                    var recetteDuFut = s.recipes.find(function (r) { return r.id === batch.recipeId; });
                     return row({
-                        icon: 'i-barrel',
+                        art: recetteDuFut ? artBoisson(recetteDuFut.drinkType) : 'art-barrel',
                         title: batch.recipeName,
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
                         progress: !ready && !finished && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
@@ -605,7 +645,7 @@
                 var mix = draft.lines.length
                     ? draft.lines.map(function (line) {
                         return row({
-                            icon: 'i-pouch',
+                            art: artMatiere(line.type),
                             title: line.name,
                             meta: esc(TYPE_LABELS[line.type] || 'divers') +
                                 ' · en réserve : ' + fmt.number(stockOf(s, line.name)),
@@ -656,7 +696,7 @@
                                 ? '<div class="grid">' + shelf.slice(0, 24).map(function (item) {
                                     return '<button class="row row--pick" type="button"' +
                                         ' data-action="lab-add" data-id="' + item.id + '">' +
-                                        icon('i-pouch', 'row__icon') +
+                                        art(artMatiere(item.type), 'row__icon row__art') +
                                         '<span class="row__body"><span class="row__title">' + esc(item.name) + '</span>' +
                                         '<small class="row__meta">' + esc(TYPE_LABELS[item.type] || 'divers') +
                                         ' · en réserve : ' + esc(fmt.number(stockOf(s, item.name))) +
@@ -763,7 +803,7 @@
                             ? '<div class="grid">' + list.slice(0, 48).map(function (item) {
                                 return '<button class="row row--pick" type="button"' +
                                     ' data-action="pick-order-ingredient" data-id="' + item.id + '">' +
-                                    icon('i-pouch', 'row__icon') +
+                                    art(artMatiere(item.type), 'row__icon row__art') +
                                     '<span class="row__body"><span class="row__title">' + esc(item.name) + '</span>' +
                                     '<small class="row__meta">en réserve : ' +
                                     esc(fmt.number(stockOf(s, item.name))) + '</small></span></button>';
@@ -858,7 +898,7 @@
                     '<button class="btn" type="button" data-action="change-password">Changer le mot de passe</button>' +
                     '</div>' +
                     row({
-                        icon: 'i-trophy',
+                        art: 'art-star',
                         title: 'Niveau ' + player.level,
                         meta: fmt.number(player.reputation) + ' de réputation · ' + fmt.number(player.coins) + ' pièces'
                     }) +
@@ -926,7 +966,7 @@
             var can = deliverability(s, order);
             var lack = can.missing.slice(0, 2).map(function (l) { return l.ingredientName; }).join(', ');
             return row({
-                icon: 'i-orders',
+                art: 'art-scroll',
                 title: order.creatorUsername,
                 meta: orderLines(order) +
                     ' · expire dans ' + fmt.countdown(order.expiresAt) +
@@ -949,7 +989,7 @@
                 ? ' · livrée par ' + order.fulfillerUsername
                 : (open ? ' · expire dans ' + fmt.countdown(order.expiresAt) : '');
             return row({
-                icon: 'i-orders',
+                art: 'art-scroll',
                 title: orderLines(order),
                 meta: (ORDER_LABELS[order.status] || order.status) + who,
                 side: (open ? actionButton('cancel-order', 'Annuler', order.id) : '') +
@@ -977,7 +1017,7 @@
                     (line.minQuality ? ' (qualité ≥ ' + line.minQuality + ')' : '');
             }).join(' · ');
             return row({
-                icon: 'i-orders',
+                art: 'art-scroll',
                 title: order.customerName,
                 meta: lines + (open && order.expiresAt ? ' — expire dans ' + fmt.countdown(order.expiresAt) : ''),
                 side: chip(ORDER_LABELS[order.status] || order.status, order.status === 'OPEN' ? 'ok' : 'info') +
@@ -1023,7 +1063,7 @@
         return tavern.counter.map(function (offer) {
             var free = offer.price === 0;
             return row({
-                icon: 'i-tavern',
+                art: 'art-BEER',
                 title: offer.recipeName,
                 meta: 'servi par ' + offer.seller +
                     ' · ' + offer.servings + ' service' + (offer.servings > 1 ? 's' : '') +
@@ -1568,7 +1608,7 @@
             return '<button class="resource" type="button" role="listitem"' +
                 ' data-action="open-view" data-id="' + view + '"' +
                 ' title="' + esc(resource.label) + ' — ouvrir">' +
-                icon(resource.icon, 'resource__icon') +
+                art(resource.art, 'resource__icon') +
                 '<span class="resource__text">' +
                 '<span class="resource__value">' + esc(fmt.number(resource.read(state))) + '</span>' +
                 '<span class="resource__label">' + esc(resource.label) + '</span>' +
@@ -1742,7 +1782,7 @@
         var manque = fiche.brassable.missing.map(function (l) { return l.ingredientName; });
 
         return row({
-            icon: 'i-recipe',
+            art: artBoisson(recipe.drinkType),
             title: recipe.name,
             meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
                 ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
@@ -1844,9 +1884,14 @@
 
         var html = section.render(state);
         if (drawable) {
-            html = '<div class="account-actions" style="margin:0 0 .8em">' +
-                '<button class="btn" type="button" data-action="show-scene" data-id="' +
-                activeView + '">Revenir au décor</button></div>' + html;
+            // Le retour au décor rejoint la barre d'outils de la liste quand
+            // elle en a une : deux boutons sur une ligne, pas deux étages.
+            var retour = '<button class="btn" type="button" data-action="show-scene" data-id="' +
+                activeView + '">Revenir au décor</button>';
+            var barre = '<div class="account-actions" style="margin:0 0 .8em">';
+            html = html.indexOf(barre) === 0
+                ? barre + retour + html.slice(barre.length)
+                : barre + retour + '</div>' + html;
             sceneSignature[section.scene] = null;
         }
         updateMarkup(dom.screenBody, html);
@@ -1887,7 +1932,7 @@
     function buildPlaces() {
         dom.places.innerHTML = Data.PLACES.map(function (place) {
             return '<button class="place-chip" type="button" data-place="' + place.id + '" data-state="idle">' +
-                icon(place.icon, 'place-chip__icon') +
+                art(place.art, 'place-chip__icon') +
                 '<span class="place-chip__label">' + esc(place.label) + '</span>' +
                 '<span class="place-chip__count" hidden></span>' +
                 '</button>';
@@ -1931,7 +1976,7 @@
                 ' style="left:' + place.x + 'px;top:' + place.y + 'px"' +
                 ' aria-label="Ouvrir : ' + esc(place.label) + '">' +
                 '<span class="marker__plate">' +
-                icon(place.icon, 'marker__icon') +
+                art(place.art, 'marker__icon') +
                 '<span class="marker__label"><span class="marker__text">' + esc(place.label) + '</span></span>' +
                 '<span class="marker__count" hidden></span>' +
                 '</span>' +
@@ -2081,6 +2126,9 @@
         fil = Data.guide(state);
         dom.guideText.textContent = fil.texte;
         dom.guideWhy.textContent = fil.pourquoi;
+        var cible = fil.action === 'reap' ? 'champs' : fil.lieu;
+        var lieu = cible && Data.PLACES.filter(function (p) { return p.id === cible; })[0];
+        dom.guideFace.setAttribute('href', '#' + (lieu ? lieu.art : 'art-MEAD'));
         dom.guide.hidden = activeView !== 'monde' || !!activePlace;
     }
 
@@ -2140,7 +2188,7 @@
         return players.map(function (player, index) {
             var mine = player.username === s.player.username;
             return row({
-                icon: 'i-trophy',
+                art: index < 3 ? 'art-star' : 'art-coin',
                 title: (index + 1) + '. ' + player.username + (mine ? ' — toi' : ''),
                 meta: 'Niveau ' + player.level,
                 side: chip(fmt.number(player.reputation) + ' réputation', index === 0 ? 'gold' : null)
@@ -2533,7 +2581,7 @@
     }
 
     function start() {
-        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featKicker', 'featTitle', 'featDesc', 'featReward', 'featClose', 'featGo', 'playerName', 'playerAvatar', 'playerLevel',
+        ['game', 'world', 'scene', 'markers', 'guide', 'guideFace', 'guideText', 'guideWhy', 'feat', 'featKicker', 'featTitle', 'featDesc', 'featReward', 'featClose', 'featGo', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'resources', 'quest', 'questText', 'questCount',
             'renownBtn', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',

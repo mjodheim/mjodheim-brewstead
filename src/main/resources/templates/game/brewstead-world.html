@@ -9,9 +9,6 @@
     <title>Mjödheim · Brewstead</title>
     <meta name="_csrf" th:content="${_csrf?.token}" content="">
     <meta name="_csrf_header" th:content="${_csrf?.headerName}" content="">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap">
     <link rel="stylesheet" th:href="@{/css/brewstead.css}" href="/css/brewstead.css">
     <link rel="stylesheet" th:href="@{/css/brewstead-atmosphere.css}" href="/css/brewstead-atmosphere.css">
     <link rel="stylesheet" th:href="@{/css/brewstead-scene.css}" href="/css/brewstead-scene.css">
@@ -107,6 +104,143 @@
     </defs>
 </svg>
 
+<svg class="sprite" aria-hidden="true" focusable="false">
+    <!-- Les illustrations d'objets, en couleur. Chaque forme porte ses teintes
+         et son contour : elles ne suivent pas la couleur du texte comme les
+         icônes au trait. Dessin sur 32 × 32, contour brun, un reflet blanc. -->
+    <defs>
+        <symbol id="art-coin" viewBox="0 0 32 32">
+            <circle cx="16" cy="16" r="12.5" fill="#f5b82e" stroke="#7d4c0c" stroke-width="1.6"/>
+            <circle cx="16" cy="16" r="9" fill="#ffd45a" stroke="#c98a18" stroke-width="1.3"/>
+            <path d="M13.6 10v12M13.6 14.4l5.4-3.2M13.6 18.6l5.4-3.2" fill="none" stroke="#a8680e" stroke-width="2" stroke-linecap="round"/>
+            <ellipse cx="10.8" cy="10.4" rx="3" ry="1.5" fill="#fff" opacity=".6" transform="rotate(-38 10.8 10.4)"/>
+        </symbol>
+        <symbol id="art-CEREAL" viewBox="0 0 32 32">
+            <path d="M10.2 12.4c-3.4 3-5 7-4.4 10.6.5 3.2 3.7 5.2 10.2 5.2s9.7-2 10.2-5.2c.6-3.6-1-7.6-4.4-10.6Z" fill="#e5b76c" stroke="#6b4213" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M10.6 12.2c1.8-1.5 9-1.5 10.8 0" fill="none" stroke="#6b4213" stroke-width="1.6"/>
+            <path d="M11.2 12 9.2 7.6l3.2 1.6L13.8 5.8 16 9l2.2-3.2 1.4 3.4 3.2-1.6-2 4.4" fill="#f4d58e" stroke="#6b4213" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M16 15.4v8.4M16 18.4l-2.6-2M16 18.4l2.6-2M16 21.4l-2.6-2M16 21.4l2.6-2" fill="none" stroke="#b07a22" stroke-width="1.5" stroke-linecap="round"/>
+            <ellipse cx="10.6" cy="19" rx="1.4" ry="3.2" fill="#fff" opacity=".4"/>
+        </symbol>
+        <symbol id="art-HONEY" viewBox="0 0 32 32">
+            <path d="M9 12.6h14l1.4 10.8a4 4 0 0 1-4 4.6h-8.8a4 4 0 0 1-4-4.6Z" fill="#f5a41d" stroke="#7a4410" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M7.4 11.6c2.2-3 15-3 17.2 0l-1 2.6c-2-1.7-13.2-1.7-15.2 0Z" fill="#e4574a" stroke="#7d2418" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M10.4 10.6h2.2M14.6 9.8h2.2M18.8 10.2h2.2" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".7"/>
+            <path d="M12 16.6v4.6" stroke="#ffe08a" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M16 5v4" stroke="#7a4410" stroke-width="1.4" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-HOP" viewBox="0 0 32 32">
+            <path d="M16 4.6v4" stroke="#3d6816" stroke-width="1.6" stroke-linecap="round"/>
+            <path d="M16 8.2c4.8 1.4 7.4 5.6 7.4 10.2S20.2 27.8 16 27.8s-7.4-4.8-7.4-9.4 2.6-8.8 7.4-10.2Z" fill="#8fcb45" stroke="#3d6816" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M10.8 13.8c2.2 1.6 8.2 1.6 10.4 0M9.8 18.4c2.6 1.9 9.8 1.9 12.4 0M10.8 23c2.2 1.4 8.2 1.4 10.4 0" fill="none" stroke="#4d8a1c" stroke-width="1.3" stroke-linecap="round"/>
+            <path d="M16.4 8.4c1-2.8 3.8-3.8 6.4-3.2-.8 2.8-3.2 4.2-6.4 3.2Z" fill="#62a52a" stroke="#3d6816" stroke-width="1.3" stroke-linejoin="round"/>
+            <ellipse cx="12" cy="16" rx="1.2" ry="2.6" fill="#fff" opacity=".45"/>
+        </symbol>
+        <symbol id="art-HERB" viewBox="0 0 32 32">
+            <path d="M16 28V8" stroke="#3d6816" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M16 12c-4-1.4-6.6-4.6-6.4-7.6 3.4.2 6 3 6.4 7.6Z" fill="#66b84a" stroke="#2f5e14" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M16 17c3.6-2.2 7.6-2.4 9.8-.4-2.4 2.6-6.2 2.8-9.8.4Z" fill="#7cc95a" stroke="#2f5e14" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M16 21.6c-3.8-1.8-7.8-1.6-9.8.6 2.6 2.4 6.4 2.2 9.8-.6Z" fill="#66b84a" stroke="#2f5e14" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M16 9.4c2.2-2.8 5.2-3.8 7.6-3-1.2 2.8-4.2 4-7.6 3Z" fill="#8ad766" stroke="#2f5e14" stroke-width="1.4" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="art-FRUIT" viewBox="0 0 32 32">
+            <path d="M16 10.6c-2.2-2.2-7.4-2-8.8 2.6-1.6 5.2 1.6 13.2 5.6 13.8 1.4.2 2.1-.6 3.2-.6s1.8.8 3.2.6c4-.6 7.2-8.6 5.6-13.8-1.4-4.6-6.6-4.8-8.8-2.6Z" fill="#e94a3b" stroke="#7a1c13" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M16 10.6c0-2.2.8-3.8 2.2-5.2" fill="none" stroke="#6b4213" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M17.8 7.6c2-2 4.8-2 6.4-.6-2 2-4.4 2.2-6.4.6Z" fill="#6aae2c" stroke="#35620f" stroke-width="1.3" stroke-linejoin="round"/>
+            <ellipse cx="11.4" cy="15" rx="1.6" ry="3" fill="#fff" opacity=".55" transform="rotate(20 11.4 15)"/>
+        </symbol>
+        <symbol id="art-SPICE" viewBox="0 0 32 32">
+            <path d="M16 4.8l2.6 7.2 7.6-.4-6 4.8 2.4 7.4L16 19.6l-6.6 4.2 2.4-7.4-6-4.8 7.6.4Z" fill="#d9772b" stroke="#6e3208" stroke-width="1.6" stroke-linejoin="round"/>
+            <circle cx="16" cy="15" r="2.4" fill="#8e4410" stroke="#6e3208" stroke-width="1.2"/>
+            <path d="M8 26.4c3-1.2 13-1.2 16 0" fill="none" stroke="#a45a1c" stroke-width="2.2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-YEAST" viewBox="0 0 32 32">
+            <path d="M9.4 13h13.2l-1 12.2a3 3 0 0 1-3 2.8h-5.2a3 3 0 0 1-3-2.8Z" fill="#c9a36d" stroke="#6b4213" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M8.2 13.6c-.8-3 1.8-5 4-4.4.8-2.4 5.6-2.6 6.8-.4 2.6-.8 5.4 1.2 4.6 4.6-1 1.4-14.2 1.6-15.4.2Z" fill="#fff4d6" stroke="#6b4213" stroke-width="1.4" stroke-linejoin="round"/>
+            <circle cx="13" cy="11.4" r="1" fill="#fff"/><circle cx="18.4" cy="10.6" r="1.2" fill="#fff"/>
+            <path d="M11.4 19.6h9.2" stroke="#8e6a38" stroke-width="1.3" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-WATER" viewBox="0 0 32 32">
+            <path d="M16 4.6c4 5.2 8.4 10 8.4 14.6a8.4 8.4 0 0 1-16.8 0c0-4.6 4.4-9.4 8.4-14.6Z" fill="#5cbaf2" stroke="#1d5c93" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M12 19.6a4.2 4.2 0 0 0 3.2 4.2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+        </symbol>
+        <symbol id="art-OTHER" viewBox="0 0 32 32">
+            <path d="M13.4 4.6h5.2v5.2c3.2 1.4 4.8 4 4.8 7.2V25a3 3 0 0 1-3 3h-8.8a3 3 0 0 1-3-3v-8c0-3.2 1.6-5.8 4.8-7.2Z" fill="#8b5a2b" stroke="#4a2708" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M12.6 4.6h6.8" stroke="#4a2708" stroke-width="2" stroke-linecap="round"/>
+            <rect x="11" y="16.4" width="10" height="6.4" rx="1.2" fill="#f7e2b2" stroke="#4a2708" stroke-width="1.2"/>
+            <ellipse cx="11.6" cy="14" rx="1" ry="2.4" fill="#fff" opacity=".4"/>
+        </symbol>
+        <symbol id="art-barrel" viewBox="0 0 32 32">
+            <path d="M10.4 4.6h11.2c2.2 3.4 3.4 7.2 3.4 11.4s-1.2 8-3.4 11.4H10.4C8.2 24 7 20.2 7 16s1.2-8 3.4-11.4Z" fill="#c07a3a" stroke="#5a3113" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M13.6 4.8c-.9 3.6-1.3 7.2-1.3 11.2s.4 7.6 1.3 11.2M18.4 4.8c.9 3.6 1.3 7.2 1.3 11.2s-.4 7.6-1.3 11.2" fill="none" stroke="#8c5024" stroke-width="1.2"/>
+            <path d="M7.8 10.6h16.4M7.8 21.4h16.4" stroke="#57636c" stroke-width="2.4"/>
+            <path d="M7.8 10.6h16.4M7.8 21.4h16.4" stroke="#9aa6ae" stroke-width="1" transform="translate(0 -.6)"/>
+            <ellipse cx="10" cy="16" rx="1" ry="3.4" fill="#fff" opacity=".35"/>
+        </symbol>
+        <symbol id="art-star" viewBox="0 0 32 32">
+            <path d="M16 3.4l3.8 8 8.6 1-6.4 6 1.8 8.6L16 22.6 8.2 27l1.8-8.6-6.4-6 8.6-1Z" fill="#ffc93a" stroke="#8a5308" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="M16 8.6l2.2 4.6 4.8.6" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".7"/>
+        </symbol>
+        <symbol id="art-BEER" viewBox="0 0 32 32">
+            <path d="M7.6 11.4h13.6v12.8a3.4 3.4 0 0 1-3.4 3.4h-6.8a3.4 3.4 0 0 1-3.4-3.4Z" fill="#f6b52d" stroke="#6b3a0a" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M21.2 14h2.6a2.8 2.8 0 0 1 0 5.6h-2.6" fill="none" stroke="#6b3a0a" stroke-width="2"/>
+            <path d="M6.6 12c-.8-3 1.6-5.2 4-4.6 1-2.6 6-2.8 7.2-.2 2.6-.6 5 1.4 4 4.8-2 1.2-13.2 1.4-15.2 0Z" fill="#fffaf0" stroke="#6b3a0a" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11.4 15.4v8.4M15.6 15.4v8.4" stroke="#ffd986" stroke-width="1.6" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-MEAD" viewBox="0 0 32 32">
+            <path d="M5.4 9.6c7.6-2.6 17-1.8 21.4 1.6-1.4 6-5.6 12.6-12.4 16.4-1.4.8-2.8-.2-2.6-1.6.8-5.4-2.4-11.6-6.4-16.4Z" fill="#e8b25c" stroke="#5f3510" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M5.4 9.6c7.6-2.6 17-1.8 21.4 1.6-3.6 2.6-15 3-21.4-1.6Z" fill="#f5b52a" stroke="#5f3510" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M9.4 15.6c3.4 1 8.4.8 12-.6M12 21.4c2.4.4 5 .2 7.4-.8" fill="none" stroke="#9a6320" stroke-width="1.5" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-CIDER" viewBox="0 0 32 32">
+            <path d="M13.4 4.6h5.2v5c3.2 1.4 4.8 4 4.8 7.2V25a3 3 0 0 1-3 3h-8.8a3 3 0 0 1-3-3v-8.2c0-3.2 1.6-5.8 4.8-7.2Z" fill="#9fcf5a" stroke="#3b5f14" stroke-width="1.6" stroke-linejoin="round" opacity=".95"/>
+            <path d="M12.6 4.6h6.8" stroke="#3b5f14" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="16" cy="20" r="3.8" fill="#e94a3b" stroke="#7a1c13" stroke-width="1.3"/>
+            <path d="M16 16.2c0-1 .4-1.8 1.2-2.4" fill="none" stroke="#6b4213" stroke-width="1.2" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-hive" viewBox="0 0 32 32">
+            <path d="M16 4.8c6.2 0 10.2 5.4 10.2 11.2V26H5.8V16c0-5.8 4-11.2 10.2-11.2Z" fill="#f5b83a" stroke="#6b3a0a" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M7.2 11.4h17.6M6 16.4h20M6 21.2h20" fill="none" stroke="#c9861a" stroke-width="1.6"/>
+            <path d="M13.2 26v-2.8a2.8 2.8 0 0 1 5.6 0V26Z" fill="#6b3a0a"/>
+            <path d="M4.4 26h23.2" stroke="#6b3a0a" stroke-width="2.2" stroke-linecap="round"/>
+            <ellipse cx="11" cy="9.4" rx="2.4" ry="1.2" fill="#fff" opacity=".55" transform="rotate(-30 11 9.4)"/>
+        </symbol>
+        <symbol id="art-field" viewBox="0 0 32 32">
+            <path d="M16 27.4V12M16 27.4l-5.6-10.8M16 27.4l5.6-10.8" stroke="#8a5a12" stroke-width="1.6" stroke-linecap="round"/>
+            <ellipse cx="16" cy="9" rx="2.6" ry="5" fill="#f2c64d" stroke="#8a5a12" stroke-width="1.4"/>
+            <ellipse cx="9.4" cy="13.4" rx="2.4" ry="4.6" fill="#f2c64d" stroke="#8a5a12" stroke-width="1.4" transform="rotate(-24 9.4 13.4)"/>
+            <ellipse cx="22.6" cy="13.4" rx="2.4" ry="4.6" fill="#f2c64d" stroke="#8a5a12" stroke-width="1.4" transform="rotate(24 22.6 13.4)"/>
+            <path d="M11.6 23.4c2.8 1.6 6 1.6 8.8 0" fill="none" stroke="#c0392b" stroke-width="2.4" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="art-crate" viewBox="0 0 32 32">
+            <rect x="5.4" y="9.6" width="21.2" height="17" rx="1.6" fill="#d39a58" stroke="#5a3113" stroke-width="1.6"/>
+            <path d="M5.4 15.2h21.2M5.4 20.8h21.2" stroke="#8c5024" stroke-width="1.4"/>
+            <path d="M6.6 10.6l18.8 15" stroke="#8c5024" stroke-width="1.8"/>
+            <circle cx="11" cy="9" r="3.2" fill="#e94a3b" stroke="#7a1c13" stroke-width="1.2"/>
+            <circle cx="17" cy="8.2" r="3.2" fill="#8fcb45" stroke="#3d6816" stroke-width="1.2"/>
+            <circle cx="22" cy="9.2" r="2.8" fill="#f5b83a" stroke="#6b3a0a" stroke-width="1.2"/>
+        </symbol>
+        <symbol id="art-vat" viewBox="0 0 32 32">
+            <path d="M6.8 10h18.4l-1.4 15a3 3 0 0 1-3 2.6H11.2a3 3 0 0 1-3-2.6Z" fill="#c07a3a" stroke="#5a3113" stroke-width="1.6" stroke-linejoin="round"/>
+            <ellipse cx="16" cy="10" rx="9.2" ry="2.6" fill="#f6b52d" stroke="#5a3113" stroke-width="1.5"/>
+            <path d="M7.4 15.4h17.2M8 21.6h16" stroke="#57636c" stroke-width="2.2"/>
+            <circle cx="13.6" cy="6.4" r="1.4" fill="#fff" stroke="#b58b3c" stroke-width=".8"/><circle cx="18" cy="4.6" r="1" fill="#fff" stroke="#b58b3c" stroke-width=".8"/>
+        </symbol>
+        <symbol id="art-flask" viewBox="0 0 32 32">
+            <path d="M12.8 4.6h6.4v7.2l6 11.2a3.2 3.2 0 0 1-2.8 4.6H9.6a3.2 3.2 0 0 1-2.8-4.6l6-11.2Z" fill="#e8f6ff" stroke="#29566f" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M8.8 19.6h14.4l2 3.4a3.2 3.2 0 0 1-2.8 4.6H9.6a3.2 3.2 0 0 1-2.8-4.6Z" fill="#b66fdc" stroke="#29566f" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11.8 4.6h8.4" stroke="#29566f" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="14" cy="23.2" r="1.2" fill="#fff" opacity=".8"/><circle cx="18.4" cy="21.8" r=".9" fill="#fff" opacity=".8"/>
+        </symbol>
+        <symbol id="art-scroll" viewBox="0 0 32 32">
+            <path d="M8.6 6.4h15.2v18.4a2.8 2.8 0 0 1-2.8 2.8H8.6Z" fill="#fbe8bd" stroke="#6b4213" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M8.6 6.4a2.6 2.6 0 0 0-2.6 2.6v1.6h2.6M21 27.6a2.8 2.8 0 0 0 2.8-2.8V23H26v1.8a2.8 2.8 0 0 1-2.8 2.8Z" fill="#e6c88c" stroke="#6b4213" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M11.8 11.6h8.4M11.8 15.4h8.4M11.8 19.2h5.6" stroke="#a37a44" stroke-width="1.5" stroke-linecap="round"/>
+            <circle cx="20.8" cy="21.4" r="2.6" fill="#d9483a" stroke="#7a1c13" stroke-width="1.2"/>
+        </symbol>
+    </defs>
+</svg>
+
 <div class="game" id="game" data-view="monde">
 
     <div class="world" id="world">
@@ -136,6 +270,7 @@
              quoi faire du domaine. Cette place, la plus visible de l'écran,
              sert maintenant à dérouler la boucle du jeu une étape à la fois. -->
         <button class="world__guide" id="guide" type="button">
+            <span class="world__guide-face" aria-hidden="true"><svg class="art" viewBox="0 0 32 32"><use id="guideFace" href="#art-MEAD"/></svg></span>
             <span class="world__guide-text" id="guideText">—</span>
             <small class="world__guide-why" id="guideWhy"></small>
             <svg class="world__guide-go" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-chevron"/></svg>
@@ -242,7 +377,7 @@
     </section>
 
     <section class="fault" id="fault" aria-hidden="true" role="alertdialog" aria-labelledby="faultTitle">
-        <div class="fault__sheet panel">
+        <div class="fault__sheet parchment">
             <h2 id="faultTitle">Domaine injoignable</h2>
             <p id="faultText"></p>
             <button class="btn btn--gold" type="button" id="faultRetry">Réessayer</button>

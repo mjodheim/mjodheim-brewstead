@@ -31,7 +31,7 @@
       "public_symptom": "Planting must reject a field owned by another player before any growth effect is applied.",
       "source_path": "src/main/java/be/mjodheim/brewstead/service/FarmService.java",
       "old_text": "PlayerField field = getOwnedField(playerId, request.fieldId());",
-      "defect_text": "PlayerField field = playerFieldRepository.findById(request.fieldId())\\n                .orElseThrow(() -> new IllegalArgumentException(\\\"Parcelle introuvable.\\\"));",
+      "defect_text": "PlayerField field = playerFieldRepository.findById(request.fieldId())\n                .orElseThrow(() -> new IllegalArgumentException(\"Parcelle introuvable.\"));",
       "hidden_test_source": "experiment/free_metamorphosis/v21/evaluator/GenesisV21FarmOwnershipTest.java",
       "hidden_test_selector": "GenesisV21FarmOwnershipTest"
     },
@@ -40,7 +40,7 @@
       "subsystem": "brewing-progression",
       "public_symptom": "Finished-batch quality must include the player's brewing progression bonus in addition to the active effect shift.",
       "source_path": "src/main/java/be/mjodheim/brewstead/service/BrewService.java",
-      "old_text": "+ effectService.qualityShift(batch.getPlayer().getId())\\n                + progressionService.brewingQualityBonus(batch.getPlayer().getId());",
+      "old_text": "+ effectService.qualityShift(batch.getPlayer().getId())\n                + progressionService.brewingQualityBonus(batch.getPlayer().getId());",
       "defect_text": "+ effectService.qualityShift(batch.getPlayer().getId());",
       "hidden_test_source": "experiment/free_metamorphosis/v21/evaluator/GenesisV21BrewQualityBonusTest.java",
       "hidden_test_selector": "GenesisV21BrewQualityBonusTest"

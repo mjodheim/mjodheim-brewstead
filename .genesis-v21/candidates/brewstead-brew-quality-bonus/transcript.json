@@ -1,0 +1,33 @@
+{
+  "schema": "mira-genesis-rsi-v21-transfer-proposal-v1",
+  "task_id": "brewstead-brew-quality-bonus",
+  "campaign_slot_id": "v21-brewstead-brew-quality-bonus-r1-shared-s1",
+  "parent_node_id": "v21-brewstead-brew-quality-bonus-root",
+  "parent_tree_digest": "afda91fa161d45d9f1ef530815ada8f597645450eb9a16c9ac17da1856434836",
+  "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+  "task_manifest_sha256": "8d4f5fc09020d59d32c46e42da67d25ef676cbf0d5da798f6808f2eae2a0eff7",
+  "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+  "proposal_patch_sha256": "7d9901b6e4dc1a0d24bffe36c4bd431abfe491ebeb945cd9620395936f37959d",
+  "intent": "Include the player's brewing progression quality bonus when a finished batch receives its one-time quality calculation.",
+  "rationale": "BrewService already combines base quality, player level, ingredient variety, and the active effect quality shift, while ProgressionService exposes brewingQualityBonus(playerId) for the player's brewing specialization. Adding that bonus to the existing calculation is the smallest causal repair and preserves the existing final 1..100 clamp.",
+  "files_changed": [
+    "src/main/java/be/mjodheim/brewstead/service/BrewService.java"
+  ],
+  "public_checks": [
+    "Mechanically inspected ProgressionService.brewingQualityBonus and EffectService.qualityShift in the supplied parent.",
+    "Mechanically inspected the public BrewServiceTest lifecycle quality assertion in the supplied parent.",
+    "Ran the supplied public guard command; execution stopped because the bundled Maven wrapper attempted to fetch Maven 3.9.16 while network access is forbidden by the protocol."
+  ],
+  "uncertainties": [
+    "Evaluator-only objective is withheld by protocol.",
+    "Public Maven guard could not complete because the bundled Maven wrapper required an unavailable network download."
+  ],
+  "information_boundary": {
+    "used_only_supplied_bundle": true,
+    "used_web_or_github": false,
+    "used_saved_memory_or_previous_chats": false,
+    "used_evaluator_only_test_source": false,
+    "used_other_v21_attempt_or_slot_output": false,
+    "used_human_candidate_specific_guidance": false
+  }
+}

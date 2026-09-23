@@ -1,0 +1,34 @@
+{
+  "schema": "mira-genesis-rsi-v21-transfer-proposal-v1",
+  "task_id": "brewstead-chat-rate-window",
+  "campaign_slot_id": "v21-brewstead-chat-rate-window-r1-shared-s1",
+  "parent_node_id": "v21-brewstead-chat-rate-window-root",
+  "parent_tree_digest": "07f01bc42243d60b38abff538b90d83e7984715d768534a3b029e5936551f8ff",
+  "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+  "task_manifest_sha256": "d88cfd27cb885a390dfb8c1403ccf138510993e3370d15ebfe5944f22ebf48c2",
+  "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+  "proposal_patch_sha256": "ea94afe2d6e6606d6afe06ec15431f16cbb40def5ab71b6030ee72375fd35215",
+  "intent": "Count Tavern chat anti-spam messages only from the preceding one minute.",
+  "rationale": "The rate-limit repository count was bounded by LocalDateTime.now().minusMinutes(5), so messages up to five minutes old were included. Changing only that bound to minusMinutes(1) makes the existing MAX_PER_MINUTE threshold operate on the requested one-minute window without altering other chat behavior.",
+  "files_changed": [
+    "src/main/java/be/mjodheim/brewstead/service/TavernChatService.java"
+  ],
+  "public_checks": [
+    "Mechanically inspected src/main/java/be/mjodheim/brewstead/repository/TavernMessageRepository.java and confirmed countByAuthorIdAndPostedAtAfter uses the supplied timestamp boundary.",
+    "Mechanically inspected src/test/java/be/mjodheim/brewstead/service/TavernChatServiceTest.java from the supplied parent.",
+    "Verified parent.tar.gz SHA-256 matches task-manifest.json parent_archive_sha256.",
+    "Verified the defected TavernChatService.java SHA-256 matches task-manifest.json parent_defected_source_sha256."
+  ],
+  "uncertainties": [
+    "Evaluator-only objective is withheld by protocol.",
+    "Public Maven test execution was not completed because the bundled wrapper attempted an external Maven download; no external test artifacts were used."
+  ],
+  "information_boundary": {
+    "used_only_supplied_bundle": true,
+    "used_web_or_github": false,
+    "used_saved_memory_or_previous_chats": false,
+    "used_evaluator_only_test_source": false,
+    "used_other_v21_attempt_or_slot_output": false,
+    "used_human_candidate_specific_guidance": false
+  }
+}

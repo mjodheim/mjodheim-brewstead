@@ -1,0 +1,12 @@
+diff --git a/src/main/java/be/mjodheim/brewstead/service/BrewService.java b/src/main/java/be/mjodheim/brewstead/service/BrewService.java
+index a2c9fe2..37f6c1c 100644
+--- a/src/main/java/be/mjodheim/brewstead/service/BrewService.java
++++ b/src/main/java/be/mjodheim/brewstead/service/BrewService.java
+@@ -208,6 +208,7 @@ public class BrewService {
+         int quality = 55
+                 + Math.min(25, batch.getPlayer().getLevel() * 2)
+                 + Math.min(20, ingredientVariety * 4)
++                + progressionService.brewingQualityBonus(batch.getPlayer().getId())
+                 + effectService.qualityShift(batch.getPlayer().getId());
+         return Math.max(1, Math.min(100, quality));
+     }

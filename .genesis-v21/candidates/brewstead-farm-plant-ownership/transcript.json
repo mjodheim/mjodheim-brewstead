@@ -1,0 +1,32 @@
+{
+  "schema": "mira-genesis-rsi-v21-transfer-proposal-v1",
+  "task_id": "brewstead-farm-plant-ownership",
+  "campaign_slot_id": "v21-brewstead-farm-plant-ownership-r1-shared-s1",
+  "parent_node_id": "v21-brewstead-farm-plant-ownership-root",
+  "parent_tree_digest": "e63919f98c6ea07e4cd6155a4327fe1f9ae9d5aaf4c5a719cb7bd69c65e8e0c5",
+  "host_commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+  "task_manifest_sha256": "d3290988d16a224bd5739c4ed26a44061aa045f4d13bfeae95d0d58109f43502",
+  "proposer_protocol_sha256": "3c03d5f46430a08a6a1eeb1af29788d43327b45975023e12b7d97c9689e04679",
+  "proposal_patch_sha256": "c729c8c2103636fd1796f800360f72417950fc2fdf0af32837d9134b5652a3e7",
+  "intent": "Reject planting into a field not owned by the requesting player before any growth-duration effect is consulted or field state is changed.",
+  "rationale": "FarmService already centralizes field ownership validation in getOwnedField. Reusing that helper in plant is the smallest causal repair: it preserves missing-field behavior, raises AccessDeniedException for foreign fields, and prevents the subsequent durationFactor call and growth mutation for unauthorized fields.",
+  "files_changed": [
+    "src/main/java/be/mjodheim/brewstead/service/FarmService.java"
+  ],
+  "public_checks": [
+    "Inspected src/main/java/be/mjodheim/brewstead/service/FarmService.java and src/test/java/be/mjodheim/brewstead/service/FarmServiceTest.java from the supplied parent archive.",
+    "Invoked the manifest public guard command; it could not execute because the Maven wrapper distribution was unavailable locally.",
+    "Verified parent.tar.gz and the defected FarmService.java SHA-256 values against task-manifest.json."
+  ],
+  "uncertainties": [
+    "Evaluator-only objective is withheld by protocol."
+  ],
+  "information_boundary": {
+    "used_only_supplied_bundle": true,
+    "used_web_or_github": false,
+    "used_saved_memory_or_previous_chats": false,
+    "used_evaluator_only_test_source": false,
+    "used_other_v21_attempt_or_slot_output": false,
+    "used_human_candidate_specific_guidance": false
+  }
+}

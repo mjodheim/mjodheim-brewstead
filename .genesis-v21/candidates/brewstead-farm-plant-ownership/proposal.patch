@@ -1,0 +1,13 @@
+diff --git a/src/main/java/be/mjodheim/brewstead/service/FarmService.java b/src/main/java/be/mjodheim/brewstead/service/FarmService.java
+--- a/src/main/java/be/mjodheim/brewstead/service/FarmService.java
++++ b/src/main/java/be/mjodheim/brewstead/service/FarmService.java
+@@ -66,8 +66,7 @@ public class FarmService {
+         Crop crop = cropRepository.findById(request.cropId())
+                 .orElseThrow(() -> new IllegalArgumentException("Culture introuvable."));
+ 
+-        PlayerField field = playerFieldRepository.findById(request.fieldId())
+-                .orElseThrow(() -> new IllegalArgumentException("Parcelle introuvable."));
++        PlayerField field = getOwnedField(playerId, request.fieldId());
+ 
+         if (field.getStatus() != FieldStatus.EMPTY) {
+             throw new IllegalStateException("Field is not empty");

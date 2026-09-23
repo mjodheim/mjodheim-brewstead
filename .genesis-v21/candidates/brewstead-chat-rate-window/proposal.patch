@@ -1,0 +1,12 @@
+diff --git a/src/main/java/be/mjodheim/brewstead/service/TavernChatService.java b/src/main/java/be/mjodheim/brewstead/service/TavernChatService.java
+--- a/src/main/java/be/mjodheim/brewstead/service/TavernChatService.java
++++ b/src/main/java/be/mjodheim/brewstead/service/TavernChatService.java
+@@ -43,7 +43,7 @@ public class TavernChatService {
+         }
+ 
+         long recent = messageRepository.countByAuthorIdAndPostedAtAfter(
+-                playerId, LocalDateTime.now().minusMinutes(5));
++                playerId, LocalDateTime.now().minusMinutes(1));
+         if (recent >= MAX_PER_MINUTE) {
+             throw new IllegalStateException("Laisse les autres placer un mot.");
+         }

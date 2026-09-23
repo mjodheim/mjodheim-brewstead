@@ -56,7 +56,7 @@ class BrewsteadUiIntegrationTest {
     @Autowired PlayerInventoryRepository inventoryRepository;
 
     @Test
-    void browserCanRegisterLoginRenderAndDriveCoreUiActions() {
+    void browserCanRegisterLoginRenderAndDriveCoreUiActions() throws InterruptedException {
         String username = "ui_eirik";
         String password = "Secret123!";
 
@@ -125,7 +125,30 @@ class BrewsteadUiIntegrationTest {
             PlayerProfile profile = profile(username);
             profile.setLevel(2);
             playerRepository.save(profile);
-            driver.navigate().refresh();
+
+            // Le passage de niveau ne passe plus en silence. Pas de
+            // rechargement : c'est le rafraîchissement périodique qui doit le
+            // voir, comme quand un contrat livré fait monter le joueur.
+            WebDriverWait patient = new WebDriverWait(driver, Duration.ofSeconds(30));
+            patient.until(ExpectedConditions.visibilityOfElementLocated(By.id("feat")));
+            // Le carton entre en fondu : son texte n'est « visible » pour le
+            // pilote qu'une fois l'animation passée. On lit le contenu brut.
+            patient.until(d -> d.findElement(By.id("featKicker")).getAttribute("textContent").contains("2"));
+            assertEquals("Niveau 2", driver.findElement(By.id("featKicker")).getAttribute("textContent").trim());
+            // Le niveau 2 mène à la spécialisation (visible une fois le fondu passé).
+            WebElement voie = patient.until(ExpectedConditions.visibilityOfElementLocated(By.id("featGo")));
+            assertEquals("Choisir ma voie", voie.getAttribute("textContent").trim());
+            // Il attend qu'on réponde : avant, il se refermait au bout de sept
+            // secondes, emportant son bouton.
+            Thread.sleep(8_000);
+            assertTrue(driver.findElement(By.id("feat")).isDisplayed());
+            voie.click();
+            waitForScreen(wait, "Renommée");
+            assertTrue(driver.findElement(By.cssSelector("[data-action='renom-tab'][data-id='domaine']"))
+                    .getAttribute("class").contains("is-active"));
+            assertEquals(3, driver.findElements(
+                    By.cssSelector("[data-action='choose-specialization']:not([disabled])")).size());
+            ouvrirVue(driver, wait, "monde");
             wait.until(ExpectedConditions.textToBe(By.id("playerLevel"), "Niveau 2"));
 
             ouvrirVue(driver, wait, "classement");
@@ -156,6 +179,13 @@ class BrewsteadUiIntegrationTest {
                     .getCssValue("animation-name");
             assertEquals("none", animation);
 
+            // L'eau est taillée par un masque relevé sur la peinture. Sans lui,
+            // les rectangles animés repassent sur le ponton et sur le toit de
+            // la tour de guet, ce qui était le défaut d'avant.
+            String masque = driver.findElement(By.cssSelector(".world__life .waters"))
+                    .getCssValue("mask");
+            assertTrue(masque.contains("url("), "l'eau doit rester masquée, vu : " + masque);
+
             ouvrirVue(driver, wait, "classement");
 
             driver.manage().window().setSize(new Dimension(390, 844));
@@ -168,7 +198,13 @@ class BrewsteadUiIntegrationTest {
 
             ouvrirVue(driver, wait, "inventaire");
             waitForScreen(wait, "Entrepôt");
-            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
+            // L'entrepôt s'ouvre sur ses planches : chaque matière y prend la
+            // forme sous laquelle on la range.
+            assertFalse(driver.findElements(By.cssSelector("#screenBody .sc-stock")).isEmpty(),
+                    "La réserve doit montrer ses contenants.");
+            click(driver, wait, By.cssSelector("[data-action='show-list'][data-id='inventaire']"));
+            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty(),
+                    "La liste détaillée reste à un clic.");
 
             click(driver, wait, By.id("screenClose"));
             click(driver, wait, By.id("settingsBtn"));
@@ -187,6 +223,23 @@ class BrewsteadUiIntegrationTest {
             waitForScreen(wait, "Champs");
             click(driver, wait, By.cssSelector("[data-action='sow-field'] .sc-node__hit, [data-action='sow-field']"));
             waitForScreen(wait, "Choisir une culture");
+
+            // Ce dont le domaine a besoin passe devant, et le dit : aucune
+            // culture utile ne doit apparaître après une culture quelconque.
+            List<WebElement> cultures = driver.findElements(By.cssSelector("#screenBody .row--pick"));
+            assertFalse(cultures.isEmpty());
+            boolean quelconque = false;
+            for (WebElement culture : cultures) {
+                boolean utile = !culture.findElements(By.cssSelector(".row__besoin")).isEmpty();
+                assertFalse(utile && quelconque, "culture utile reléguée : "
+                        + culture.getText().replace('\n', ' '));
+                quelconque = quelconque || !utile;
+            }
+            // Et le rendement porte son unité : « rend 760 » à côté de
+            // « rend 3 » comparait des grammes à des kilos.
+            assertTrue(cultures.getFirst().getText().matches("(?s).*rend [\\d\\s\\u00a0\\u202f,.]+(kg|g|L|ml)\\b.*"),
+                    cultures.getFirst().getText());
+
             click(driver, wait, By.cssSelector("[data-action='pick-crop']"));
             wait.until(d -> fieldRepository.findAllByPlayerId(profile.getId()).stream()
                     .anyMatch(field -> field.getStatus() == FieldStatus.GROWING));
@@ -225,7 +278,34 @@ class BrewsteadUiIntegrationTest {
 
             ouvrirVue(driver, wait, "recettes");
             waitForScreen(wait, "Grimoire des recettes");
-            assertFalse(driver.findElements(By.cssSelector("#screenBody .row")).isEmpty());
+            var fiches = driver.findElements(By.cssSelector("#screenBody .row"));
+            assertFalse(fiches.isEmpty());
+
+            // Le catalogue compte près de trois cents recettes. Les dessiner
+            // toutes faisait un mur de vingt mille pixels dans lequel il
+            // fallait chercher la seule qu'on pouvait brasser.
+            long auCatalogue = recipeRepository.count();
+            assertTrue(auCatalogue > 100, "le catalogue doit être fourni, vu : " + auCatalogue);
+            assertTrue(fiches.size() <= 30,
+                    "le grimoire ne doit pas tout dessiner, vu : " + fiches.size() + " lignes");
+
+            // Ce qu'on peut brasser passe devant : aucune recette à portée ne
+            // doit apparaître après une recette hors de portée. L'invariant
+            // tient aussi quand la réserve ne permet plus rien.
+            boolean horsDePortee = false;
+            for (WebElement fiche : fiches) {
+                boolean aPortee = !fiche.findElements(By.cssSelector(".chip--ok")).isEmpty();
+                assertFalse(aPortee && horsDePortee,
+                        "le grimoire doit montrer d'abord ce qu'on peut brasser, vu : "
+                                + fiche.getText().replace('\n', ' '));
+                horsDePortee = horsDePortee || !aPortee;
+
+                // « Préparer » ne s'allume que sur ce qu'on peut brasser :
+                // ailleurs il menait à un formulaire invalidable.
+                assertEquals(aPortee, !fiche.findElements(By.cssSelector("[data-action='prepare-recipe']")).isEmpty(),
+                        "bouton et disponibilité doivent dire la même chose : "
+                                + fiche.getText().replace('\n', ' '));
+            }
 
             ouvrirTaverneEnListe(driver, wait);
             waitForScreen(wait, "Taverne");
@@ -308,7 +388,7 @@ class BrewsteadUiIntegrationTest {
 
             // Une vraie commande entre joueurs, publiée et livrée par l'interface.
             alice.manage().window().setSize(new Dimension(1440, 1000));
-            ouvrirVue(alice, a, "commandes");
+            ouvrirEnListe(alice, a, "commandes", ".tabs");
             click(alice, a, By.cssSelector("[data-action='new-order']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.id("pickerSearch")))
                     .sendKeys("Eau de source");
@@ -339,7 +419,7 @@ class BrewsteadUiIntegrationTest {
             a.until(d -> !orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).isEmpty());
             var order = orderRepository.findAllByCreatorIdOrderByCreatedAtDesc(profile("ui_chat_alice").getId()).getFirst();
             assertEquals(coins - 20, profile("ui_chat_alice").getCoin());
-            ouvrirVue(bob, b, "commandes");
+            ouvrirEnListe(bob, b, "commandes", ".tabs");
             By deliver = By.cssSelector("[data-action='fulfill-order'][data-id='" + order.getId() + "']");
             new WebDriverWait(bob, Duration.ofSeconds(30)).until(ExpectedConditions.elementToBeClickable(deliver));
             click(bob, b, deliver);
@@ -419,7 +499,14 @@ class BrewsteadUiIntegrationTest {
             waitForMutation(brewer, wait);
             assertEquals(1, progressRepository.findByPlayerId(player.getId()).orElseThrow().getHarvestedHives());
 
+            // Le tableau d'affichage montre les contrats punaisés ; la liste
+            // détaillée est derrière « Voir la liste ».
             ouvrirVue(brewer, wait, "commandes");
+            wait.until(d -> !d.findElements(By.cssSelector(".sc-contrat")).isEmpty());
+            assertFalse(brewer.findElements(By.cssSelector(".sc-feuille")).isEmpty(),
+                    "Un contrat doit être une feuille punaisée, pas une ligne.");
+
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
             // Le marchand se présente de lui-même dès qu'on ouvre le comptoir.
             wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(player.getId()).isEmpty());
@@ -443,7 +530,10 @@ class BrewsteadUiIntegrationTest {
 
             int coinsBefore = profile("ui_full_brewer").getCoin();
             int reputationBefore = profile("ui_full_brewer").getReputation();
-            ouvrirVue(brewer, wait, "commandes");
+            // Ce parcours a déjà basculé les commandes en liste plus haut, et
+            // le choix reste mémorisé par lieu : c'est donc la liste qui
+            // s'ouvre, et c'est son bouton qu'on vise.
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='npc-complete'][data-id='" + order.getId() + "']"));
             waitForMutation(brewer, wait);
             assertEquals(be.mjodheim.brewstead.enums.OrderStatus.COMPLETED,
@@ -466,9 +556,18 @@ class BrewsteadUiIntegrationTest {
             assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("45 min"));
             brewer.findElement(By.id("pickerSearch")).clear();
             brewer.findElement(By.id("pickerSearch")).sendKeys("Cervoise du fjord");
-            click(brewer, wait, By.cssSelector("[data-action='prepare-recipe']"));
-            assertFalse(brewer.findElement(By.cssSelector("[data-action='pick-recipe']")).isEnabled());
-            assertTrue(brewer.findElement(By.id("screenBody")).getText().contains("10 L"));
+            // La cave a servi : cette recette n'est plus à portée. Elle ne
+            // propose donc plus « Préparer » — le bouton menait à un
+            // formulaire qu'on ne pouvait pas valider — et dit à la place ce
+            // qui manque, sans faire cliquer pour l'apprendre.
+            WebElement horsPortee = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(By.cssSelector("#screenBody .row")));
+            String ligne = horsPortee.getText().replace('\n', ' ');
+            assertTrue(ligne.contains("Cervoise du fjord"), ligne);
+            assertTrue(ligne.contains("Il te manque"), ligne);
+            assertTrue(horsPortee.findElements(By.cssSelector("[data-action='prepare-recipe']")).isEmpty(), ligne);
+            assertFalse(horsPortee.findElement(By.cssSelector("button[disabled]")).isEnabled(), ligne);
+            assertTrue(ligne.contains("35 L"), ligne);
 
             openSection(brewer, wait, "brasserie");
             click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "'] .sc-node__hit, " +
@@ -600,7 +699,7 @@ class BrewsteadUiIntegrationTest {
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
-            ouvrirVue(brewer, wait, "commandes");
+            ouvrirEnListe(brewer, wait, "commandes", ".tabs");
             click(brewer, wait, By.cssSelector("[data-action='orders-tab'][data-id='pnj']"));
             wait.until(d -> !npcOrderRepository.findAllByPlayerIdOrderByCreatedAtDesc(profile.getId()).isEmpty());
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
@@ -696,7 +795,13 @@ class BrewsteadUiIntegrationTest {
             addIngredient(driver, wait, "eau");
             assertEquals(name, driver.findElement(By.id("labName")).getAttribute("value"),
                     "Le nom saisi doit survivre aux ajouts d'ingrédients.");
-            assertEquals(2, driver.findElements(By.cssSelector("[data-action='lab-remove']")).size());
+            // Deux ingrédients : deux lignes dans la liste, et deux matières
+            // posées sur la paillasse. Compter « lab-remove » tout court
+            // additionnait les deux.
+            assertEquals(2, driver.findElements(
+                    By.cssSelector("#screenBody .row [data-action='lab-remove']")).size());
+            assertEquals(2, driver.findElements(By.cssSelector(".sc-fiole")).size(),
+                    "La cuve doit montrer ce qu'on y a versé.");
 
             // La dose se règle sans champ de saisie : rien à perdre au réaffichage.
             click(driver, wait, By.cssSelector("[data-action='lab-more']"));
@@ -902,6 +1007,27 @@ class BrewsteadUiIntegrationTest {
      * comptoir détaillé. La salle dessinée s'ouvre la première ; « Voir la
      * liste » donne accès au reste.
      */
+    /**
+     * Ouvre un lieu dessiné sur sa vue en liste, quand c'est elle qu'on teste.
+     *
+     * <p>Le décor se redessine tout seul quand son contenu bouge : chercher
+     * le bouton, cliquer et vérifier doivent tenir dans la même tentative,
+     * sinon la référence est caduque entre deux lignes.
+     */
+    private void ouvrirEnListe(WebDriver driver, WebDriverWait wait, String view, String repere) {
+        ouvrirVue(driver, wait, view);
+        By versListe = By.cssSelector("[data-action='show-list'][data-id='" + view + "']");
+        wait.ignoring(StaleElementReferenceException.class)
+                .ignoring(ElementClickInterceptedException.class)
+                .until(d -> {
+                    if (!d.findElements(By.cssSelector(repere)).isEmpty()) return true;
+                    List<WebElement> bouton = d.findElements(versListe);
+                    if (bouton.isEmpty()) return false;
+                    click(d, bouton.getFirst());
+                    return false;
+                });
+    }
+
     private void ouvrirTaverneEnListe(WebDriver driver, WebDriverWait wait) {
         ouvrirVue(driver, wait, "taverne");
         waitForScreen(wait, "Taverne");

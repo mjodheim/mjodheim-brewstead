@@ -13,6 +13,7 @@ import be.mjodheim.brewstead.repository.CropRepository;
 import be.mjodheim.brewstead.repository.PlayerFieldRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,6 +22,7 @@ import org.springframework.security.access.AccessDeniedException;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,7 +41,62 @@ class FarmServiceTest {
     @Mock FarmMapper mapper;
     @Mock EffectService effectService;
     @Mock ProgressionService progressionService;
+    @Mock PlayerService playerService;
     @InjectMocks FarmService service;
+
+    @Test
+    void clearingAFieldCostsCoinsAndAddsAnEmptyOne() {
+        PlayerProfile owner = player(1);
+        when(fieldRepository.findAllByPlayerId(1L))
+                .thenReturn(List.of(fieldOf(owner), fieldOf(owner), fieldOf(owner)))  // les trois du départ
+                .thenReturn(List.of());
+        when(playerService.getPlayerEntity(1L)).thenReturn(owner);
+        when(mapper.toResponseList(anyList())).thenReturn(List.of());
+
+        service.clearNewField(1L);
+
+        verify(playerService).spendCoins(1L, 400);
+        ArgumentCaptor<PlayerField> defrichee = ArgumentCaptor.forClass(PlayerField.class);
+        verify(fieldRepository).save(defrichee.capture());
+        assertEquals(FieldStatus.EMPTY, defrichee.getValue().getStatus());
+    }
+
+    @Test
+    void eachNewFieldCostsTwiceThePrevious() {
+        PlayerProfile owner = player(1);
+        when(playerService.getPlayerEntity(1L)).thenReturn(owner);
+        when(mapper.toResponseList(anyList())).thenReturn(List.of());
+
+        for (int possedees = 3; possedees < 8; possedees++) {
+            when(fieldRepository.findAllByPlayerId(1L)).thenReturn(champs(owner, possedees));
+            service.clearNewField(1L);
+        }
+
+        verify(playerService).spendCoins(1L, 400);
+        verify(playerService).spendCoins(1L, 800);
+        verify(playerService).spendCoins(1L, 1600);
+        verify(playerService).spendCoins(1L, 3200);
+        verify(playerService).spendCoins(1L, 6400);
+    }
+
+    @Test
+    void theEstateStopsAtEightFields() {
+        when(fieldRepository.findAllByPlayerId(1L)).thenReturn(champs(player(1), 8));
+
+        assertThrows(IllegalStateException.class, () -> service.clearNewField(1L));
+        verify(playerService, never()).spendCoins(anyLong(), anyInt());
+        verify(fieldRepository, never()).save(any());
+    }
+
+    private static List<PlayerField> champs(PlayerProfile owner, int combien) {
+        List<PlayerField> parcelles = new ArrayList<>();
+        for (int i = 0; i < combien; i++) parcelles.add(fieldOf(owner));
+        return parcelles;
+    }
+
+    private static PlayerField fieldOf(PlayerProfile owner) {
+        return PlayerField.builder().player(owner).status(FieldStatus.EMPTY).build();
+    }
 
     @Test
     void findAllFieldsRefreshesReadyCropsBeforeMapping() {

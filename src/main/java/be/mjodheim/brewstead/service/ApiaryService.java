@@ -33,6 +33,53 @@ public class ApiaryService {
     private final ApiaryMapper apiaryMapper;
     private final EffectService effectService;
     private final ProgressionService progressionService;
+    private final PlayerService playerService;
+
+    /**
+     * Installe une ruche de plus, contre des pièces.
+     *
+     * <p>Elle se met à produire tout de suite : on l'a payée, elle travaille.
+     */
+    @Transactional
+    public List<BeehiveResponse> installNewHive(Long playerId) {
+        List<Beehive> hives = beehiveRepository.findAllByPlayerId(playerId);
+        Integer price = EstatePrices.nextHive(hives.size());
+        if (price == null) {
+            throw new IllegalStateException("Le coteau ne peut pas porter une ruche de plus.");
+        }
+        playerService.spendCoins(playerId, price);
+        Beehive hive = Beehive.builder()
+                .player(playerService.getPlayerEntity(playerId))
+                .level(1)
+                .status(BehiveStatus.IDLE)
+                .build();
+        relancer(hive);
+        beehiveRepository.save(hive);
+        return findAllHives(playerId);
+    }
+
+    /**
+     * Fait passer une ruche au niveau suivant, contre des pièces.
+     *
+     * <p>Le niveau était écrit dans le modèle depuis le début : la durée du
+     * cycle et le rendement en dépendent déjà. Rien ne l'augmentait jamais,
+     * si bien que tout un axe de progression dormait dans la base.
+     *
+     * <p>Le cycle en cours n'est pas relancé : les abeilles finissent ce
+     * qu'elles ont commencé, et c'est la prochaine tournée qui profite de
+     * l'agrandissement.
+     */
+    @Transactional
+    public BeehiveResponse upgradeHive(Long playerId, Long hiveId) {
+        Beehive hive = getOwnedHive(playerId, hiveId);
+        Integer price = EstatePrices.upgrade(hive.getLevel());
+        if (price == null) {
+            throw new IllegalStateException("Cette ruche est déjà au mieux de sa forme.");
+        }
+        playerService.spendCoins(playerId, price);
+        hive.setLevel(hive.getLevel() + 1);
+        return apiaryMapper.toResponse(hive);
+    }
 
     @Transactional
     public List<BeehiveResponse> findAllHives(Long playerId) {

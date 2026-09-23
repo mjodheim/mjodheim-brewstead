@@ -2,16 +2,17 @@
      th:fragment="atmosphere" class="world__life" viewBox="0 0 1536 742" aria-hidden="true" focusable="false">
     <defs>
         <!-- Coordinates belong to the 1536 × 742 illustration, not the viewport. -->
-        <clipPath id="near-fall-mask">
-            <path d="M768 449 Q816 454 857 442 L840 480 823 512 794 536 746 553 750 522 760 492Z"/>
-        </clipPath>
-        <clipPath id="far-fall-mask">
-            <path d="M1374 68 L1468 59 1452 94 1431 131 1414 168 1437 182 1393 200 1334 204 1298 191 1324 164 1346 135Z"/>
-        </clipPath>
-        <clipPath id="river-mask">
-            <path d="M687 591 L735 565 812 550 785 575 811 610 861 636 960 676 1080 728 1095 742 641 742 661 718 664 679 667 654Z"/>
-            <path d="M330 677 L372 644 435 634 443 669 431 696 407 742 322 742Z"/>
-        </clipPath>
+        <!-- Où est l'eau, c'est la peinture qui le dit.
+
+             Les trois découpes tracées à la main débordaient : la rivière
+             passait sur le ponton, la cascade du fond coulait sur le toit de
+             la tour de guet. Ce masque est relevé sur l'illustration
+             elle-même — le bleu de l'eau, le blanc de ce qui tombe — donc il
+             ne peut pas mentir sur un bâtiment. -->
+        <mask id="eau" maskUnits="userSpaceOnUse" x="0" y="0" width="1536" height="742">
+            <image th:href="@{/images/eau.webp}" href="/images/eau.webp"
+                   x="0" y="0" width="1536" height="742" preserveAspectRatio="none"/>
+        </mask>
         <linearGradient id="fall-light" x2="0" y2="1">
             <stop stop-color="#eafaff" stop-opacity=".03"/>
             <stop offset=".65" stop-color="#d4f4fa" stop-opacity=".28"/>
@@ -61,24 +62,24 @@
         <ellipse cx="833" cy="61" rx="24" ry="20"/>
     </g>
 
-    <g clip-path="url(#far-fall-mask)" class="fall fall--far">
-        <rect x="1280" y="55" width="200" height="170" fill="url(#fall-light)"/>
-        <g class="fall__flow fall__flow--far"><rect x="1280" y="-40" width="200" height="320" fill="url(#fall-threads)"/></g>
-    </g>
-    <g clip-path="url(#near-fall-mask)" class="fall fall--near">
-        <rect x="740" y="440" width="122" height="118" fill="url(#fall-light)"/>
-        <g class="fall__flow"><rect x="730" y="340" width="150" height="240" fill="url(#fall-threads)"/></g>
-    </g>
-    <g class="fall-foam" fill="url(#foam-light)">
-        <ellipse cx="774" cy="539" rx="42" ry="17"/>
-        <ellipse cx="1375" cy="195" rx="72" ry="19"/>
-    </g>
-    <g clip-path="url(#river-mask)">
-        <g class="water-shimmer"><rect x="300" y="530" width="830" height="260" fill="url(#river-lines)"/></g>
-    </g>
-    <g class="water-sparks" stroke="#f3ffff" stroke-width="1.4" stroke-linecap="round">
-        <path class="water-spark" d="M1168 199h12 m10 3h4 M1117 242h7 M685 623h8 M837 688h11"/>
-        <path class="water-spark water-spark--late" d="M982 197h7 M1254 215h12 M702 704h13 M763 657h6 M378 690h9"/>
+    <g class="waters" mask="url(#eau)">
+        <g class="fall fall--far">
+            <rect x="1290" y="40" width="220" height="165" fill="url(#fall-light)"/>
+            <g class="fall__flow fall__flow--far"><rect x="1290" y="-40" width="220" height="320" fill="url(#fall-threads)"/></g>
+        </g>
+        <g class="fall fall--near">
+            <rect x="726" y="428" width="100" height="130" fill="url(#fall-light)"/>
+            <g class="fall__flow"><rect x="720" y="330" width="115" height="250" fill="url(#fall-threads)"/></g>
+        </g>
+        <g class="fall-foam" fill="url(#foam-light)">
+            <ellipse cx="774" cy="539" rx="42" ry="17"/>
+            <ellipse cx="1375" cy="185" rx="72" ry="19"/>
+        </g>
+        <g class="water-shimmer"><rect x="140" y="300" width="1080" height="450" fill="url(#river-lines)"/></g>
+        <g class="water-sparks" stroke="#f3ffff" stroke-width="1.4" stroke-linecap="round">
+            <path class="water-spark" d="M1168 199h12 m10 3h4 M1117 242h7 M661 623h8 M837 688h11"/>
+            <path class="water-spark water-spark--late" d="M982 197h7 M1230 215h12 M702 704h13 M763 669h6 M378 690h9"/>
+        </g>
     </g>
 
     <g class="tavern-glow" fill="url(#lamp-halo)">

@@ -254,9 +254,16 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
 }
 .game[data-light="crepuscule"] .world__fx::after { background: rgba(72, 38, 45, .22); }
-.game[data-theme="automne"] .world__art { filter: saturate(1.12) sepia(.18) hue-rotate(-12deg); }
-.game[data-theme="hiver"] .world__art { filter: saturate(.7) brightness(1.08) hue-rotate(12deg); }
-.game[data-theme="solstice"] .world__art { filter: saturate(1.18) contrast(1.04) brightness(.92); }
+/* L'ambiance teinte le tableau ET ses découpes. Posée sur la seule peinture
+   de fond, elle laissait le bâtiment allumé aux couleurs d'origine : une
+   tache franche au milieu d'un domaine passé au bleu d'hiver, exactement à
+   l'endroit où la couture doit rester invisible. */
+.game[data-theme="automne"] .world__art,
+.game[data-theme="automne"] .world__lieux { filter: saturate(1.12) sepia(.18) hue-rotate(-12deg); }
+.game[data-theme="hiver"] .world__art,
+.game[data-theme="hiver"] .world__lieux { filter: saturate(.7) brightness(1.08) hue-rotate(12deg); }
+.game[data-theme="solstice"] .world__art,
+.game[data-theme="solstice"] .world__lieux { filter: saturate(1.18) contrast(1.04) brightness(.92); }
 .game[data-theme="automne"] .world__fx { background-color: rgba(125, 57, 15, .1); }
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
 
@@ -896,7 +903,10 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     z-index: 40;
     display: grid;
     place-items: center;
-    padding: 6.4em 1.2em 1.6em;
+    /* Le bandeau se mesure lui-même : au large il tient sur une ligne, sur
+       un téléphone sur trois. La réserve en em est le repli si le script
+       n'a pas encore parlé. */
+    padding: calc(var(--bandeau, 6.4em) + .7em) 1.2em 1.6em;
     font-size: var(--ui);
     background: rgba(8, 5, 2, .62);
     backdrop-filter: blur(6px);
@@ -919,10 +929,74 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 
 .screen.is-open .screen__sheet { transform: none; }
 
-/* Un décor a besoin de place : on élargit la feuille quand on entre dans
-   un lieu plutôt que d'y écraser une scène. */
-.screen--wide .screen__sheet { width: min(72em, 100%); }
-.screen--wide .screen__body { overflow: hidden; }
+/* Entrer dans un lieu, ce n'est pas ouvrir une fenêtre.
+
+   Le décor tenait dans une feuille centrée de 72 em, avec des marges mortes
+   tout autour : on regardait le rucher par un hublot. La feuille prend
+   maintenant toute la place sous le bandeau, et la scène la remplit. */
+/* La grille n'avait qu'une rangée automatique : elle grandissait avec son
+   contenu au lieu de le contenir, et la feuille débordait de l'écran par le
+   bas — avec « Voir la liste » dedans. Une rangée bornée règle toute la
+   chaîne : la feuille tient dans l'écran, le corps dans la feuille, et la
+   scène rétrécit pour laisser sa place à la barre. */
+.screen--wide {
+    padding: calc(var(--bandeau, 6.4em) + .2em) 0 0;
+    place-items: stretch;
+    grid-template-rows: minmax(0, 1fr);
+}
+
+
+.screen--wide .screen__sheet {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    border-radius: 0;
+}
+
+.screen--wide .screen__body {
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.screen--wide .scene {
+    margin: 0;
+    border-radius: 0;
+    flex: 1;
+    /* Un élément flexible refuse par défaut de descendre sous la taille de
+       son contenu : sans cette ligne, le bloc dépassait la feuille et la
+       barre du bas se retrouvait hors de l'écran. */
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+/* Le cadrage « slice » garde la hauteur et rogne la largeur : dans une boîte
+   plus haute que large, il mangerait les parcelles des bords. On rend donc à
+   la scène ses proportions, et la place disponible ne fait que la borner.
+
+   La barre du bas garde la sienne : plafonner la scène à toute la hauteur
+   poussait « Voir la liste » hors du cadre, où plus personne ne pouvait
+   l'atteindre. C'est le rétrécissement de la scène qui fait la place. */
+.screen--wide .sc-stage {
+    height: auto;
+    aspect-ratio: 16 / 9;
+    flex: 0 1 auto;
+    min-height: 0;
+}
+
+.screen--wide .scene__bar { flex: none; }
+/* Sur un écran plus haut que large, une feuille pleine hauteur laisse un
+   grand parchemin vide sous la scène : elle s'arrête alors à ce qu'elle
+   contient. */
+@media (max-aspect-ratio: 1 / 1) {
+    .screen--wide { place-items: start stretch; }
+    .screen--wide .screen__sheet { height: auto; max-height: 100%; }
+}
 
 .screen__head {
     display: flex;
@@ -1695,7 +1769,11 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
     border-radius: 99px;
 }
 
-.feat__close { margin-top: 1.1em; }
+.screen .row__besoin { display: block; color: #3f7d33; font-style: italic; }
+
+.feat__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .6em; margin-top: 1.1em; }
+/* Quand le carton propose d'aller quelque part, « Continuer » s'efface d'un cran. */
+#featGo:not([hidden]) + #featClose { background: none; color: inherit; box-shadow: none; }
 
 .feat.is-in .feat__card { animation: feat-pop .5s cubic-bezier(.2, 1.25, .35, 1) both; }
 .feat.is-in .feat__burst { animation: feat-burst 1.1s ease-out both; }

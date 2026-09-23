@@ -28,6 +28,12 @@ public class FarmController {
         return farmService.plant(currentPlayer.id(principal), request);
     }
 
+    /** Défricher une parcelle de plus, contre des pièces. */
+    @PostMapping("/fields")
+    public List<PlayerFieldResponse> clear(Principal principal) {
+        return farmService.clearNewField(currentPlayer.id(principal));
+    }
+
     @PostMapping("/fields/{fieldId}/refresh")
     public PlayerFieldResponse refresh(Principal principal, @PathVariable Long fieldId) {
         return farmService.updateFieldStatus(currentPlayer.id(principal), fieldId);

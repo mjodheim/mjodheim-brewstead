@@ -29,6 +29,30 @@ public class FarmService {
     private final FarmMapper farmMapper;
     private final EffectService effectService;
     private final ProgressionService progressionService;
+    private final PlayerService playerService;
+
+    /**
+     * Défriche une parcelle de plus, contre des pièces.
+     *
+     * <p>C'est la première chose qu'on peut acheter avec sa bourse. Le
+     * domaine ne changeait jamais de taille : on récoltait les mêmes trois
+     * carrés jusqu'à la fin des temps, et les pièces s'entassaient sans
+     * rien ouvrir.
+     */
+    @Transactional
+    public List<PlayerFieldResponse> clearNewField(Long playerId) {
+        List<PlayerField> fields = playerFieldRepository.findAllByPlayerId(playerId);
+        Integer price = EstatePrices.nextField(fields.size());
+        if (price == null) {
+            throw new IllegalStateException("Le domaine est déjà cultivé d'un bout à l'autre.");
+        }
+        playerService.spendCoins(playerId, price);
+        playerFieldRepository.save(PlayerField.builder()
+                .player(playerService.getPlayerEntity(playerId))
+                .status(FieldStatus.EMPTY)
+                .build());
+        return findAllFields(playerId);
+    }
 
     @Transactional
     public List<PlayerFieldResponse> findAllFields(Long id) {

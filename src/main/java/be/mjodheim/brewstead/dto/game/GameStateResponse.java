@@ -17,6 +17,7 @@ public record GameStateResponse(
         List<PlayerInventoryResponse> inventory,
         List<RecipeResponse> recipes,
         List<BatchResponse> batches,
-        List<NpcOrderResponse> npcOrders
+        List<NpcOrderResponse> npcOrders,
+        EstateResponse estate
 ) {
 }

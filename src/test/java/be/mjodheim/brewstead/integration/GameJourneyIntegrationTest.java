@@ -4,6 +4,7 @@ import be.mjodheim.brewstead.entity.*;
 import be.mjodheim.brewstead.enums.BatchStatus;
 import be.mjodheim.brewstead.enums.BehiveStatus;
 import be.mjodheim.brewstead.enums.FieldStatus;
+import be.mjodheim.brewstead.enums.IngredientType;
 import be.mjodheim.brewstead.enums.OrderStatus;
 import be.mjodheim.brewstead.repository.*;
 import org.junit.jupiter.api.Test;
@@ -201,11 +202,62 @@ class GameJourneyIntegrationTest {
         hive.setReadyAt(LocalDateTime.now().minusSeconds(1));
         hiveRepository.save(hive);
 
+        Ingredient honey = ingredientRepository.findFirstByType(IngredientType.HONEY).orElseThrow();
+        BigDecimal honeyBefore = stock(alphaPlayer, honey);
+
         mockMvc.perform(post("/api/apiary/hives/{id}/harvest", hive.getId())
                         .session(alpha)
                         .with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PRODUCING"));
+
+        BigDecimal levelOneYield = stock(alphaPlayer, honey).subtract(honeyBefore);
+        assertTrue(levelOneYield.compareTo(BigDecimal.ZERO) > 0);
+
+        // Le domaine s'agrandit : c'est la seule sortie des pièces, et le
+        // niveau de ruche — écrit dans le modèle depuis le début — commence
+        // enfin à bouger.
+        PlayerProfile purse = playerRepository.findById(alphaPlayer.getId()).orElseThrow();
+        purse.setCoin(9_000);
+        playerRepository.save(purse);
+
+        mockMvc.perform(get("/api/players/{id}/state", alphaPlayer.getId()).session(alpha))
+                .andExpect(jsonPath("$.estate.fields").value(3))
+                .andExpect(jsonPath("$.estate.fieldPrice").value(400))
+                .andExpect(jsonPath("$.estate.hives").value(2))
+                .andExpect(jsonPath("$.estate.hivePrice").value(500));
+
+        mockMvc.perform(post("/api/farm/fields").session(alpha).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(4));
+
+        mockMvc.perform(post("/api/apiary/hives").session(alpha).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3));
+
+        mockMvc.perform(post("/api/apiary/hives/{id}/upgrade", hive.getId())
+                        .session(alpha).with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.level").value(2));
+
+        assertEquals(9_000 - 400 - 500 - 700,
+                playerRepository.findById(alphaPlayer.getId()).orElseThrow().getCoin(),
+                "le défrichage, la ruche et l'agrandissement se paient");
+
+        // La ruche agrandie rapporte le double : la formule de rendement
+        // existait déjà, rien ne l'avait jamais activée.
+        Beehive upgraded = hiveRepository.findById(hive.getId()).orElseThrow();
+        upgraded.setReadyAt(LocalDateTime.now().minusSeconds(1));
+        hiveRepository.save(upgraded);
+        BigDecimal beforeSecond = stock(alphaPlayer, honey);
+
+        mockMvc.perform(post("/api/apiary/hives/{id}/harvest", hive.getId())
+                        .session(alpha).with(csrf()))
+                .andExpect(status().isOk());
+
+        assertEquals(0, stock(alphaPlayer, honey).subtract(beforeSecond)
+                        .compareTo(levelOneYield.multiply(BigDecimal.valueOf(2))),
+                "une ruche de niveau 2 doit rendre deux fois plus de miel");
 
         Recipe brewable = findBrewableRecipe(alphaPlayer);
 

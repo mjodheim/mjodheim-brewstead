@@ -38,7 +38,9 @@
     var settings = Object.assign({}, DEFAULTS);
     var readySeen = {};
     var featsConnus = null;     // les hauts faits déjà acquis à l'ouverture
-    var featsAFeter = [];       // ceux qui attendent leur fanfare
+    var featsAFeter = [];       // les cartons qui attendent leur fanfare
+    var niveauConnu = null;     // le niveau lu à l'ouverture
+    var featAller = null;       // où mène le second bouton du carton, s'il y en a un
     var featTimer = null;
     var audio = null;           // créé au premier son, jamais avant
 
@@ -199,6 +201,55 @@
     };
 
     /** Ce que le joueur a en réserve, par nom d'ingrédient. */
+    /**
+     * Ce que le domaine gagnerait à cultiver, ingrédient par ingrédient.
+     *
+     * <p>Un contrat accepté pèse le plus : on s'y est engagé. Vient ensuite
+     * ce qui manque à une recette qui n'attend plus qu'un seul ingrédient —
+     * le grimoire le dit déjà sur sa ligne, le champ doit le dire aussi.
+     */
+    function besoinsDuDomaine(s) {
+        var besoins = {};
+        var noter = function (nom, poids, raison) {
+            if (!besoins[nom] || besoins[nom].poids < poids) besoins[nom] = { poids: poids, raison: raison };
+        };
+
+        (s.npcOrders || []).filter(function (o) { return o.status === 'IN_PROGRESS'; }).forEach(function (order) {
+            (order.lines || []).forEach(function (line) {
+                var recette = s.recipes.find(function (r) { return r.id === line.recipeId; });
+                if (!recette) return;
+                brewability(s, recette).missing.forEach(function (m) {
+                    noter(m.ingredientName, 3, 'Pour ton contrat : ' + recette.name);
+                });
+            });
+        });
+
+        var presque = {};
+        s.recipes.forEach(function (recette) {
+            var manque = brewability(s, recette).missing;
+            if (manque.length !== 1) return;
+            var nom = manque[0].ingredientName;
+            (presque[nom] = presque[nom] || []).push(recette.name);
+        });
+        Object.keys(presque).forEach(function (nom) {
+            var recettes = presque[nom];
+            noter(nom, 2, recettes.length > 1
+                ? 'Seul ingrédient qui manque à ' + recettes.length + ' recettes'
+                : 'Seul ingrédient qui manque à : ' + recettes[0]);
+        });
+        return besoins;
+    }
+
+    /**
+     * Ce que rapporte une parcelle, avec son unité. « Rend 760 » à côté de
+     * « rend 3 » laissait croire que la menthe donnait deux cents fois plus
+     * que l'orge : c'étaient 760 grammes contre 3 kilos.
+     */
+    function rendement(s, crop) {
+        var ingredient = (s.ingredients || []).find(function (i) { return i.id === crop.ingredientId; });
+        return fmt.quantity(crop.yieldQuantity, ingredient ? ingredient.unit : null);
+    }
+
     function stockOf(s, name) {
         var line = s.inventory.find(function (item) { return item.ingredientName === name; });
         return line ? Number(line.quantity) : 0;
@@ -264,6 +315,53 @@
             icon('i-basket') + 'Tout récolter (' + waiting + ')</button></div>';
     }
 
+    /**
+     * La ligne « on s'agrandit », au bas d'un lieu.
+     *
+     * <p>Les pièces n'avaient aucune sortie : elles s'entassaient sans rien
+     * ouvrir. Défricher un carré de plus ou poser une ruche de plus est la
+     * première chose à faire d'une bourse pleine, et c'est la seule qui
+     * change le domaine à l'écran.
+     */
+    function agrandir(s, quoi) {
+        var e = s.estate;
+        if (!e) return '';
+        var parcelles = quoi === 'champs';
+        var prix = parcelles ? e.fieldPrice : e.hivePrice;
+        var combien = parcelles ? e.fields : e.hives;
+        var plafond = parcelles ? e.maxFields : e.maxHives;
+
+        if (prix === null || prix === undefined) {
+            return row({
+                icon: parcelles ? 'i-grain' : 'i-honey',
+                title: parcelles ? 'Toutes les terres sont défrichées' : 'Le coteau est plein',
+                meta: combien + ' sur ' + plafond,
+                side: chip('au complet', 'ok')
+            });
+        }
+
+        var assez = s.player.coins >= prix;
+        return row({
+            icon: parcelles ? 'i-grain' : 'i-honey',
+            title: parcelles ? 'Défricher une parcelle' : 'Installer une ruche',
+            meta: combien + ' sur ' + plafond + ' · ' + fmt.number(prix) + ' pièces'
+                + (assez ? '' : ' · il t’en manque ' + fmt.number(prix - s.player.coins)),
+            side: '<button class="btn btn--sm btn--gold" type="button" data-action="'
+                + (parcelles ? 'clear-field' : 'install-hive') + '"'
+                + (assez ? '' : ' disabled') + '>' + (parcelles ? 'Défricher' : 'Installer') + '</button>'
+        });
+    }
+
+    /** Le bouton d'agrandissement d'une ruche, s'il y a encore un palier. */
+    function agrandirRuche(s, hive) {
+        var prix = s.estate && s.estate.hiveUpgradePrices
+            ? s.estate.hiveUpgradePrices[hive.level - 1] : undefined;
+        if (prix === undefined || prix === null) return '';
+        return '<button class="btn btn--sm" type="button" data-action="upgrade-hive" data-id="'
+            + hive.id + '"' + (s.player.coins >= prix ? '' : ' disabled')
+            + '>Agrandir · ' + fmt.number(prix) + '</button>';
+    }
+
     var SECTIONS = {
         rucher: {
             live: true,
@@ -278,13 +376,14 @@
                     return row({
                         icon: 'i-honey',
                         title: 'Ruche n°' + hive.id,
-                        meta: 'Niveau ' + hive.level,
+                        meta: 'Niveau ' + hive.level + ' · ' + hive.level
+                            + (hive.level > 1 ? ' pots' : ' pot') + ' par tournée',
                         progress: hive.status === 'PRODUCING' && hive.readyAt ? progress(hive.startedAt, hive.readyAt) : '',
-                        side: ready
+                        side: (ready
                             ? actionButton('harvest-hive', 'Récolter', hive.id)
-                            : chip('les abeilles travaillent', 'warn')
+                            : chip('les abeilles travaillent', 'warn')) + agrandirRuche(s, hive)
                     });
-                }).join('');
+                }).join('') + agrandir(s, 'rucher');
             }
         },
 
@@ -307,7 +406,7 @@
                                 ? actionButton('sow-field', 'Semer', field.id)
                                 : chip('en croissance', 'warn'))
                     });
-                }).join('');
+                }).join('') + agrandir(s, 'champs');
             }
         },
 
@@ -322,14 +421,32 @@
 
                 if (!s.crops.length) return empty('Le catalogue des cultures n’est pas encore chargé.');
 
+                var besoins = besoinsDuDomaine(s);
+                var fiches = list.map(function (crop) {
+                    return { crop: crop, besoin: besoins[crop.ingredientName] || null };
+                });
+                // Ce dont le domaine a besoin passe devant : d'abord ce qu'un
+                // contrat réclame, ensuite ce qui manque à une recette presque
+                // prête. Le reste suit, du plus rapide au plus lent. Quarante-deux
+                // cultures dans l'ordre du catalogue ne répondaient pas à la
+                // seule question qu'on se pose ici : quoi planter ?
+                fiches.sort(function (a, b) {
+                    var pa = a.besoin ? a.besoin.poids : 0, pb = b.besoin ? b.besoin.poids : 0;
+                    if (pa !== pb) return pb - pa;
+                    return a.crop.growDurationMinutes - b.crop.growDurationMinutes;
+                });
+
                 return searchField('Chercher une culture…', query) +
-                    (list.length ? '<div class="grid">' + list.slice(0, 60).map(function (crop) {
+                    (fiches.length ? '<div class="grid">' + fiches.slice(0, 60).map(function (fiche) {
+                        var crop = fiche.crop;
                         return '<button class="row row--pick" type="button" data-action="pick-crop" data-id="' + crop.id + '">' +
                             icon('i-grain', 'row__icon') +
                             '<span class="row__body"><span class="row__title">' + esc(crop.ingredientName) + '</span>' +
                             '<small class="row__meta">' + esc(crop.name) + ' · ' +
                             crop.growDurationMinutes + ' min · rend ' +
-                            esc(fmt.number(crop.yieldQuantity)) + '</small></span></button>';
+                            esc(rendement(s, crop)) + '</small>' +
+                            (fiche.besoin ? '<small class="row__meta row__besoin">' + esc(fiche.besoin.raison) + '</small>' : '') +
+                            '</span></button>';
                     }).join('') + '</div>' : empty('Aucune culture ne correspond.'));
             }
         },
@@ -382,6 +499,7 @@
 
         inventaire: {
             title: 'Entrepôt',
+            scene: 'entrepot',
             render: function (s) {
                 if (!s.inventory.length) return empty('L’entrepôt est vide.');
                 return '<div class="grid">' + s.inventory.map(function (item) {
@@ -428,34 +546,44 @@
                     icon('i-plus') + 'Composer une recette</button></div>';
 
                 if (!s.recipes.length) return head + empty('Aucune recette au grimoire.');
-                var recipes = s.recipes.filter(function (recipe) {
+
+                // Une seule fois par recette : la disponibilité relit tout
+                // l'inventaire, et elle était calculée deux fois par ligne.
+                var fiches = s.recipes.filter(function (recipe) {
                     return matches(recipe.name, recipeQuery) || matches(DRINK_LABELS[recipe.drinkType], recipeQuery);
+                }).map(function (recipe) {
+                    return { recipe: recipe, brassable: brewability(s, recipe) };
                 });
-                return head + searchField('Chercher une recette…', recipeQuery) + (recipes.length ? recipes.map(function (recipe) {
-                    // Ce qu'il faut, pas combien il en faut. « Orge maltée
-                    // 9 kg · Houblon du fjord 180 g · Eau de source 32 L »
-                    // est la fiche d'un brasseur, pas d'un joueur ; les
-                    // dosages restent, un cran plus loin, pour qui les veut.
-                    var ingredients = (recipe.ingredients || []).map(function (i) {
-                        return i.ingredientName;
-                    }).join(' · ');
-                    var dosage = (recipe.ingredients || []).map(function (i) {
-                        return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
-                    }).join(' · ');
-                    return row({
-                        icon: 'i-recipe',
-                        title: recipe.name,
-                        meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
-                            ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
-                            (ingredients ? ' — ' + ingredients : ''),
-                        detail: dosage ? 'Dosage : ' + dosage : '',
-                        side: actionButton('prepare-recipe', 'Préparer', recipe.id) +
-                            (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
-                            (recipe.effectKind && recipe.effectKind !== 'AUCUN'
-                                ? chip(recipe.effectLabel, 'info') : '') +
-                            chip(brewability(s, recipe).ok ? 'Ingrédients disponibles' : 'Ingrédients à réunir', brewability(s, recipe).ok ? 'ok' : 'warn')
-                    });
-                }).join('') : empty('Aucune recette ne correspond.'));
+
+                // Ce qu'on peut brasser tout de suite passe devant, puis ses
+                // propres inventions. Deux cent soixante-dix-neuf recettes
+                // dans l'ordre du catalogue, c'est un mur : on y cherchait la
+                // seule faisable en faisant défiler les deux cent soixante
+                // autres.
+                fiches.sort(function (a, b) {
+                    if (a.brassable.ok !== b.brassable.ok) return a.brassable.ok ? -1 : 1;
+                    if (!a.recipe.isPublic !== !b.recipe.isPublic) return a.recipe.isPublic ? 1 : -1;
+                    return String(a.recipe.name).localeCompare(String(b.recipe.name), 'fr');
+                });
+
+                if (!fiches.length) {
+                    return head + searchField('Chercher une recette…', recipeQuery) +
+                        empty('Aucune recette ne correspond.');
+                }
+
+                var portee = fiches.filter(function (f) { return f.brassable.ok; }).length;
+                var montrees = fiches.slice(0, RECETTES_MONTREES);
+                var reste = fiches.length - montrees.length;
+
+                return head + searchField('Chercher une recette…', recipeQuery) +
+                    '<p class="empty" style="margin:0 0 .7em">' +
+                    (portee ? esc(portee + (portee > 1 ? ' recettes à ta portée' : ' recette à ta portée') +
+                        ' sur ' + fiches.length + '.')
+                        : esc('Aucune des ' + fiches.length + ' recettes n’est brassable avec ta réserve.')) +
+                    '</p>' +
+                    montrees.map(function (fiche) { return ligneRecette(fiche); }).join('') +
+                    (reste > 0 ? empty(reste + ' autre' + (reste > 1 ? 's' : '') +
+                        ' au grimoire. Cherche par nom pour les atteindre.') : '');
             }
         },
 
@@ -495,7 +623,13 @@
                     }).join('')
                     : empty('Rien dans la cuve. C’est le mélange qui fait la recette.');
 
-                return '<p class="hint">Tu choisis le mélange, jamais l’effet : c’est lui qui décide. ' +
+                var cuve = Scenes && Scenes.has('atelier')
+                    ? '<div class="scene scene--atelier scene--coiffe">' +
+                      Scenes.markup('atelier', decor()) + '</div>'
+                    : '';
+
+                return cuve +
+                    '<p class="hint">Tu choisis le mélange, jamais l’effet : c’est lui qui décide. ' +
                     'Un même dosage donne toujours le même résultat, alors note ce qui marche. ' +
                     'Les épices et les plantes réveillent les breuvages plus sûrement que l’orge.</p>' +
 
@@ -542,6 +676,7 @@
         commandes: {
             live: true,
             title: 'Commandes',
+            scene: 'commandes',
             render: function (s) {
                 var tabs = '<div class="tabs">' +
                     [['marche', 'Le marché'], ['miennes', 'Les miennes'], ['pnj', 'Les marchands']]
@@ -607,8 +742,8 @@
                         'La caméra vient se placer sur le bâtiment quand tu ouvres son panneau.') +
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
                         'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.') +
-                    toggle('sons', 'Carillon des hauts faits',
-                        'Deux notes quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
+                    toggle('sons', 'Sons du domaine',
+                        'Une note à chaque récolte, deux quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
             }
         },
 
@@ -1217,7 +1352,32 @@
                 var parts = [];
                 if (report.fields) parts.push(report.fields + (report.fields > 1 ? ' parcelles' : ' parcelle'));
                 if (report.hives) parts.push(report.hives + (report.hives > 1 ? ' ruches' : ' ruche'));
+                cliquetis();
                 toast('Tournée faite : ' + parts.join(' et ') + '.');
+            });
+            return;
+        }
+
+        // On s'agrandit. Le serveur décide du prix et refuse tout seul si la
+        // bourse ne suit pas : le bouton grisé n'est qu'une politesse.
+        if (action === 'clear-field') {
+            send('/api/farm/fields', undefined, function () {
+                cliquetis();
+                toast('Parcelle défrichée. À toi de semer.');
+            });
+            return;
+        }
+        if (action === 'install-hive') {
+            send('/api/apiary/hives', undefined, function () {
+                cliquetis();
+                toast('Ruche installée. Les abeilles s’y mettent déjà.');
+            });
+            return;
+        }
+        if (action === 'upgrade-hive') {
+            send('/api/apiary/hives/' + Number(id) + '/upgrade', undefined, function () {
+                cliquetis();
+                toast('Ruche agrandie : plus de miel, et plus vite.');
             });
             return;
         }
@@ -1315,7 +1475,10 @@
 
         var endpoint = ENDPOINTS[action];
         if (!endpoint) return;
-        send(endpoint(Number(id)), undefined, function () { toast('Récolte rentrée à l’entrepôt.'); });
+        send(endpoint(Number(id)), undefined, function () {
+            cliquetis();
+            toast('Récolte rentrée à l’entrepôt.');
+        });
     }
 
     /** Le laboratoire : tout passe par le brouillon, jamais par le DOM seul. */
@@ -1551,12 +1714,60 @@
      * <p>Ce qui vise un objet précis se fait sur l'objet ; ici ne restent que
      * les gestes qui portent sur le lieu entier.
      */
-    function sceneBar(view) {
+    /**
+     * La barre sous un décor.
+     *
+     * <p>Deux noms qui se ressemblent mais ne sont pas les mêmes : le décor
+     * (« entrepot ») et la vue qui l'affiche (« inventaire »). Ils
+     * coïncidaient pour les premiers lieux, ce qui a masqué la confusion
+     * jusqu'à l'entrepôt — où « Voir la liste » basculait un drapeau que
+     * personne ne relisait.
+     */
+    /** Combien de recettes on dessine avant de renvoyer à la recherche. */
+    var RECETTES_MONTREES = 24;
+
+    /**
+     * Une ligne du grimoire.
+     *
+     * <p>« Préparer » était proposé sur les deux cent soixante-dix recettes
+     * qu'on ne peut pas faire : le bouton menait à un formulaire impossible
+     * à valider. Il est maintenant éteint, et la ligne dit ce qui manque.
+     */
+    function ligneRecette(fiche) {
+        var recipe = fiche.recipe;
+        var ingredients = (recipe.ingredients || []).map(function (i) { return i.ingredientName; }).join(' · ');
+        var dosage = (recipe.ingredients || []).map(function (i) {
+            return i.ingredientName + ' ' + fmt.quantity(i.quantity, i.unit);
+        }).join(' · ');
+        var manque = fiche.brassable.missing.map(function (l) { return l.ingredientName; });
+
+        return row({
+            icon: 'i-recipe',
+            title: recipe.name,
+            meta: (DRINK_LABELS[recipe.drinkType] || recipe.drinkType) +
+                ' · ' + fmt.number(recipe.baseVolume) + ' L · ' + fmt.duration(recipe.fermentationDurationMinutes) +
+                (ingredients ? ' — ' + ingredients : ''),
+            detail: dosage ? 'Dosage : ' + dosage : '',
+            side: (fiche.brassable.ok
+                    ? actionButton('prepare-recipe', 'Préparer', recipe.id)
+                    : '<button class="btn btn--sm" type="button" disabled>Préparer</button>') +
+                (recipe.isPublic ? '' : chip('ton invention', 'gold')) +
+                (recipe.effectKind && recipe.effectKind !== 'AUCUN' ? chip(recipe.effectLabel, 'info') : '') +
+                (fiche.brassable.ok
+                    ? chip('Ingrédients disponibles', 'ok')
+                    : chip('Il te manque ' + manque.slice(0, 2).join(', ') +
+                        (manque.length > 2 ? ' et ' + (manque.length - 2) + ' autre' + (manque.length > 3 ? 's' : '') : ''), 'warn'))
+        });
+    }
+
+    function sceneBar(view, vue) {
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
             brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
-            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.'
+            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.',
+            entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.',
+            commandes: 'Touche une feuille pour prendre le contrat, ou pour livrer quand ta cave suit. « Voir la liste » ouvre le marché entre domaines.'
         }[view] || '';
 
         var actions = '';
@@ -1571,7 +1782,7 @@
             actions += '<button class="btn btn--gold" type="button" data-action="open-brew">' +
                 icon('i-plus') + 'Lancer un brassin</button>';
         }
-        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + view + '">' +
+        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">' +
             'Voir la liste</button>';
 
         return '<div class="scene__bar">' +
@@ -1600,7 +1811,7 @@
         // innerHTML direct : updateMarkup réconcilie nœud par nœud, ce qui
         // n'a aucun sens pour un décor entier qu'on redessine.
         dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
-            Scenes.markup(place, vu) + sceneBar(place) + '</div>';
+            Scenes.markup(place, vu) + sceneBar(place, activeView) + '</div>';
         dom.screenBody._markup = null;
     }
 
@@ -1612,7 +1823,10 @@
      * plutôt que de donner deux paramètres à chaque décor.
      */
     function decor() {
-        return Object.assign({}, state, { tavernCounter: tavern.counter });
+        return Object.assign({}, state, {
+            tavernCounter: tavern.counter,
+            labLines: lab ? lab.lines : []
+        });
     }
 
     function renderScreen() {
@@ -1648,6 +1862,7 @@
         renderQuest();
         renderGuide();
         veilleHautsFaits();
+        veilleNiveau();
         renderMarkers();
         renderPlace();
         if (activeView !== 'monde') renderScreen();
@@ -2004,19 +2219,67 @@
         acquis.forEach(function (a) {
             if (featsConnus[a.code]) return;
             featsConnus[a.code] = true;
-            featsAFeter.push(a);
+            featsAFeter.push({
+                kicker: 'Haut fait débloqué',
+                title: a.title,
+                desc: a.description,
+                reward: fmt.number(a.rewardCoins) + ' pièces · ' + fmt.number(a.rewardExperience) + ' XP'
+            });
         });
         if (featsAFeter.length && dom.feat.hidden) feterLeProchain();
+    }
+
+    /**
+     * Le passage de niveau.
+     *
+     * <p>Il était muet : l'expérience montait, le chiffre du bandeau changeait
+     * en silence, et rien ne disait ce que ça ouvrait. Le niveau 2 débloque
+     * pourtant la spécialisation — un choix définitif, rangé au fond de la
+     * Renommée, que personne ne pouvait deviner.
+     */
+    function veilleNiveau() {
+        if (!state || !state.player) return;
+        var niveau = Number(state.player.level) || 1;
+        if (niveauConnu === null || niveau <= niveauConnu) { niveauConnu = niveau; return; }
+
+        for (var n = niveauConnu + 1; n <= niveau; n++) featsAFeter.push(carteDeNiveau(n));
+        niveauConnu = niveau;
+        if (dom.feat.hidden) feterLeProchain();
+    }
+
+    /** Ce qu'un niveau change vraiment — rien de plus que ce que fait le serveur. */
+    function carteDeNiveau(n) {
+        var qualite = Math.min(25, n * 2);
+        if (n === 2) {
+            return {
+                kicker: 'Niveau 2',
+                title: 'Ton domaine peut choisir sa voie',
+                desc: 'Cultivateur, brasseur ou marchand : une spécialisation, définitive, t’attend dans la Renommée.',
+                reward: 'Tes brassins gagnent en qualité · +' + qualite + ' au total',
+                go: { label: 'Choisir ma voie', action: function () { renom.tab = 'domaine'; openScreen('classement'); } }
+            };
+        }
+        return {
+            kicker: 'Niveau ' + n,
+            title: 'Ton savoir-faire grandit',
+            desc: qualite < 25
+                ? 'L’expérience se goûte : chaque brassin que tu lances sort meilleur qu’avant.'
+                : 'Ta main de brasseur est faite : la qualité ne montera plus avec l’âge, seulement avec la recette.',
+            reward: 'Qualité des brassins · +' + qualite + ' au total'
+        };
     }
 
     function feterLeProchain() {
         var fait = featsAFeter.shift();
         if (!fait) return;
 
+        dom.featKicker.textContent = fait.kicker;
         dom.featTitle.textContent = fait.title;
-        dom.featDesc.textContent = fait.description;
-        dom.featReward.textContent = fmt.number(fait.rewardCoins) + ' pièces · ' +
-            fmt.number(fait.rewardExperience) + ' XP';
+        dom.featDesc.textContent = fait.desc;
+        dom.featReward.textContent = fait.reward || '';
+        featAller = fait.go ? fait.go.action : null;
+        dom.featGo.hidden = !fait.go;
+        if (fait.go) dom.featGo.textContent = fait.go.label;
         dom.feat.hidden = false;
         // Le souffle de l'animation doit repartir de zéro à chaque carton.
         dom.feat.classList.remove('is-in');
@@ -2024,8 +2287,11 @@
         dom.feat.classList.add('is-in');
         carillon();
 
+        // Un carton qui propose d'aller quelque part attend qu'on réponde :
+        // refermé au bout de sept secondes, « Choisir ma voie » disparaissait
+        // avant qu'on ait fini de lire. Les autres s'effacent seuls.
         clearTimeout(featTimer);
-        featTimer = setTimeout(fermerLaFanfare, 7000);
+        if (!fait.go) featTimer = setTimeout(fermerLaFanfare, 7000);
     }
 
     function fermerLaFanfare() {
@@ -2043,7 +2309,15 @@
      * contexte audio n'est créé qu'au premier son — un navigateur refuse
      * qu'une page en ouvre un avant que la personne ait cliqué quelque part.
      */
-    function carillon() {
+    /**
+     * Quelques notes synthétisées, sans fichier à télécharger.
+     *
+     * <p>Chaque note est un couple hauteur/retard ; l'attaque est courte et
+     * l'extinction longue, ce qui fait une cloche plutôt qu'un bip. Le
+     * contexte audio ne naît qu'au premier son, donc toujours à la suite
+     * d'un geste du joueur — les navigateurs refusent le reste.
+     */
+    function jouer(notes, force, tenue) {
         if (!settings.sons) return;
         try {
             var Ctx = global.AudioContext || global.webkitAudioContext;
@@ -2052,24 +2326,37 @@
             if (audio.state === 'suspended') audio.resume();
 
             var debut = audio.currentTime;
-            [[880, 0], [1318.51, 0.13]].forEach(function (note) {
+            notes.forEach(function (note) {
                 var osc = audio.createOscillator();
                 var vol = audio.createGain();
                 osc.type = 'triangle';
                 osc.frequency.value = note[0];
                 var t = debut + note[1];
-                // Une attaque courte et une extinction longue : une cloche,
-                // pas un bip.
                 vol.gain.setValueAtTime(0.0001, t);
-                vol.gain.exponentialRampToValueAtTime(0.16, t + 0.015);
-                vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+                vol.gain.exponentialRampToValueAtTime(force, t + 0.015);
+                vol.gain.exponentialRampToValueAtTime(0.0001, t + tenue);
                 osc.connect(vol).connect(audio.destination);
                 osc.start(t);
-                osc.stop(t + 0.9);
+                osc.stop(t + tenue + 0.05);
             });
         } catch (ignored) {
             // Un navigateur sans audio ne doit pas priver de la fanfare.
         }
+    }
+
+    /** Le haut fait : deux notes qui montent, franches, on les entend. */
+    function carillon() {
+        jouer([[880, 0], [1318.51, 0.13]], 0.16, 0.85);
+    }
+
+    /**
+     * La récolte : une seule note, plus grave et deux fois plus discrète.
+     *
+     * <p>C'est le geste qu'on répète cent fois par partie. S'il sonnait
+     * comme un haut fait, le haut fait ne vaudrait plus rien.
+     */
+    function cliquetis() {
+        jouer([[587.33, 0]], 0.075, 0.34);
     }
 
     /* ---------------------------------------------------------- Événements */
@@ -2077,6 +2364,11 @@
     function bind() {
         dom.guide.addEventListener('click', suivreLeFil);
         dom.featClose.addEventListener('click', fermerLaFanfare);
+        dom.featGo.addEventListener('click', function () {
+            var aller = featAller;
+            fermerLaFanfare();
+            if (aller) aller();
+        });
         dom.feat.addEventListener('click', function (event) {
             if (event.target === dom.feat) fermerLaFanfare();
         });
@@ -2168,6 +2460,9 @@
         });
 
         dom.renownBtn.addEventListener('click', function () {
+            // Le trophée ouvre toujours sur les hauts faits : c'est ce qu'on
+            // vient y voir. Seul le carton du niveau 2 mène droit à la voie.
+            renom.tab = 'faits';
             openScreen('classement');
         });
 
@@ -2218,8 +2513,27 @@
         return refreshJob;
     }
 
+    /**
+     * La hauteur réelle du bandeau, publiée en variable CSS.
+     *
+     * <p>Les écrans se plaçaient sous un décalage écrit en em. Le bandeau
+     * tient sur une ligne au large et sur trois sur un téléphone : le même
+     * chiffre ne pouvait pas convenir aux deux, et le titre du lieu passait
+     * sous la barre des lieux. On mesure plutôt que d'estimer.
+     */
+    function mesurerLeBandeau() {
+        var barre = $('bandeau');
+        if (!barre) return;
+        var poser = function () {
+            document.documentElement.style.setProperty('--bandeau', barre.offsetHeight + 'px');
+        };
+        poser();
+        if (global.ResizeObserver) new ResizeObserver(poser).observe(barre);
+        else global.addEventListener('resize', poser);
+    }
+
     function start() {
-        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featTitle', 'featDesc', 'featReward', 'featClose', 'playerName', 'playerAvatar', 'playerLevel',
+        ['game', 'world', 'scene', 'markers', 'guide', 'guideText', 'guideWhy', 'feat', 'featKicker', 'featTitle', 'featDesc', 'featReward', 'featClose', 'featGo', 'playerName', 'playerAvatar', 'playerLevel',
             'xpBar', 'resources', 'quest', 'questText', 'questCount',
             'renownBtn', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
@@ -2227,6 +2541,7 @@
         ].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
+        mesurerLeBandeau();
         buildPlaceLayers();
         buildPlaces();
         initAtmosphere();

@@ -56,7 +56,7 @@ public class PlayerService {
 
         PlayerProfile player = getPlayerEntity(playerId);
         if (player.getCoin() < amount) {
-            throw new InsufficientCoinsException("Not enough coins");
+            throw new InsufficientCoinsException("Ta bourse ne suit pas.");
         }
         player.setCoin(player.getCoin() - amount);
     }

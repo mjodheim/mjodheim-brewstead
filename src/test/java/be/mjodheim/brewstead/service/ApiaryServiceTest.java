@@ -11,6 +11,7 @@ import be.mjodheim.brewstead.repository.BeehiveRepository;
 import be.mjodheim.brewstead.repository.IngredientRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -36,7 +37,77 @@ class ApiaryServiceTest {
     @Mock ApiaryMapper mapper;
     @Mock EffectService effectService;
     @Mock ProgressionService progressionService;
+    @Mock PlayerService playerService;
     @InjectMocks ApiaryService service;
+
+    @Test
+    void installingAHiveCostsCoinsAndStartsItWorking() {
+        PlayerProfile owner = player(1);
+        when(beehiveRepository.findAllByPlayerId(1L))
+                .thenReturn(List.of(hiveOf(owner), hiveOf(owner)))   // les deux du départ
+                .thenReturn(List.of());
+        when(playerService.getPlayerEntity(1L)).thenReturn(owner);
+        when(mapper.toResponseList(anyList())).thenReturn(List.of());
+
+        service.installNewHive(1L);
+
+        // Deux ruches possédées : la troisième est au premier palier.
+        verify(playerService).spendCoins(1L, 500);
+        ArgumentCaptor<Beehive> posee = ArgumentCaptor.forClass(Beehive.class);
+        verify(beehiveRepository).save(posee.capture());
+        assertEquals(1, posee.getValue().getLevel());
+        assertEquals(BehiveStatus.PRODUCING, posee.getValue().getStatus(),
+                "une ruche qu'on vient de payer ne doit pas attendre un clic de plus");
+    }
+
+    @Test
+    void theApiaryStopsAtSixHives() {
+        when(beehiveRepository.findAllByPlayerId(1L))
+                .thenReturn(List.of(hiveOf(player(1)), hiveOf(player(1)), hiveOf(player(1)),
+                        hiveOf(player(1)), hiveOf(player(1)), hiveOf(player(1))));
+
+        assertThrows(IllegalStateException.class, () -> service.installNewHive(1L));
+        verify(playerService, never()).spendCoins(anyLong(), anyInt());
+        verify(beehiveRepository, never()).save(any());
+    }
+
+    @Test
+    void upgradingAHiveRaisesItsLevelUpToTheCeiling() {
+        PlayerProfile owner = player(1);
+        Beehive hive = Beehive.builder().id(5L).player(owner).level(1).status(BehiveStatus.PRODUCING).build();
+        when(beehiveRepository.findById(5L)).thenReturn(Optional.of(hive));
+
+        service.upgradeHive(1L, 5L);
+        assertEquals(2, hive.getLevel());
+        verify(playerService).spendCoins(1L, 700);
+
+        service.upgradeHive(1L, 5L);
+        assertEquals(3, hive.getLevel());
+        verify(playerService).spendCoins(1L, 1800);
+
+        // Au plafond, on ne prend pas la pièce.
+        assertThrows(IllegalStateException.class, () -> service.upgradeHive(1L, 5L));
+        assertEquals(3, hive.getLevel());
+        verifyNoMoreInteractions(playerService);
+    }
+
+    @Test
+    void upgradingLetsTheBeesFinishTheirCurrentRound() {
+        PlayerProfile owner = player(1);
+        LocalDateTime debut = LocalDateTime.now().minusMinutes(3);
+        Beehive hive = Beehive.builder().id(5L).player(owner).level(1)
+                .status(BehiveStatus.PRODUCING).startedAt(debut).readyAt(debut.plusMinutes(10)).build();
+        when(beehiveRepository.findById(5L)).thenReturn(Optional.of(hive));
+
+        service.upgradeHive(1L, 5L);
+
+        assertEquals(debut, hive.getStartedAt(), "la tournée en cours ne doit pas être relancée");
+        assertEquals(debut.plusMinutes(10), hive.getReadyAt());
+    }
+
+    private static Beehive hiveOf(PlayerProfile owner) {
+        return Beehive.builder().player(owner).level(1).status(BehiveStatus.IDLE).build();
+    }
 
     @Test
     void findAllHivesRefreshesReadyHives() {

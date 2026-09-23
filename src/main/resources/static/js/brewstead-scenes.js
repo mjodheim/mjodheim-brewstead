@@ -133,7 +133,9 @@
         champs: { x: 241, y: 262, width: 470 },
         rucher: { x: 285, y: 150, width: 430 },
         brasserie: { x: 841, y: 232, width: 400 },
-        taverne: { x: 1020, y: 470, width: 420 }
+        taverne: { x: 1020, y: 470, width: 420 },
+        entrepot: { x: 292, y: 448, width: 400 },
+        commandes: { x: 1372, y: 520, width: 330 }
     };
 
     var ART = '/images/brewstead-domaine.webp';
@@ -149,7 +151,10 @@
             '<image href="' + ART + '" x="' + (-left * scale).toFixed(1) + '" y="' + (-top * scale).toFixed(1) +
             '" width="' + (1536 * scale).toFixed(1) + '" height="' + (742 * scale).toFixed(1) +
             '" preserveAspectRatio="none"/>' +
-            '</g>';
+            '</g>' +
+            // Hors du groupe flouté : une brume nette se lit comme de l'air,
+            // une brume floue comme une tache.
+            '<rect class="sc-brume" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
     }
 
     /**
@@ -248,6 +253,14 @@
             '<radialGradient id="sc-dark" cx=".5" cy=".46" r=".78">' +
             '<stop offset=".55" stop-color="#000" stop-opacity="0"/>' +
             '<stop offset="1" stop-color="#140c04" stop-opacity=".62"/></radialGradient>' +
+
+            // La brume du fond. Sans elle, l'arrière-plan reste une photo
+            // floue collée derrière le décor ; avec elle, il devient de la
+            // distance.
+            '<linearGradient id="sc-brume" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#e6ddc6" stop-opacity=".2"/>' +
+            '<stop offset=".58" stop-color="#dcd3bb" stop-opacity=".3"/>' +
+            '<stop offset="1" stop-color="#cdc6ad" stop-opacity=".04"/></linearGradient>' +
 
             '<filter id="sc-blur"><feGaussianBlur stdDeviation="5.5"/></filter>' +
             '<filter id="sc-drop" x="-.4" y="-.4" width="1.8" height="1.8">' +
@@ -471,7 +484,10 @@
         // Une ruche ne se lance plus : elle tourne seule. Le seul geste est
         // de la vider quand le miel est prêt.
         var action = state === 'ready' ? 'harvest-hive' : '';
-        var h = slot.height * 1.15;
+        // La hauteur du dessin, pas celle de la case du terrain. Les deux
+        // avaient été confondues : la pastille d'état flottait cent vingt
+        // pixels au-dessus de sa ruche, sans rien pour la relier.
+        var h = 46 * slot.scale;
 
         return '<g class="sc-node sc-hive" data-state="' + state + '" data-id="' + hive.id + '"' +
             (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
@@ -479,7 +495,7 @@
 
             (state === 'ready'
                 ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5) +
-                  '" rx="' + (slot.width * 0.5) + '" ry="' + (h * 0.75) + '" fill="url(#sc-halo)"/>'
+                  '" rx="' + (slot.width * 0.42) + '" ry="' + (h * 1.25) + '" fill="url(#sc-halo)"/>'
                 : '') +
 
             '<ellipse class="sc-shadow" cx="' + slot.x + '" cy="' + slot.y + '" rx="' + (slot.width * 0.3) + '" ry="' + (9 * slot.scale) + '"/>' +
@@ -491,10 +507,10 @@
             '</g>' +
             (state === 'growing' || state === 'ready' ? bees(slot, hive.id * 13) : '') +
 
-            badge(slot.x, slot.y - h - 34 * slot.scale, slot.scale, state) +
+            badge(slot.x, slot.y - h - 30 * slot.scale, slot.scale, state) +
             '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 22 * slot.scale) + '">' +
             (state === 'growing' ? esc(countdown(hive.readyAt)) : '') + '</text>' +
-            hit(slot.x, slot.y - h - 52 * slot.scale, slot.width * 1.1, h + 74 * slot.scale) +
+            hit(slot.x, slot.y - h - 48 * slot.scale, slot.width * 1.1, h + 66 * slot.scale) +
             '</g>';
     }
 
@@ -840,13 +856,406 @@
         return out + '</g>';
     }
 
+
+    /* ----------------------------------------------------------- Entrepôt */
+
+    /**
+     * L'entrepôt.
+     *
+     * <p>C'était une grille de lignes : « Orge maltée · 14 kg en stock ».
+     * Une réserve se regarde, elle ne se lit pas. Chaque matière prend ici la
+     * forme sous laquelle on la range vraiment — le grain en sacs, le miel en
+     * jarres, le houblon en bottes, l'eau en tonnelets — sur trois planches
+     * d'étagère. On ne clique sur rien : une réserve n'est pas un menu, c'est
+     * un état des lieux.
+     */
+    function entrepot(state) {
+        var stock = (state.inventory || []).filter(function (item) {
+            return Number(item.quantity) > 0;
+        });
+        if (!stock.length) return '';
+
+        var parPlanche = Math.ceil(Math.min(stock.length, 18) / 3);
+        // Les planches vont du fond vers l'avant : plus basses, plus grandes.
+        var planches = [
+            { y: 212, k: 0.78 },
+            { y: 334, k: 0.88 },
+            { y: 456, k: 0.98 }
+        ];
+        var marge = 64;
+
+        // Le bâti : deux montants pleine hauteur et un fond, sinon les
+        // planches flottent comme des règles posées en l'air.
+        var bati = '<path class="sc-bati" d="M' + marge + ' 150h26v390h-26ZM' +
+            (STAGE_WIDTH - marge - 26) + ' 150h26v390h-26Z"/>' +
+            '<path class="sc-bati__fond" d="M' + (marge + 26) + ' 150h' +
+            (STAGE_WIDTH - marge * 2 - 52) + 'v390h' + (-(STAGE_WIDTH - marge * 2 - 52)) + 'Z"/>';
+        for (var v = 1; v < 7; v++) {
+            var vx = marge + 26 + v * ((STAGE_WIDTH - marge * 2 - 52) / 7);
+            bati += '<path class="sc-bati__latte" d="M' + vx.toFixed(0) + ' 150v390"/>';
+        }
+
+        var bois = '';
+        var objets = '';
+        planches.forEach(function (planche, rang) {
+            var lot = stock.slice(rang * parPlanche, (rang + 1) * parPlanche);
+            if (!lot.length) return;
+
+            var ep = 15 * planche.k;
+            bois += '<path class="sc-rayon" d="M' + (marge + 8) + ' ' + planche.y + 'h' +
+                (STAGE_WIDTH - marge * 2 - 16) + 'v' + ep.toFixed(1) + 'h' +
+                (-(STAGE_WIDTH - marge * 2 - 16)) + 'Z"/>' +
+                '<path class="sc-rayon__nez" d="M' + (marge + 8) + ' ' + planche.y + 'h' +
+                (STAGE_WIDTH - marge * 2 - 16) + '"/>';
+
+            var utile = STAGE_WIDTH - marge * 2 - 60;
+            var pas = utile / lot.length;
+            lot.forEach(function (item, i) {
+                var x = marge + 30 + pas * (i + 0.5);
+                objets += contenant(item, x, planche.y, planche.k, rang * 7 + i, ep);
+            });
+        });
+
+        return defs() + painted('entrepot') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            bati +
+            '<g class="sc-lanterns"><ellipse cx="480" cy="168" rx="240" ry="92" fill="url(#sc-halo)"/></g>' +
+            bois + objets + light();
+    }
+
+    /** La forme sous laquelle on range chaque matière. */
+    function contenant(item, x, y, k, seed, epaisseur) {
+        var type = item.type || 'OTHER';
+        var sous = y + (epaisseur || 14) + 16 * k;
+        var corps;
+
+        if (type === 'CEREAL') corps = sac(x, y, k);
+        else if (type === 'HONEY') corps = jarre(x, y, k);
+        else if (type === 'HOP' || type === 'HERB') corps = botte(x, y, k, seed);
+        else if (type === 'WATER') corps = tonnelet(x, y, k);
+        else if (type === 'FRUIT') corps = cageot(x, y, k);
+        else corps = pot(x, y, k);
+
+        return '<g class="sc-stock" data-type="' + esc(type) + '">' +
+            '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (y + 2).toFixed(1) +
+            '" rx="' + (46 * k).toFixed(1) + '" ry="' + (7 * k).toFixed(1) + '"/>' +
+            corps +
+            '<text class="sc-stock__nom" x="' + x.toFixed(1) + '" y="' + sous.toFixed(1) + '">' +
+            esc(item.ingredientName) + '</text>' +
+            '<text class="sc-stock__qte" x="' + x.toFixed(1) + '" y="' + (sous + 16 * k).toFixed(1) + '">' +
+            esc(quantite(item)) + '</text>' +
+            '</g>';
+    }
+
+    var UNITES = { GRAM: 'g', KILOGRAM: 'kg', MILLILITER: 'ml', LITER: 'L', UNIT: '' };
+
+    function quantite(item) {
+        var n = Number(item.quantity || 0);
+        var arrondi = Math.abs(n % 1) < 0.005 ? Math.round(n) : Math.round(n * 10) / 10;
+        var suffixe = UNITES[item.unit] === undefined ? '' : UNITES[item.unit];
+        return arrondi.toLocaleString('fr-FR') + (suffixe ? ' ' + suffixe : '');
+    }
+
+    function sac(x, y, k) {
+        var w = 58 * k, h = 76 * k;
+        var col = y - h * 0.72;
+        return '<path class="sc-sac" d="M' + (x - w / 2) + ' ' + y +
+            'q' + (-5 * k) + ' ' + (-h * 0.34) + ' ' + (w * 0.19) + ' ' + (-h * 0.56) +
+            'q' + (w * 0.1) + ' ' + (-h * 0.08) + ' ' + (w * 0.12) + ' ' + (-h * 0.16) +
+            'h' + (w * 0.38) +
+            'q' + (w * 0.02) + ' ' + (h * 0.08) + ' ' + (w * 0.12) + ' ' + (h * 0.16) +
+            'q' + (w * 0.24) + ' ' + (h * 0.22) + ' ' + (w * 0.19) + ' ' + (h * 0.56) + 'Z"/>' +
+            // Le col noué et l'ouverture évasée : sans eux, c'est un galet.
+            '<path class="sc-sac__gueule" d="M' + (x - w * 0.19) + ' ' + col +
+            'q' + (w * 0.19) + ' ' + (-h * 0.16) + ' ' + (w * 0.38) + ' 0' +
+            'q' + (-w * 0.19) + ' ' + (h * 0.07) + ' ' + (-w * 0.38) + ' 0Z"/>' +
+            '<path class="sc-sac__col" d="M' + (x - w * 0.2) + ' ' + (col + h * 0.05) + 'h' + (w * 0.4) + '"/>' +
+            '<path class="sc-sac__pli" d="M' + (x - w * 0.3) + ' ' + (y - h * 0.3) +
+            'q' + (w * 0.3) + ' ' + (h * 0.12) + ' ' + (w * 0.6) + ' 0"/>';
+    }
+
+    function jarre(x, y, k) {
+        var w = 50 * k, h = 70 * k;
+        return '<path class="sc-jarre" d="M' + (x - w * 0.28) + ' ' + (y - h) +
+            'h' + (w * 0.56) + 'l' + (w * 0.2) + ' ' + (h * 0.22) +
+            'a' + (w * 0.5) + ' ' + (h * 0.44) + ' 0 0 1 ' + (-w * 0.96) + ' 0Z"/>' +
+            '<ellipse class="sc-jarre__bouchon" cx="' + x + '" cy="' + (y - h) + '" rx="' + (w * 0.32) + '" ry="' + (5 * k) + '"/>' +
+            '<path class="sc-jarre__reflet" d="M' + (x - w * 0.24) + ' ' + (y - h * 0.58) + 'q' + (-3 * k) + ' ' + (h * 0.3) + ' ' + (4 * k) + ' ' + (h * 0.42) + '"/>';
+    }
+
+    function botte(x, y, k, seed) {
+        var h = 74 * k;
+        var tiges = '';
+        for (var i = 0; i < 7; i++) {
+            var d = (jitter(seed, i) - 0.5) * 44 * k;
+            tiges += '<path class="sc-botte__tige" d="M' + x.toFixed(1) + ' ' + y.toFixed(1) +
+                'q' + (d * 0.4).toFixed(1) + ' ' + (-h * 0.6) + ' ' + d.toFixed(1) + ' ' + (-h).toFixed(1) + '"/>';
+        }
+        return tiges + '<path class="sc-botte__lien" d="M' + (x - 18 * k) + ' ' + (y - h * 0.32) + 'h' + (36 * k) + '"/>';
+    }
+
+    function tonnelet(x, y, k) {
+        var w = 54 * k, h = 68 * k;
+        return '<path class="sc-tonnelet" d="M' + (x - w * 0.4) + ' ' + y +
+            'q' + (-6 * k) + ' ' + (-h / 2) + ' 0 ' + (-h) + 'h' + (w * 0.8) +
+            'q' + (6 * k) + ' ' + (h / 2) + ' 0 ' + h + 'Z"/>' +
+            '<path class="sc-tonnelet__cercle" d="M' + (x - w * 0.46) + ' ' + (y - h * 0.68) + 'h' + (w * 0.92) +
+            'M' + (x - w * 0.46) + ' ' + (y - h * 0.3) + 'h' + (w * 0.92) + '"/>';
+    }
+
+    function cageot(x, y, k) {
+        var w = 60 * k, h = 52 * k;
+        return '<path class="sc-cageot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h) + 'h' + w + 'v' + h + 'Z"/>' +
+            '<path class="sc-cageot__latte" d="M' + (x - w / 2) + ' ' + (y - h * 0.62) + 'h' + w +
+            'M' + (x - w / 2) + ' ' + (y - h * 0.3) + 'h' + w + '"/>' +
+            '<circle class="sc-cageot__fruit" cx="' + (x - 8 * k) + '" cy="' + (y - h - 6 * k) + '" r="' + (8 * k) + '"/>' +
+            '<circle class="sc-cageot__fruit" cx="' + (x + 8 * k) + '" cy="' + (y - h - 5 * k) + '" r="' + (7 * k) + '"/>';
+    }
+
+    function pot(x, y, k) {
+        var w = 40 * k, h = 50 * k;
+        return '<path class="sc-pot" d="M' + (x - w / 2) + ' ' + y + 'v' + (-h * 0.8) +
+            'q0 ' + (-h * 0.2) + ' ' + (w / 2) + ' ' + (-h * 0.2) +
+            'q' + (w / 2) + ' 0 ' + (w / 2) + ' ' + (h * 0.2) + 'V' + y + 'Z"/>' +
+            '<path class="sc-pot__etiquette" d="M' + (x - w * 0.34) + ' ' + (y - h * 0.5) + 'h' + (w * 0.68) + 'v' + (h * 0.3) + 'h' + (-w * 0.68) + 'Z"/>';
+    }
+
+
+    /* ---------------------------------------------------------- Commandes */
+
+    /**
+     * Le tableau d'affichage.
+     *
+     * <p>Les contrats étaient des lignes de liste. Le tableau existe pourtant
+     * déjà dans le décor peint, avec ses parchemins cloués : on le dessine.
+     * Chaque marchand a sa feuille, punaisée de travers, avec ce qu'il veut,
+     * ce qu'il paie, et le temps qu'il reste. Une feuille prête à livrer
+     * s'allume ; une feuille acceptée porte son cachet de cire.
+     */
+    function commandes(state) {
+        var contrats = (state.npcOrders || []).filter(function (o) {
+            return o.status === 'OPEN' || o.status === 'IN_PROGRESS';
+        }).slice(0, 3);
+        if (!contrats.length) return '';
+
+        var bois = '<g class="sc-tableau">' +
+            '<path class="sc-tableau__cadre" d="M52 96h856v404H52Z"/>' +
+            '<path class="sc-tableau__liege" d="M74 118h812v360H74Z"/>';
+        for (var g = 0; g < 26; g++) {
+            var gx = 74 + jitter(11, g) * 812;
+            var gy = 118 + jitter(11, g + 40) * 360;
+            bois += '<circle class="sc-tableau__grain" cx="' + gx.toFixed(0) + '" cy="' + gy.toFixed(0) +
+                '" r="' + (2 + jitter(11, g + 80) * 3).toFixed(1) + '"/>';
+        }
+        bois += '</g>';
+
+        var feuilles = contrats.map(function (contrat, i) {
+            var x = 480 + (i - (contrats.length - 1) / 2) * 268;
+            return parchemin(contrat, state, x, 300, i);
+        }).join('');
+
+        return defs() + painted('commandes') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            bois +
+            '<g class="sc-lanterns"><ellipse cx="480" cy="180" rx="260" ry="110" fill="url(#sc-halo)"/></g>' +
+            feuilles + light();
+    }
+
+    /** Une feuille punaisée : ce qu'on veut, ce qu'on paie, ce qu'il reste. */
+    function parchemin(contrat, state, x, y, i) {
+        var ligne = (contrat.lines || [])[0] || {};
+        var enCours = contrat.status === 'IN_PROGRESS';
+        var livrable = (contrat.lines || []).length > 0 && (contrat.lines || []).every(function (l) {
+            return (state.batches || []).filter(function (b) {
+                return b.recipeId === l.recipeId && b.status === 'READY' && b.quality >= l.minQuality;
+            }).reduce(function (t, b) { return t + Number(b.volume); }, 0) >= l.quantity;
+        });
+        var etat = livrable ? 'ready' : (enCours ? 'busy' : 'open');
+
+        var w = 216, h = 280;
+        var gauche = x - w / 2;
+        var haut = y - h / 2;
+        // Chaque feuille penche un peu, et toujours du même côté : une
+        // punaise au milieu ne tient pas une feuille droite.
+        var angle = (jitter(7, i) - 0.5) * 5;
+
+        var action = livrable ? 'npc-complete' : (contrat.status === 'OPEN' ? 'npc-accept' : '');
+
+        return '<g class="sc-node sc-contrat" data-state="' + etat + '" data-id="' + contrat.id + '"' +
+            (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
+            ' aria-label="' + esc(contrat.customerName || 'Contrat') + '"' +
+            ' transform="rotate(' + angle.toFixed(2) + ' ' + x + ' ' + y + ')">' +
+
+            (livrable
+                ? '<ellipse class="sc-node__glow" cx="' + x + '" cy="' + y +
+                  '" rx="' + (w * 0.78) + '" ry="' + (h * 0.62) + '" fill="url(#sc-halo)"/>'
+                : '') +
+
+            '<path class="sc-feuille__ombre" d="M' + (gauche + 6) + ' ' + (haut + 8) + 'h' + w + 'v' + h + 'h' + (-w) + 'Z"/>' +
+            // Un coin corné en bas à droite : une feuille plate est un rectangle.
+            '<path class="sc-feuille" d="M' + gauche + ' ' + haut + 'h' + w + 'v' + (h - 26) +
+            'l-26 26H' + gauche + 'Z"/>' +
+            '<path class="sc-feuille__corne" d="M' + (gauche + w) + ' ' + (haut + h - 26) +
+            'l-26 26v-26Z"/>' +
+
+            '<text class="sc-feuille__client" x="' + x + '" y="' + (haut + 44) + '">' +
+            esc(contrat.customerName || '') + '</text>' +
+            '<path class="sc-feuille__filet" d="M' + (gauche + 26) + ' ' + (haut + 58) + 'h' + (w - 52) + '"/>' +
+
+            '<text class="sc-feuille__quoi" x="' + x + '" y="' + (haut + 104) + '">' +
+            esc(ligne.quantity ? ligne.quantity + ' L' : '') + '</text>' +
+            '<text class="sc-feuille__recette" x="' + x + '" y="' + (haut + 130) + '">' +
+            esc(ligne.recipeName || '') + '</text>' +
+            (ligne.minQuality
+                ? '<text class="sc-feuille__note" x="' + x + '" y="' + (haut + 152) + '">qualité ≥ ' +
+                  ligne.minQuality + '</text>'
+                : '') +
+
+            '<text class="sc-feuille__prix" x="' + x + '" y="' + (haut + 200) + '">' +
+            (contrat.rewardCoins || 0) + ' pièces</text>' +
+            '<text class="sc-feuille__note" x="' + x + '" y="' + (haut + 222) + '">+' +
+            (contrat.rewardReputation || 0) + ' réputation</text>' +
+            '<text class="sc-plot__time sc-feuille__delai" x="' + x + '" y="' + (haut + 250) + '">' +
+            esc(countdown(contrat.expiresAt)) + '</text>' +
+
+            // La punaise, et le cachet de cire quand le contrat est pris.
+            '<circle class="sc-punaise" cx="' + x + '" cy="' + (haut + 14) + '" r="9"/>' +
+            '<circle class="sc-punaise__reflet" cx="' + (x - 3) + '" cy="' + (haut + 11) + '" r="3"/>' +
+            (enCours
+                ? '<circle class="sc-cachet" cx="' + (gauche + 40) + '" cy="' + (haut + h - 54) + '" r="22"/>' +
+                  '<text class="sc-cachet__texte" x="' + (gauche + 40) + '" y="' + (haut + h - 48) + '">pris</text>'
+                : '') +
+
+            (livrable ? badge(gauche + w - 34, haut + h - 66, 1, 'ready') : '') +
+            hit(x, haut, w + 24, h + 24) +
+            '</g>';
+    }
+
+
+    /* ---------------------------------------------------------- Paillasse */
+
+    /* La couleur de chaque matière dans la cuve. Elles se mélangent vraiment :
+       trois parts d'orge et une de bruyère donnent un blond qui tire à peine
+       au vert, et c'est ce qu'on veut voir. */
+    var TEINTES = {
+        CEREAL: [216, 160, 58], HONEY: [224, 167, 44], HOP: [127, 155, 70],
+        HERB: [111, 155, 82], FRUIT: [184, 66, 47], SPICE: [165, 100, 42],
+        YEAST: [201, 189, 160], WATER: [127, 163, 184], OTHER: [141, 130, 114]
+    };
+
+    /**
+     * La couleur du mélange : une part par matière.
+     *
+     * <p>Pondérer par la dose semblait évident et donnait un résultat faux :
+     * 400 g de bruyère et 9 kg d'orge ne sont pas des nombres comparables,
+     * et l'unité décidait de la teinte à la place de la recette. Une part
+     * chacun se lit juste, et chaque ajout se voit.
+     */
+    function melange(lignes) {
+        if (!lignes.length) return [120, 132, 140];
+        var somme = [0, 0, 0];
+        lignes.forEach(function (l) {
+            var t = TEINTES[l.type] || TEINTES.OTHER;
+            for (var c = 0; c < 3; c++) somme[c] += t[c];
+        });
+        return somme.map(function (v) { return Math.round(v / lignes.length); });
+    }
+
+    /**
+     * La paillasse du laboratoire.
+     *
+     * <p>Composer une recette était un formulaire : un nom, deux nombres et
+     * une liste de lignes avec des boutons « + » et « − ». Le joueur dosait
+     * à l'aveugle et ne voyait rien de ce qu'il fabriquait.
+     *
+     * <p>La cuve montre maintenant le mélange : sa couleur est la moyenne
+     * des matières qu'on y verse, pondérée par la dose, et elle se remplit à
+     * mesure qu'on ajoute. Elle ne dit pas l'effet — c'est l'alchimie qui le
+     * décide, et le découvrir est le jeu — mais elle montre qu'on fabrique
+     * quelque chose plutôt que de remplir un bordereau.
+     */
+    function paillasse(state) {
+        var lignes = (state.labLines || []).slice(0, 8);
+        var couleur = melange(lignes);
+        var rgb = 'rgb(' + couleur.join(',') + ')';
+        var clair = 'rgb(' + couleur.map(function (v) { return Math.min(255, v + 46); }).join(',') + ')';
+
+        var cx = STAGE_WIDTH / 2;
+        var sol = 470;
+        var rCuve = 132;
+        var hCuve = 150;
+        var hautCuve = sol - hCuve;
+        var remplissage = lignes.length ? 0.24 + Math.min(1, lignes.length / 8) * 0.56 : 0.1;
+        var niveau = sol - 14 - (hCuve - 28) * remplissage;
+
+        var bulles = '';
+        for (var b = 0; b < (lignes.length ? 7 : 0); b++) {
+            var bx = cx + (jitter(23, b) - 0.5) * rCuve * 1.1;
+            bulles += '<circle class="sc-bulle-cuve" cx="' + bx.toFixed(1) + '" cy="' + (sol - 20).toFixed(1) +
+                '" r="' + (3 + jitter(23, b + 20) * 4).toFixed(1) +
+                '" style="--bul-delay:' + (-b * 0.55).toFixed(2) + 's;--bul-haut:' +
+                (-(sol - 20 - niveau - 8)).toFixed(0) + 'px"/>';
+        }
+
+        // Les matières posées sur la paillasse, de part et d'autre de la cuve.
+        var poses = lignes.map(function (ligne, i) {
+            var cote = i % 2 === 0 ? -1 : 1;
+            var rang = Math.floor(i / 2);
+            var x = cx + cote * (rCuve + 78 + rang * 112);
+            return '<g class="sc-node sc-fiole" data-state="ready" data-id="' + ligne.id + '"' +
+                ' data-action="lab-remove" tabindex="0" role="button"' +
+                ' aria-label="Retirer ' + esc(ligne.name || '') + ' du mélange">' +
+                '<ellipse class="sc-contact" cx="' + x.toFixed(1) + '" cy="' + (sol + 4) +
+                '" rx="38" ry="7"/>' +
+                contenant({ type: ligne.type, ingredientName: ligne.name,
+                            quantity: ligne.quantity, unit: ligne.unit }, x, sol, 0.66, i, 0) +
+                hit(x, sol - 76, 92, 128) +
+                '</g>';
+        }).join('');
+
+        return defs() + painted('brasserie') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            '<g class="sc-lanterns"><ellipse cx="' + cx + '" cy="220" rx="250" ry="120" fill="url(#sc-halo)"/></g>' +
+
+            '<path class="sc-paillasse" d="M0 ' + sol + 'h' + STAGE_WIDTH + 'v' + (STAGE_HEIGHT - sol) + 'H0Z"/>' +
+            '<path class="sc-paillasse__nez" d="M0 ' + sol + 'h' + STAGE_WIDTH + '"/>' +
+
+            poses +
+
+            '<ellipse class="sc-contact" cx="' + cx + '" cy="' + (sol + 6) + '" rx="' + (rCuve * 0.92) + '" ry="14"/>' +
+            '<clipPath id="sc-cuve-clip"><path d="M' + (cx - rCuve) + ' ' + hautCuve +
+            'q' + (-10) + ' ' + hCuve + ' ' + (rCuve * 0.18) + ' ' + hCuve +
+            'h' + (rCuve * 1.64) + 'q' + (rCuve * 0.18 + 10) + ' 0 ' + (rCuve * 0.18) + ' ' + (-hCuve) + 'Z"/></clipPath>' +
+            '<path class="sc-cuve__paroi" d="M' + (cx - rCuve) + ' ' + hautCuve +
+            'q' + (-10) + ' ' + hCuve + ' ' + (rCuve * 0.18) + ' ' + hCuve +
+            'h' + (rCuve * 1.64) + 'q' + (rCuve * 0.18 + 10) + ' 0 ' + (rCuve * 0.18) + ' ' + (-hCuve) + 'Z"/>' +
+            '<g clip-path="url(#sc-cuve-clip)">' +
+            '<rect x="' + (cx - rCuve - 20) + '" y="' + niveau.toFixed(1) + '" width="' + (rCuve * 2 + 40) +
+            '" height="' + (sol - niveau + 10).toFixed(1) + '" fill="' + rgb + '"/>' +
+            '<ellipse class="sc-cuve__surface" cx="' + cx + '" cy="' + niveau.toFixed(1) +
+            '" rx="' + (rCuve * 0.94) + '" ry="16" fill="' + clair + '"/>' +
+            bulles +
+            '</g>' +
+            '<ellipse class="sc-cuve__col" cx="' + cx + '" cy="' + hautCuve + '" rx="' + rCuve + '" ry="22"/>' +
+
+            (lignes.length
+                ? '<text class="sc-cuve__compte" x="' + cx + '" y="' + (hautCuve - 44) + '">' +
+                  lignes.length + ' sur 8</text>'
+                : '<text class="sc-cuve__vide" x="' + cx + '" y="' + (hautCuve - 44) + '">' +
+                  'La cuve est vide</text>') +
+            light();
+    }
+
     /* ------------------------------------------------------------- Montage */
 
     var SCENES = {
         champs: { build: champs, empty: 'Aucune parcelle sur ce domaine.' },
         rucher: { build: rucher, empty: 'Aucune ruche installée.' },
         brasserie: { build: brasserie, empty: 'Aucune cuve en travail. Lance un brassin.' },
-        taverne: { build: taverne, empty: '' }
+        taverne: { build: taverne, empty: '' },
+        entrepot: { build: entrepot, empty: 'L’entrepôt est vide.' },
+        commandes: { build: commandes, empty: 'Aucun marchand n’est encore passé. Le premier ne tardera pas.' },
+        atelier: { build: paillasse, empty: '' }
     };
 
     /**
@@ -870,6 +1279,21 @@
         if (place === 'taverne') {
             return (state.tavernCounter || []).map(function (o) {
                 return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
+            }).join('|');
+        }
+        if (place === 'entrepot') {
+            return (state.inventory || []).map(function (i) {
+                return i.ingredientId + ':' + i.quantity;
+            }).join('|');
+        }
+        if (place === 'commandes') {
+            return (state.npcOrders || []).filter(function (o) {
+                return o.status === 'OPEN' || o.status === 'IN_PROGRESS';
+            }).map(function (o) { return o.id + ':' + o.status; }).join('|');
+        }
+        if (place === 'atelier') {
+            return (state.labLines || []).map(function (l) {
+                return l.id + ':' + l.quantity;
             }).join('|');
         }
         return '';
@@ -911,6 +1335,16 @@
                 if (!node) return;
                 var time = node.querySelector('.sc-plot__time');
                 if (time) time.textContent = hiveState(hive) === 'growing' ? countdown(hive.readyAt) : '';
+            });
+            return;
+        }
+
+        if (place === 'commandes') {
+            (state.npcOrders || []).forEach(function (order) {
+                var node = root.querySelector('.sc-contrat[data-id="' + order.id + '"]');
+                if (!node) return;
+                var time = node.querySelector('.sc-feuille__delai');
+                if (time) time.textContent = countdown(order.expiresAt);
             });
             return;
         }

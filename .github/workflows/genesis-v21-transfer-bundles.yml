@@ -1,0 +1,241 @@
+name: Genesis V21 build frozen transfer root bundles
+
+on:
+  push:
+    branches: [research/genesis-v21-transfer-calibration]
+    paths:
+      - ".github/workflows/genesis-v21-transfer-bundles.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  HOST_COMMIT: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+  APPARATUS_HEAD: 2f5c56bbe3ebb809fae8b21529e65da816705a3d
+  TAG: genesis-rsi-v21-transfer-root-bundles-20260923
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/genesis-v21-transfer-calibration
+          path: apparatus
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.HOST_COMMIT }}
+          path: host
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build exact shared-root plans and proposer bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import copy,gzip,hashlib,importlib.util,json,os,shutil,tarfile,zipfile
+          from pathlib import Path
+
+          ws=Path(os.environ["GITHUB_WORKSPACE"])
+          app=ws/"apparatus"; host=ws/"host"
+          out=Path(os.environ["RUNNER_TEMP"])/"v21"
+          out.mkdir(parents=True,exist_ok=True)
+          bundles=out/"bundles"; bundles.mkdir()
+          bank=json.loads((app/".genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+
+          def sha(p):
+              return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+          def digest_obj(v):
+              return hashlib.sha256(json.dumps(v,sort_keys=True,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+          def load_module(path,name):
+              spec=importlib.util.spec_from_file_location(name,path)
+              mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); return mod
+
+          g1=load_module(app/".genesis-v21/policies/g1.py","v21_g1")
+          g2=load_module(app/".genesis-v21/policies/g2.py","v21_g2")
+          assert sha(app/".genesis-v21/policies/g1.py")=="3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434"
+          assert sha(app/".genesis-v21/policies/g2.py")=="69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf"
+
+          protocol=app/".genesis-v21/V21_TRANSFER_PROPOSER_PROTOCOL.md"
+          verifier=app/".genesis-v21/VERIFY_OUTPUT.py"
+          protocol_sha=sha(protocol)
+
+          rows=[]; plans=[]
+          for task in bank["tasks"]:
+              taskid=task["id"]
+              root_id=f"v21-{taskid}-root"
+              view={
+                "world_id":f"v21-transfer-{taskid}",
+                "root_node_id":root_id,
+                "revealed_nodes":[{
+                  "node_id":root_id,
+                  "parent_node_id":None,
+                  "origin_attempt":0,
+                  "lineage_depth":0,
+                  "action":{"family":"","target_axes":[],"mechanisms":[],"changed_regions":[]},
+                  "outcome":{
+                    "quality_milli":0,
+                    "evolver_profile_generation":0,
+                    "ever_champion":True,
+                    "root_branch_node_id":root_id,
+                  },
+                }],
+                "revealed_requests":[],
+                "eligible_parent_ids":[root_id],
+                "exhausted_parent_ids":[],
+              }
+              g1_sel=g1.select_parent_batch(copy.deepcopy(view),2)
+              g2_sel=g2.select_parent_batch(copy.deepcopy(view),1)
+              if g1_sel!=[root_id] or g2_sel!=[root_id]:
+                  raise SystemExit(f"unexpected initial policy decision for {taskid}: {g1_sel} {g2_sel}")
+              plan={
+                "task_id":taskid,
+                "root_node_id":root_id,
+                "root_quality_milli":0,
+                "g1_selected_parent_ids":g1_sel,
+                "g2_selected_parent_ids":g2_sel,
+                "shared_first_wave":True,
+              }
+              plans.append(plan)
+
+              work=out/f"work-{taskid}"
+              shutil.copytree(host,work,ignore=shutil.ignore_patterns(".git","target"))
+              p=work/task["source_path"]
+              s=p.read_text()
+              if s.count(task["old_text"])!=1:
+                  raise SystemExit(f"defect site mismatch for {taskid}: {s.count(task['old_text'])}")
+              p.write_text(s.replace(task["old_text"],task["defect_text"],1))
+              source_sha=sha(p)
+              parent_tree_digest=digest_obj({
+                "schema":"mira-genesis-rsi-v21-transfer-parent-id-v1",
+                "host_commit":os.environ["HOST_COMMIT"],
+                "task_id":taskid,
+                "allowed_source_path":task["source_path"],
+                "defected_source_sha256":source_sha,
+              })
+
+              slot=f"v21-{taskid}-r1-shared-s1"
+              d=bundles/taskid; d.mkdir()
+              parent_tar=d/"parent.tar.gz"
+              with tarfile.open(parent_tar,"w:gz") as tf:
+                  for q in sorted(work.rglob("*")):
+                      if q.is_file():
+                          tf.add(q,arcname=q.relative_to(work).as_posix(),recursive=False)
+
+              manifest={
+                "schema":"mira-genesis-rsi-v21-transfer-task-manifest-v1",
+                "task_id":taskid,
+                "campaign_slot_id":slot,
+                "parent_node_id":root_id,
+                "parent_tree_digest":parent_tree_digest,
+                "host_repository":"mjodheim/mjodheim-brewstead",
+                "host_commit":os.environ["HOST_COMMIT"],
+                "public_symptom":task["public_symptom"],
+                "allowed_source_path":task["source_path"],
+                "parent_defected_source_sha256":source_sha,
+                "parent_archive_sha256":sha(parent_tar),
+                "public_guard_command":bank["evaluator_contract"]["public_suite_command"],
+                "evaluator_only_test_included":False,
+                "g1_initial_selection":[root_id],
+                "g2_initial_selection":[root_id],
+                "shared_first_wave":True,
+              }
+              mp=d/"task-manifest.json"
+              mp.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
+              shutil.copy2(protocol,d/"V21_TRANSFER_PROPOSER_PROTOCOL.md")
+              shutil.copy2(verifier,d/"VERIFY_OUTPUT.py")
+              prompt=[
+                "GENESIS RSI V21 — BREWSTEAD CROSS-STACK TRANSFER REPAIR",
+                "",
+                f"Task: {taskid}",
+                f"Public symptom: {task['public_symptom']}",
+                "",
+                "Use ONLY this bundle. No web, GitHub, plugins, connectors, saved memory, previous chats, Mira Genesis project context, evaluator-only test source, other V21 attempts/slots, or human candidate-specific hints.",
+                "",
+                "Read V21_TRANSFER_PROPOSER_PROTOCOL.md completely. It is authoritative.",
+                "",
+                f"Allowed production source path: {task['source_path']}",
+                "",
+                "Extract parent.tar.gz as the exact defected parent.",
+                "Inspect the supplied public source and public tests.",
+                "Produce the smallest causal repair for the public symptom.",
+                "",
+                "Before returning, run:",
+                "python3 VERIFY_OUTPUT.py proposal.patch transcript.json",
+                "",
+                "Do not return until it prints exactly:",
+                "GENESIS_RSI_V21_TRANSFER_OUTPUT=PASS",
+                "",
+                "Return exactly proposal.patch and transcript.json.",
+                "No prose outside the two files.",
+              ]
+              (d/"PROMPT.txt").write_text("\n".join(prompt)+"\n")
+              manifest["task_manifest_sha256"]=sha(mp)
+              manifest["proposer_protocol_sha256"]=protocol_sha
+              manifest["verify_output_sha256"]=sha(d/"VERIFY_OUTPUT.py")
+              manifest["prompt_sha256"]=sha(d/"PROMPT.txt")
+
+              zpath=bundles/f"genesis-v21-{taskid}.zip"
+              names=[q.relative_to(d).as_posix() for q in d.rglob("*") if q.is_file()]
+              with zipfile.ZipFile(zpath,"w") as z:
+                  for name in sorted(names):
+                      info=zipfile.ZipInfo(name,date_time=(2026,9,23,0,0,0))
+                      info.compress_type=zipfile.ZIP_DEFLATED
+                      info.external_attr=(0o644 & 0xffff)<<16
+                      z.writestr(info,(d/name).read_bytes())
+              rows.append({
+                **manifest,
+                "bundle_zip":zpath.name,
+                "bundle_zip_sha256":sha(zpath),
+                "bundle_zip_bytes":zpath.stat().st_size,
+              })
+
+          bundle_set={
+            "schema":"mira-genesis-rsi-v21-transfer-root-bundle-set-v1",
+            "host_commit":os.environ["HOST_COMMIT"],
+            "g1_policy_sha256":"3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434",
+            "g2_policy_sha256":"69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf",
+            "proposer_protocol_sha256":protocol_sha,
+            "first_wave_plans":plans,
+            "bundles":rows,
+            "transfer_observations_spent_before_bundle_generation":0,
+            "proposer_outputs_seen_before_bundle_generation":0,
+          }
+          (out/"bundle-set.json").write_text(json.dumps(bundle_set,indent=2,sort_keys=True)+"\n")
+          print(json.dumps({"plans":plans,"bundles":[{"task":x["task_id"],"sha":x["bundle_zip_sha256"],"bytes":x["bundle_zip_bytes"]} for x in rows]},sort_keys=True))
+          PY
+
+      - name: Persist bundle hashes before proposer use
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/v21/bundle-set.json" apparatus/.genesis-v21/ROOT_BUNDLE_SET.json
+          cd apparatus
+          git config user.name "Anthony Mets"
+          git config user.email "110968830+mjodheim@users.noreply.github.com"
+          git pull --rebase origin research/genesis-v21-transfer-calibration
+          git add .genesis-v21/ROOT_BUNDLE_SET.json
+          git commit -m "research(genesis): freeze V21 transfer root bundle hashes"
+          git push origin HEAD:research/genesis-v21-transfer-calibration
+
+      - name: Publish exact transfer bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$HOST_COMMIT" \
+              --title "Genesis RSI V21 Brewstead transfer root bundles" \
+              --notes "Three prospectively frozen shared-root repair bundles. Each bundle is used in three isolated Temporary Chat attempts. Evaluator-only JUnit objectives are excluded."
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$RUNNER_TEMP"/v21/bundles/genesis-v21-*.zip \
+            "$RUNNER_TEMP/v21/bundle-set.json"

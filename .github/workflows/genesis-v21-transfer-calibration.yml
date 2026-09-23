@@ -1,0 +1,130 @@
+name: Genesis V21 transfer calibration
+
+on:
+  push:
+    branches: [research/genesis-v21-transfer-calibration]
+    paths:
+      - ".genesis-v21/**"
+      - ".github/workflows/genesis-v21-transfer-calibration.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibrate:
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - brewstead-chat-rate-window
+          - brewstead-farm-plant-ownership
+          - brewstead-brew-quality-bonus
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/genesis-v21-transfer-calibration
+          path: apparatus
+      - uses: actions/checkout@v4
+        with:
+          ref: 720b27c8bc80de16c04953e13d5f9e8425beea8c
+          path: host
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: maven
+          cache-dependency-path: host/pom.xml
+
+      - name: Inject exact transfer defect
+        env:
+          TASK: ${{ matrix.task }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          p=Path("host")/task["source_path"]
+          s=p.read_text()
+          old=task["old_text"]; new=task["defect_text"]
+          if s.count(old)!=1:
+              raise SystemExit(f"expected exactly one defect site, got {s.count(old)}")
+          Path("/tmp/original-source.txt").write_text(s)
+          p.write_text(s.replace(old,new,1))
+          print(task["source_path"])
+          PY
+
+      - name: Public suite must remain green
+        working-directory: host
+        shell: bash
+        run: ./mvnw -q test
+
+      - name: Install evaluator-only test
+        env:
+          TASK: ${{ matrix.task }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,shutil
+          from pathlib import Path
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          src=Path("apparatus/.genesis-v21/evaluator")/(Path(task["hidden_test_source"]).name)
+          dst=Path("host/src/test/java/be/mjodheim/brewstead/service")/src.name
+          shutil.copy2(src,dst)
+          print(dst)
+          PY
+
+      - name: Defected root must fail evaluator-only objective
+        env:
+          TASK: ${{ matrix.task }}
+        working-directory: host
+        shell: bash
+        run: |
+          set +e
+          selector=$(python - <<'PY'
+          import json,os
+          from pathlib import Path
+          bank=json.loads(Path("../apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          print(task["hidden_test_selector"])
+          PY
+          )
+          ./mvnw -q -Dtest="$selector" test
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo "defected root unexpectedly passed evaluator-only objective"
+            exit 1
+          fi
+
+      - name: Restore oracle source and prove objective passes
+        env:
+          TASK: ${{ matrix.task }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          bank=json.loads(Path("apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          (Path("host")/task["source_path"]).write_text(Path("/tmp/original-source.txt").read_text())
+          PY
+          cd host
+          selector=$(python - <<'PY'
+          import json,os
+          from pathlib import Path
+          bank=json.loads(Path("../apparatus/.genesis-v21/TRANSFER_TASK_BANK.json").read_text())
+          task=next(x for x in bank["tasks"] if x["id"]==os.environ["TASK"])
+          print(task["hidden_test_selector"])
+          PY
+          )
+          ./mvnw -q -Dtest="$selector" test

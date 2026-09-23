@@ -1,0 +1,56 @@
+{
+  "schema": "mira-genesis-rsi-v21-cross-stack-transfer-task-bank-v1",
+  "status": "DEVELOPMENT_CALIBRATION_ONLY_BEFORE_V21_L4_FREEZE",
+  "host": {
+    "repository": "mjodheim/mjodheim-brewstead",
+    "commit": "720b27c8bc80de16c04953e13d5f9e8425beea8c",
+    "language": "Java",
+    "framework": "Spring Boot 4.1.1",
+    "build": "Maven wrapper",
+    "prior_genesis_rsi_replay_use": false
+  },
+  "exact_policies": {
+    "g1_sha256": "3354f887a93a08d9f00e9c54ccb097003f727ba77c1e1b4e9997adf676d35434",
+    "g2_sha256": "69d0d725601cd32adff27379dbb25f5c7be29946f9e9c6ac4858a0634cbd5fdf",
+    "g2_generation_digest": "d2e2b990581b5c72c1e642944ccd08c96ff0470b5117dd8a8820425c0028c6bd"
+  },
+  "tasks": [
+    {
+      "id": "brewstead-chat-rate-window",
+      "subsystem": "tavern-chat",
+      "public_symptom": "The chat anti-spam window must count messages from the preceding one minute, not a wider historical window.",
+      "source_path": "src/main/java/be/mjodheim/brewstead/service/TavernChatService.java",
+      "old_text": "playerId, LocalDateTime.now().minusMinutes(1));",
+      "defect_text": "playerId, LocalDateTime.now().minusMinutes(5));",
+      "hidden_test_source": "experiment/free_metamorphosis/v21/evaluator/GenesisV21ChatRateWindowTest.java",
+      "hidden_test_selector": "GenesisV21ChatRateWindowTest"
+    },
+    {
+      "id": "brewstead-farm-plant-ownership",
+      "subsystem": "farm-authorization",
+      "public_symptom": "Planting must reject a field owned by another player before any growth effect is applied.",
+      "source_path": "src/main/java/be/mjodheim/brewstead/service/FarmService.java",
+      "old_text": "PlayerField field = getOwnedField(playerId, request.fieldId());",
+      "defect_text": "PlayerField field = playerFieldRepository.findById(request.fieldId())\\n                .orElseThrow(() -> new IllegalArgumentException(\\\"Parcelle introuvable.\\\"));",
+      "hidden_test_source": "experiment/free_metamorphosis/v21/evaluator/GenesisV21FarmOwnershipTest.java",
+      "hidden_test_selector": "GenesisV21FarmOwnershipTest"
+    },
+    {
+      "id": "brewstead-brew-quality-bonus",
+      "subsystem": "brewing-progression",
+      "public_symptom": "Finished-batch quality must include the player's brewing progression bonus in addition to the active effect shift.",
+      "source_path": "src/main/java/be/mjodheim/brewstead/service/BrewService.java",
+      "old_text": "+ effectService.qualityShift(batch.getPlayer().getId())\\n                + progressionService.brewingQualityBonus(batch.getPlayer().getId());",
+      "defect_text": "+ effectService.qualityShift(batch.getPlayer().getId());",
+      "hidden_test_source": "experiment/free_metamorphosis/v21/evaluator/GenesisV21BrewQualityBonusTest.java",
+      "hidden_test_selector": "GenesisV21BrewQualityBonusTest"
+    }
+  ],
+  "evaluator_contract": {
+    "public_suite_command": "./mvnw -q test",
+    "hidden_objective_pass_quality_milli": 1000,
+    "hidden_objective_fail_quality_milli": 0,
+    "public_suite_failure": "hard_fail_not_archive_viable",
+    "note": "Binary task quality is defined independently of G2's 780 stopping threshold: hidden objective solved = 1000, unsolved = 0."
+  }
+}

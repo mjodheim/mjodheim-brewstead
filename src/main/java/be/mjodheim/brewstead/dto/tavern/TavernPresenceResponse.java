@@ -11,6 +11,12 @@ public record TavernPresenceResponse(
         boolean self,
         TavernCharacterResponse character,
         String emote,
-        LocalDateTime emoteAt
+        LocalDateTime emoteAt,
+        double x,
+        double y,
+        String facing,
+        String pose,
+        String action,
+        LocalDateTime actionAt
 ) {
 }

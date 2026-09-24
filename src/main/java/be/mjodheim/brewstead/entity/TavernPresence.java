@@ -40,4 +40,24 @@ public class TavernPresence {
     private String emote;
 
     private LocalDateTime emoteAt;
+
+    /**
+     * Coordonnées dans le repère 960×560 de la salle. Elles restent
+     * nullable pour que le déploiement puisse faire évoluer une table qui
+     * contient encore une ancienne présence : le service fournit alors le
+     * point d'entrée par défaut.
+     */
+    private Double positionX;
+    private Double positionY;
+
+    @Column(length = 8)
+    private String facing;
+
+    @Column(length = 16)
+    private String pose;
+
+    @Column(length = 20)
+    private String action;
+
+    private LocalDateTime actionAt;
 }

@@ -37,6 +37,7 @@ public class TavernRoomService {
     private final PlayerProfileRepository playerRepository;
     private final TavernChatService chatService;
     private final TastingCounterService counterService;
+    private final TavernLiveService liveService;
 
     @Transactional
     public TavernLobbyResponse lobby(Long playerId) {
@@ -87,6 +88,7 @@ public class TavernRoomService {
                 .code(uniqueCode()).name(name).type(TavernRoomType.PRIVATE)
                 .capacity(CAPACITY).owner(owner).createdAt(LocalDateTime.now()).build());
         presenceRepository.save(presence(room, owner));
+        liveService.refresh(room.getId());
         return snapshot(playerId, room.getId());
     }
 
@@ -110,9 +112,16 @@ public class TavernRoomService {
         if (occupied.isPresent() && !occupied.get().getPlayer().getId().equals(playerId)) {
             throw new IllegalStateException("Quelqu'un est déjà assis ici.");
         }
+        TavernNavigation.Seat seat = TavernNavigation.seat(seatKey);
         mine.setSeatKey(seatKey);
+        mine.setPositionX(seat.x());
+        mine.setPositionY(seat.y());
+        mine.setFacing(seat.facing());
+        mine.setPose("SEATED");
         mine.setLastSeenAt(LocalDateTime.now());
         presenceRepository.save(mine);
+        liveService.publish(roomId,
+                TavernLiveEventResponse.player("PLAYER", roomId, toPresence(mine, playerId)));
         return snapshot(playerId, roomId);
     }
 
@@ -126,12 +135,46 @@ public class TavernRoomService {
         mine.setEmoteAt(LocalDateTime.now());
         mine.setLastSeenAt(LocalDateTime.now());
         presenceRepository.save(mine);
+        liveService.publish(roomId,
+                TavernLiveEventResponse.player("EMOTE", roomId, toPresence(mine, playerId)));
         return snapshot(playerId, roomId);
     }
 
     @Transactional
+    public TavernPresenceResponse move(Long playerId, Long roomId, TavernMoveRequest request) {
+        cleanup();
+        TavernPresence mine = requirePresence(playerId, roomId);
+        TavernNavigation.Point current = positionOf(mine);
+        TavernNavigation.Point target = TavernNavigation.normalize(request.x(), request.y());
+
+        mine.setSeatKey(null);
+        mine.setPositionX(target.x());
+        mine.setPositionY(target.y());
+        mine.setFacing(TavernNavigation.facing(current.x(), target.x(), mine.getFacing()));
+        mine.setPose("STANDING");
+        mine.setLastSeenAt(LocalDateTime.now());
+        presenceRepository.save(mine);
+
+        TavernPresenceResponse response = toPresence(mine, playerId);
+        liveService.publish(roomId, TavernLiveEventResponse.player("MOVE", roomId, response));
+        return response;
+    }
+
+    @Transactional
+    public void assertPresent(Long playerId, Long roomId) {
+        cleanup();
+        TavernPresence presence = requirePresence(playerId, roomId);
+        presence.setLastSeenAt(LocalDateTime.now());
+        presenceRepository.save(presence);
+    }
+
+    @Transactional
     public void leave(Long playerId) {
+        Long roomId = presenceRepository.findByPlayerId(playerId)
+                .map(presence -> presence.getRoom().getId())
+                .orElse(null);
         presenceRepository.deleteByPlayerId(playerId);
+        if (roomId != null) liveService.refresh(roomId);
     }
 
     @Transactional
@@ -167,6 +210,7 @@ public class TavernRoomService {
         }
         presenceRepository.deleteByPlayerId(playerId);
         presenceRepository.save(presence(room, player(playerId)));
+        liveService.refresh(roomId);
         return snapshot(playerId, roomId);
     }
 
@@ -180,7 +224,13 @@ public class TavernRoomService {
 
     private TavernPresence presence(TavernRoom room, PlayerProfile player) {
         LocalDateTime now = LocalDateTime.now();
-        return TavernPresence.builder().room(room).player(player).joinedAt(now).lastSeenAt(now).build();
+        TavernNavigation.Point spawn = TavernNavigation.spawn();
+        return TavernPresence.builder()
+                .room(room).player(player)
+                .positionX(spawn.x()).positionY(spawn.y())
+                .facing("LEFT").pose("STANDING")
+                .joinedAt(now).lastSeenAt(now)
+                .build();
     }
 
     private TavernPresence requirePresence(Long playerId, Long roomId) {
@@ -204,12 +254,29 @@ public class TavernRoomService {
                 Objects.equals(room.getId(), currentRoomId));
     }
 
-    private TavernPresenceResponse toPresence(TavernPresence presence, Long viewerId) {
+    public TavernPresenceResponse toPresence(TavernPresence presence, Long viewerId) {
         PlayerProfile player = presence.getPlayer();
+        TavernNavigation.Point position = positionOf(presence);
+        String action = presence.getActionAt() != null
+                && presence.getActionAt().isAfter(LocalDateTime.now().minusSeconds(4))
+                ? presence.getAction() : null;
         return new TavernPresenceResponse(
                 player.getId(), player.getDisplayName(), player.getLevel(), player.getReputation(),
                 presence.getSeatKey(), player.getId().equals(viewerId),
-                character(player), presence.getEmote(), presence.getEmoteAt());
+                character(player), presence.getEmote(), presence.getEmoteAt(),
+                position.x(), position.y(),
+                presence.getFacing() == null ? "LEFT" : presence.getFacing(),
+                presence.getPose() == null ? (presence.getSeatKey() == null ? "STANDING" : "SEATED") : presence.getPose(),
+                action, presence.getActionAt());
+    }
+
+    private TavernNavigation.Point positionOf(TavernPresence presence) {
+        TavernNavigation.Seat seat = presence.getSeatKey() == null ? null : TavernNavigation.seat(presence.getSeatKey());
+        if (seat != null) return new TavernNavigation.Point(seat.x(), seat.y());
+        if (presence.getPositionX() != null && presence.getPositionY() != null) {
+            return TavernNavigation.normalize(presence.getPositionX(), presence.getPositionY());
+        }
+        return TavernNavigation.spawn();
     }
 
     private TavernCharacterResponse character(PlayerProfile player) {

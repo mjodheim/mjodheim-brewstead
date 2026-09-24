@@ -1,6 +1,7 @@
 package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.tavern.PostMessageRequest;
+import be.mjodheim.brewstead.dto.tavern.TavernLiveEventResponse;
 import be.mjodheim.brewstead.dto.tavern.TavernMessageResponse;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.TavernMessage;
@@ -32,6 +33,7 @@ public class TavernChatService {
     private final PlayerProfileRepository playerProfileRepository;
     private final TavernRoomRepository roomRepository;
     private final TavernPresenceRepository presenceRepository;
+    private final TavernLiveService liveService;
 
     @Transactional
     public List<TavernMessageResponse> recent(Long sinceId) {
@@ -69,12 +71,14 @@ public class TavernChatService {
         TavernRoom room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Salle introuvable."));
 
-        return toResponse(messageRepository.save(TavernMessage.builder()
+        TavernMessageResponse response = toResponse(messageRepository.save(TavernMessage.builder()
                 .author(author)
                 .room(room)
                 .body(body)
                 .postedAt(LocalDateTime.now())
                 .build()));
+        liveService.publish(roomId, TavernLiveEventResponse.message(roomId, response));
+        return response;
     }
 
     @Transactional

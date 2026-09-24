@@ -101,6 +101,7 @@ class BrewsteadUiIntegrationTest {
 
             wait.until(ExpectedConditions.urlToBe(base + "/"));
             wait.until(d -> !d.findElement(By.id("playerName")).getText().equals("—"));
+            passerLaVisite(driver);
 
             assertEquals(username, driver.findElement(By.id("playerName")).getText());
             assertEquals("true", driver.findElement(By.id("fault")).getAttribute("aria-hidden"));
@@ -847,6 +848,77 @@ class BrewsteadUiIntegrationTest {
     }
 
     /**
+     * La visite guidée : proposée d'elle-même à un nouveau joueur, sur les
+     * vrais éléments de l'écran, qu'on peut passer, rejouer, et qui mène au
+     * premier geste de la boucle.
+     */
+    @Test
+    void aNewcomerIsShownAroundAndLandsOnTheirFirstTask() {
+        WebDriver driver = newBrowser();
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(20));
+        String username = "ui_visite_" + System.nanoTime() % 100000;
+        try {
+            driver.get("http://127.0.0.1:" + port + "/register");
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("username"))).sendKeys(username);
+            driver.findElement(By.name("password")).sendKeys("Secret123!");
+            driver.findElement(By.name("confirmation")).sendKeys("Secret123!");
+            click(driver, wait, By.cssSelector("form button[type='submit']"));
+            wait.until(ExpectedConditions.urlContains("/login?registered"));
+            driver.findElement(By.name("username")).sendKeys(username);
+            driver.findElement(By.name("password")).sendKeys("Secret123!");
+            click(driver, wait, By.cssSelector("form button[type='submit']"));
+
+            // Elle vient seule, et elle accueille par son nom.
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".visite__bulle")));
+            wait.until(ExpectedConditions.textToBePresentInElementLocated(By.cssSelector(".visite__titre"), username));
+            assertTrue(driver.findElement(By.cssSelector(".visite__compte")).getText().startsWith("ÉTAPE 1 SUR")
+                    || driver.findElement(By.cssSelector(".visite__compte")).getText().startsWith("Étape 1 sur"));
+            // Les premiers pas sont là dès l'arrivée, aucun de fait.
+            assertTrue(driver.findElement(By.id("guidePas")).getText().contains("0/4"));
+
+            // La boucle en quatre gestes, puis un vrai élément sous le projecteur.
+            click(driver, wait, By.cssSelector(".visite__suivant"));
+            wait.until(ExpectedConditions.textToBe(By.cssSelector(".visite__titre"), "Le jeu tient en quatre gestes"));
+            assertEquals(4, driver.findElements(By.cssSelector(".visite-boucle li")).size());
+            click(driver, wait, By.cssSelector(".visite__suivant"));
+            wait.until(ExpectedConditions.textToBe(By.cssSelector(".visite__titre"), "Tes réserves"));
+            wait.until(d -> d.findElement(By.cssSelector(".visite")).getDomAttribute("class").contains("a-une-cible"));
+            screenshot(driver, "13-visite-reserves.png");
+
+            // Revenir en arrière, puis Échap : la visite se referme et ne revient pas.
+            click(driver, wait, By.cssSelector(".visite__retour"));
+            wait.until(ExpectedConditions.textToBe(By.cssSelector(".visite__titre"), "Le jeu tient en quatre gestes"));
+            new Actions(driver).sendKeys(Keys.ESCAPE).perform();
+            wait.until(d -> d.findElements(By.cssSelector(".visite")).isEmpty());
+            driver.navigate().refresh();
+            wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
+            new Actions(driver).pause(Duration.ofMillis(1500)).perform();
+            assertTrue(driver.findElements(By.cssSelector(".visite")).isEmpty(), "la visite ne s'impose qu'une fois");
+
+            // Le bouton « ? » la rend, et son dernier bouton mène au premier geste.
+            click(driver, wait, By.id("helpBtn"));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".visite__bulle")));
+            for (int i = 0; i < 12 && !driver.findElements(By.cssSelector(".visite")).isEmpty(); i++) {
+                String bouton = driver.findElement(By.cssSelector(".visite__suivant")).getText();
+                click(driver, wait, By.cssSelector(".visite__suivant"));
+                if (bouton.contains("moi de jouer")) break;
+                new Actions(driver).pause(Duration.ofMillis(250)).perform();
+            }
+            wait.until(d -> d.findElements(By.cssSelector(".visite")).isEmpty());
+            wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "false"));
+            // Le tiroir glisse encore : son texte n'est « visible » pour le
+            // pilote qu'une fois posé. On lit le contenu brut.
+            wait.until(d -> "Champs".equals(d.findElement(By.id("placeTitle")).getDomProperty("textContent")));
+            assertNoApplicationJavascriptErrors(driver);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(driver, "failure-visite.png");
+            throw failure;
+        } finally {
+            driver.quit();
+        }
+    }
+
+    /**
      * La tournée de récolte : le bouton n'apparaît que lorsqu'il y a de quoi
      * ramasser, il annonce combien, et un seul clic vide champs et ruches.
      */
@@ -985,6 +1057,26 @@ class BrewsteadUiIntegrationTest {
         driver.findElement(By.name("password")).sendKeys("Secret123!");
         click(driver, wait, By.cssSelector("form button[type='submit']"));
         wait.until(ExpectedConditions.textToBe(By.id("playerName"), username));
+        passerLaVisite(driver);
+    }
+
+    /**
+     * Un nouveau joueur reçoit la visite guidée par-dessus le domaine. Les
+     * parcours qui testent autre chose la passent, comme le ferait quelqu'un
+     * qui connaît déjà le jeu. Un navigateur qui l'a déjà vue n'en reçoit
+     * pas : on n'attend donc qu'un instant.
+     */
+    private void passerLaVisite(WebDriver driver) {
+        try {
+            new WebDriverWait(driver, Duration.ofSeconds(3))
+                    .until(d -> !d.findElements(By.cssSelector(".visite .visite__passer")).isEmpty()
+                            && d.findElement(By.cssSelector(".visite .visite__passer")).isDisplayed());
+        } catch (TimeoutException absente) {
+            return;
+        }
+        driver.findElement(By.cssSelector(".visite .visite__passer")).click();
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(d -> d.findElements(By.cssSelector(".visite")).isEmpty());
     }
 
     private PlayerProfile profile(String username) {

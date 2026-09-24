@@ -72,6 +72,7 @@ jobs:
         run: |
           node --check src/main/resources/static/js/brewstead-data.js
           node --check src/main/resources/static/js/brewstead-world.js
+          node --check src/main/resources/static/js/brewstead-visite.js
           node --check src/main/resources/static/js/brewstead-app.js
 
       - name: Test frontend data and failure handling

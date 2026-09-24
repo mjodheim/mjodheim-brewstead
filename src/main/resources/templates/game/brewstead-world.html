@@ -101,6 +101,7 @@
         </symbol>
         <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
         <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/></symbol>
+        <symbol id="i-help" viewBox="0 0 24 24"><path d="M9.2 9.3a2.9 2.9 0 1 1 4.3 2.5c-.9.5-1.5 1.2-1.5 2.2v.6"/><circle cx="12" cy="18" r=".6"/></symbol>
     </defs>
 </svg>
 
@@ -246,8 +247,10 @@
     <div class="world" id="world">
         <div class="world__scene" id="scene">
             <img class="world__art" id="worldArt" width="1536" height="742" alt="Le domaine de Brewstead"
-                 th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp" draggable="false">
-            <svg th:replace="~{game/brewstead-atmosphere :: atmosphere}"></svg>
+                 th:src="@{/images/brewstead-domaine.webp}" src="/images/brewstead-domaine.webp"
+                 th:data-flou="@{/images/brewstead-domaine-flou.webp}" data-flou="/images/brewstead-domaine-flou.webp"
+                 draggable="false">
+            <div th:replace="~{game/brewstead-atmosphere :: atmosphere}"></div>
             <!-- Les calques sont posés par le script, qui ne sait pas calculer
                  l'empreinte d'un fichier. Le serveur la lui donne ici, sinon
                  ces sept images seraient les seules à garder leur ancien
@@ -270,6 +273,9 @@
              quoi faire du domaine. Cette place, la plus visible de l'écran,
              sert maintenant à dérouler la boucle du jeu une étape à la fois. -->
         <button class="world__guide" id="guide" type="button">
+            <!-- Les quatre gestes de la boucle, cochés à mesure qu'on les fait.
+                 La ligne du dessous dit quoi faire ; celle-ci, où l'on en est. -->
+            <span class="world__guide-pas" id="guidePas" hidden></span>
             <span class="world__guide-face" aria-hidden="true"><svg class="art" viewBox="0 0 32 32"><use id="guideFace" href="#art-MEAD"/></svg></span>
             <span class="world__guide-text" id="guideText">—</span>
             <small class="world__guide-why" id="guideWhy"></small>
@@ -307,6 +313,9 @@
 
         <div class="effects" id="effects" hidden aria-live="polite"></div>
 
+        <button class="round-btn bandeau__reglages" id="helpBtn" type="button" aria-label="Visite guidée" title="Visite guidée">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-help"/></svg>
+        </button>
         <button class="round-btn bandeau__reglages" id="renownBtn" type="button" aria-label="Renommée et hauts faits">
             <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-trophy"/></svg>
         </button>
@@ -387,12 +396,17 @@
 
     <form id="logoutForm" th:action="@{/logout}" action="/logout" method="post" hidden></form>
 
+    <!-- Ce qui s'envole vers les compteurs : les gains, les récoltes. Un
+         calque à part, au-dessus de tout, qui ne reçoit jamais le clic. -->
+    <div class="envols" id="envols" aria-hidden="true"></div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
 
 <script th:src="@{/js/brewstead-data.js}" src="/js/brewstead-data.js"></script>
 <script th:src="@{/js/brewstead-world.js}" src="/js/brewstead-world.js"></script>
 <script th:src="@{/js/brewstead-scenes.js}" src="/js/brewstead-scenes.js"></script>
+<script th:src="@{/js/brewstead-visite.js}" src="/js/brewstead-visite.js"></script>
 <script th:src="@{/js/brewstead-app.js}" src="/js/brewstead-app.js"></script>
 </body>
 </html>

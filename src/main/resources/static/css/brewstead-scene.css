@@ -44,7 +44,10 @@
    y reconnaissait les planches et les clôtures, et le décor avait l'air
    posé sur une photo ratée. Plus de flou, moins de couleur, et un
    agrandissement qui sort les détails du cadre. */
-.sc-far { filter: blur(7px) saturate(1.08) brightness(1.02); }
+/* Le flou, la saturation et la lumière sont cuits dans l'image
+   (brewstead-domaine-flou.webp) : calculés ici, ils étaient refaits à chaque
+   image de chaque animation du décor. */
+.sc-far { filter: none; }
 .sc-far image { transform-origin: center; transform: scale(1.13); }
 .sc-brume { fill: url(#sc-brume); pointer-events: none; }
 
@@ -109,14 +112,22 @@
 .sc-furrows path { fill: none; stroke: rgba(30, 19, 7, .45); stroke-width: 3.4; stroke-linecap: round; }
 .sc-furrows--lit path { stroke: rgba(224, 186, 124, .3); stroke-width: 1.6; }
 
+/* Une parcelle libre appelle la main : son liseré pointillé respire.
+   Il « marchait » en animant stroke-dashoffset, que le navigateur ne sait
+   que repeindre — avec trois parcelles vides, tout le décor des champs se
+   redessinait à chaque image, ombres et lumière comprises. L'opacité, elle,
+   passe par la carte graphique. */
 .sc-plot[data-state="empty"] .sc-plot__edge {
     stroke: rgba(255, 216, 130, .9);
     stroke-width: 2.5;
     stroke-dasharray: 14 10;
-    animation: sc-march 3.2s linear infinite;
+    animation: sc-invite 2.4s ease-in-out infinite;
 }
 
-@keyframes sc-march { to { stroke-dashoffset: -42; } }
+@keyframes sc-invite {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+}
 
 /* Les rangées plantées : une touffe pleine, un liseré chaud sur le dessus. */
 

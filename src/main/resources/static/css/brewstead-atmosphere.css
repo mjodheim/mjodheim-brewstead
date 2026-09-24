@@ -1,45 +1,56 @@
 /* Animation layers use the same coordinates and camera as the painted map.
-   Only transforms and opacity animate; filters and masks remain static. */
+
+   Chaque élément qui bouge est un petit SVG à part, posé en pixels du
+   tableau (1536 × 742). Seuls transform et opacity s'animent, et seulement
+   sur ces SVG eux-mêmes, jamais sur un de leurs enfants : c'est ce qui
+   permet à la carte graphique de les déplacer sans les repeindre. Un
+   masque, un flou ou un mélange posés sur un élément qui ne bouge pas sont
+   peints une fois ; les mêmes à l'intérieur d'un SVG animé l'étaient à
+   chaque image. */
 .world__life {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
     pointer-events: none;
     overflow: hidden;
-    stroke: none;
     /* Les lueurs se voyaient à peine sous la pluie : c'est le premier
        signe qu'un domaine est habité, elles doivent porter. */
     --lamp-strength: .92;
 }
-.world__life g, .world__life path, .world__life ellipse, .world__life rect, .world__life circle {
+.world__life .life {
+    position: absolute;
+    display: block;
+    overflow: visible;
+    stroke: none;
     pointer-events: none;
 }
 .world__life .cloud-bank { animation: cloud-sailing 36s ease-in-out infinite alternate; opacity: .8; }
 .world__life .cloud-bank--far { animation-duration: 58s; animation-delay: -22s; opacity: .55; }
 .world__life .chimney-smoke { animation: smoke-rising 8s ease-out infinite; opacity: .35; }
-/* Tout ce qui est de l'eau passe sous un même masque. Un groupe masqué
-   isole le mélange de ses enfants : c'est donc le groupe entier qui doit
-   éclaircir la peinture, sinon les fils d'eau redeviennent de la peinture
-   blanche posée dessus. */
-.world__life .waters { mix-blend-mode: screen; }
-.world__life .fall { mix-blend-mode: screen; opacity: .88; }
+
+/* Tout ce qui est de l'eau passe sous un même masque, immobile. Le groupe
+   masqué isole le mélange de ses enfants : c'est donc lui qui éclaircit la
+   peinture, sinon les fils d'eau redeviennent de la peinture blanche posée
+   dessus. */
+.world__life .waters {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    mix-blend-mode: screen;
+    -webkit-mask: url("../images/eau-masque.webp") 0 0 / 100% 100% no-repeat;
+    mask: url("../images/eau-masque.webp") 0 0 / 100% 100% no-repeat;
+}
+.world__life .fall { position: absolute; inset: 0; mix-blend-mode: screen; opacity: .88; }
 .world__life .fall--far { opacity: .7; }
+.world__life .fall__clip { position: absolute; overflow: hidden; }
 .world__life .fall__flow { animation: waterfall-flow 1.15s linear infinite; }
 .world__life .fall__flow--far { animation-duration: 2.4s; animation-delay: -.8s; }
 .world__life .fall-foam { animation: foam-breath 4.2s ease-in-out infinite alternate; mix-blend-mode: screen; }
-.world__life .water-shimmer {
-    position: static; opacity: .5; height: auto; background: none;
-    animation: river-flow 4.2s linear infinite; mix-blend-mode: screen;
-}
-.world__life .water-spark {
-    fill: none; stroke: #f3ffff; stroke-width: 1.4;
-    animation: water-glint 5.7s ease-in-out infinite;
-}
+.world__life .water-shimmer { opacity: .5; animation: river-flow 4.2s linear infinite; mix-blend-mode: screen; }
+.world__life .water-spark { animation: water-glint 5.7s ease-in-out infinite; }
 .world__life .water-spark--late { animation-delay: -3.1s; animation-duration: 7s; }
 .world__life .tavern-glow, .world__life .window-lights, .world__life .lantern-lights {
-    position: static; width: auto; height: auto; background: none;
-    opacity: var(--lamp-strength); mix-blend-mode: screen;
+    opacity: var(--lamp-strength);
+    mix-blend-mode: screen;
     animation: window-breath 5.3s ease-in-out infinite;
 }
 .world__life .window-lights { animation-delay: -1.8s; animation-duration: 7.1s; }

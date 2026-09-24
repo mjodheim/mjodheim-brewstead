@@ -18,8 +18,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -45,8 +47,19 @@ public class RecipeService {
     @Transactional
     public List<RecipeResponse> findAvailableRecipes(Long playerId) {
         getPlayer(playerId);
-        return recipeRepository.findAllByIsPublicTrueOrOwnerId(playerId).stream()
-                .map(this::toResponse)
+        List<Recipe> recipes = recipeRepository.findAvailableWithOwner(playerId);
+        if (recipes.isEmpty()) {
+            return List.of();
+        }
+
+        // Deux requêtes pour tout le grimoire, au lieu d'une par recette.
+        Map<Long, List<RecipeIngredient>> lines = new HashMap<>();
+        recipeIngredientRepository.findAllWithIngredientByRecipeIdIn(
+                        recipes.stream().map(Recipe::getId).toList())
+                .forEach(line -> lines.computeIfAbsent(line.getRecipe().getId(), id -> new ArrayList<>()).add(line));
+
+        return recipes.stream()
+                .map(recipe -> recipeMapper.toResponse(recipe, lines.getOrDefault(recipe.getId(), List.of())))
                 .toList();
     }
 

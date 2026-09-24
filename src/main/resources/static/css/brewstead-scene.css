@@ -549,3 +549,110 @@
 :root[data-mouvement="sobre"] .sc-barman,
 :root[data-mouvement="sobre"] .sc-barman__wipe,
 :root[data-mouvement="sobre"] .sc-patron__emote { animation: none !important; }
+
+
+/* Taverne jouable : mouvement live, profondeur et micro-animations ---------- */
+.sc-tavern__walk {
+    fill: rgba(255,255,255,0);
+    cursor: crosshair;
+    pointer-events: all;
+}
+.sc-bar, .sc-salle, .sc-tavern__beams, .sc-tavern__sign,
+.sc-lanterns, .sc-tavern__lightbeam, .sc-tavern__embers { pointer-events: none; }
+
+.sc-tavern__lightbeam {
+    fill: rgba(145, 205, 228, .055);
+    pointer-events: none;
+}
+.sc-tavern__embers circle {
+    fill: #ffd06d;
+    opacity: 0;
+    animation: tavern-ember 4.8s ease-in infinite;
+}
+.sc-tavern__embers circle:nth-child(2) { animation-delay: -1.6s; }
+.sc-tavern__embers circle:nth-child(3) { animation-delay: -3.1s; }
+@keyframes tavern-ember {
+    0%,100% { opacity: 0; transform: translateY(18px) scale(.7); }
+    28% { opacity: .75; }
+    72% { opacity: .25; }
+    90% { opacity: 0; transform: translateY(-42px) translateX(8px) scale(1.1); }
+}
+
+.sc-tavern__cursor { opacity: 0; pointer-events: none; }
+.sc-tavern__cursor circle:first-child {
+    fill: rgba(255, 215, 117, .08);
+    stroke: rgba(255, 225, 148, .9);
+    stroke-width: 2;
+}
+.sc-tavern__cursor-core { fill: #ffe49c; }
+.sc-tavern__cursor.is-active { animation: tavern-target .65s ease-out both; }
+@keyframes tavern-target {
+    0% { opacity: 0; transform-origin: center; }
+    18% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.sc-patron__figure {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    transition: filter .18s ease;
+}
+.sc-patron[data-facing="LEFT"] .sc-patron__figure { transform: scaleX(-1); }
+.sc-patron[data-facing="RIGHT"] .sc-patron__figure { transform: scaleX(1); }
+.sc-patron[data-pose="STANDING"] .sc-chair__back { opacity: 0; }
+.sc-patron[data-pose="SEATED"] .sc-chair__back { opacity: 1; }
+
+.sc-patron.is-walking { animation: none; }
+.sc-patron.is-walking .sc-patron__body {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    animation: tavern-walk-body .34s ease-in-out infinite alternate;
+}
+.sc-patron.is-walking .sc-patron__legs {
+    transform-box: fill-box;
+    transform-origin: center top;
+    animation: tavern-walk-legs .34s ease-in-out infinite alternate;
+}
+.sc-patron.is-walking .sc-patron__shadow {
+    animation: tavern-walk-shadow .34s ease-in-out infinite alternate;
+}
+@keyframes tavern-walk-body { from { transform: translateY(0) rotate(-1deg); } to { transform: translateY(-3px) rotate(1deg); } }
+@keyframes tavern-walk-legs { from { transform: skewX(-5deg); } to { transform: skewX(5deg); } }
+@keyframes tavern-walk-shadow { from { transform: scaleX(1); opacity: .3; } to { transform: scaleX(.88); opacity: .22; } }
+
+.sc-patron__foam { fill: #fff4d1; opacity: .92; }
+.sc-patron.is-drinking .sc-patron__arm--right {
+    transform-box: fill-box;
+    transform-origin: 24px -8px;
+    animation: tavern-drink-arm 1.55s cubic-bezier(.2,.8,.25,1) both !important;
+}
+.sc-patron.is-drinking .sc-patron__head {
+    animation: tavern-drink-head 1.55s ease-in-out both !important;
+}
+.sc-patron.is-drinking .sc-patron__mug {
+    filter: drop-shadow(0 0 6px rgba(255, 216, 116, .55));
+}
+.sc-patron.is-drinking .sc-patron__foam {
+    animation: tavern-foam-pop 1.55s ease-out both;
+}
+@keyframes tavern-drink-arm {
+    0%,10%,88%,100% { transform: rotate(0deg); }
+    30%,70% { transform: rotate(-63deg) translate(-3px,-5px); }
+}
+@keyframes tavern-drink-head {
+    0%,18%,82%,100% { transform: rotate(0deg); }
+    35%,68% { transform: rotate(7deg) translateY(1px); }
+}
+@keyframes tavern-foam-pop {
+    0%,20% { opacity: 0; transform: scale(.6); }
+    35%,72% { opacity: 1; transform: scale(1.2); }
+    100% { opacity: 0; transform: translateY(-7px) scale(.8); }
+}
+
+:root[data-mouvement="sobre"] .sc-tavern__embers circle,
+:root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__body,
+:root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__legs,
+:root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__shadow,
+:root[data-mouvement="sobre"] .sc-patron.is-drinking .sc-patron__arm--right,
+:root[data-mouvement="sobre"] .sc-patron.is-drinking .sc-patron__head,
+:root[data-mouvement="sobre"] .sc-patron.is-drinking .sc-patron__foam { animation: none !important; }

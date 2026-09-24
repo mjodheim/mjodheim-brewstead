@@ -2503,3 +2503,16 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
     .tavern-room-list__grid { grid-template-columns: 1fr; }
     .tavern-dock__chat input { flex-basis: 100%; }
 }
+
+
+.tavern-dock__room small::after {
+    content: " · direct";
+    display: inline-block;
+    margin-left: .35em;
+    padding: .05em .42em;
+    border-radius: 99px;
+    color: #dff8d0;
+    background: rgba(91, 170, 67, .22);
+    border: 1px solid rgba(133, 211, 105, .3);
+    font-size: .82em;
+}

@@ -23,7 +23,9 @@
         tab: 'salle', messages: [], counter: [], timer: null, requests: {},
         draft: '', sending: false, error: '', connectionError: '',
         lobby: { rooms: [], currentRoomId: null }, room: null,
-        privateName: '', inviteCode: ''
+        privateName: '', inviteCode: '',
+        source: null, liveRoomId: null,
+        moveSending: false, pendingMove: null, lastKeyMove: 0
     };
     var refreshJob = null;
     var mutationPending = false;
@@ -1245,6 +1247,7 @@
         tavern.messages = snapshot.messages || [];
         tavern.counter = snapshot.offers || [];
         tavern.lobby.currentRoomId = snapshot.id;
+        openTavernLive(snapshot.id);
     }
 
     function loadTavern(force) {
@@ -1281,12 +1284,160 @@
         if (log) log.scrollTop = log.scrollHeight;
     }
 
+    function mergeLivePlayer(incoming) {
+        if (!tavern.room || !incoming) return null;
+        var index = tavern.room.players.findIndex(function (p) { return p.playerId === incoming.playerId; });
+        if (index < 0) {
+            loadTavern(true);
+            return null;
+        }
+        var current = tavern.room.players[index];
+        // « self » et l'apparence dépendent du navigateur qui regarde, alors
+        // qu'un événement est partagé à toute la salle.
+        var merged = Object.assign({}, current, incoming, {
+            self: current.self,
+            character: incoming.character || current.character
+        });
+        tavern.room.players[index] = merged;
+        return merged;
+    }
+
+    function handleTavernLive(event) {
+        var payload;
+        try { payload = JSON.parse(event.data); } catch (ignored) { return; }
+        if (!tavern.room || payload.roomId !== tavern.room.id) return;
+
+        if (payload.type === 'CONNECTED') return;
+        if (payload.type === 'REFRESH') {
+            loadTavern(true);
+            return;
+        }
+        if (payload.type === 'MESSAGE' && payload.message) {
+            tavern.messages = mergeMessages(tavern.messages, [payload.message]);
+            tavern.room.messages = tavern.messages.slice();
+            if (listMode.taverne) renderScreen();
+            else renderSceneScreen(SECTIONS.taverne);
+            return;
+        }
+        if (payload.player) {
+            var person = mergeLivePlayer(payload.player);
+            if (!person) return;
+
+            if (payload.type === 'MOVE') {
+                // Nos propres mouvements sont prédits immédiatement. On ne
+                // les relance pas à chaque écho réseau pendant une redirection.
+                if (!person.self || (!tavern.moveSending && !tavern.pendingMove)) {
+                    Scenes.movePatron(dom.screenBody, person);
+                }
+                return;
+            }
+            if (payload.type === 'DRINK') {
+                Scenes.animateDrink(dom.screenBody, person.playerId, payload.drinkName || 'Une pinte');
+                loadTavern(false);
+                return;
+            }
+
+            // Place assise et émote changent aussi les éléments autour du
+            // personnage : un rendu différentiel est plus simple ici.
+            renderSceneScreen(SECTIONS.taverne);
+        }
+    }
+
+    function closeTavernLive() {
+        if (tavern.source) {
+            try { tavern.source.close(); } catch (ignored) {}
+        }
+        tavern.source = null;
+        tavern.liveRoomId = null;
+    }
+
+    function openTavernLive(roomId) {
+        if (!roomId || !global.EventSource) return;
+        if (tavern.source && tavern.liveRoomId === roomId) return;
+        closeTavernLive();
+
+        var source = new EventSource('/api/tavern/rooms/' + roomId + '/events');
+        tavern.source = source;
+        tavern.liveRoomId = roomId;
+        source.addEventListener('tavern', handleTavernLive);
+        source.onerror = function () {
+            // EventSource sait se reconnecter seul. Le polling lent ci-dessous
+            // reste le filet de sécurité si un proxy coupe longtemps le flux.
+            tavern.connectionError = source.readyState === EventSource.CLOSED
+                ? 'Le direct se reconnecte…' : '';
+        };
+    }
+
     function watchTavern(on) {
         clearInterval(tavern.timer);
         tavern.timer = null;
-        if (on) tavern.timer = setInterval(function () {
+        if (!on) {
+            closeTavernLive();
+            return;
+        }
+        if (tavern.room) openTavernLive(tavern.room.id);
+        tavern.timer = setInterval(function () {
             if (!document.hidden) loadTavern(false);
-        }, 3000);
+        }, 12000);
+    }
+
+    function selfInTavern() {
+        return tavern.room && tavern.room.players
+            ? tavern.room.players.find(function (p) { return p.self; })
+            : null;
+    }
+
+    function sendQueuedTavernMove(target) {
+        if (!tavern.room) return;
+        if (tavern.moveSending) {
+            tavern.pendingMove = target;
+            return;
+        }
+
+        tavern.moveSending = true;
+        var roomId = tavern.room.id;
+        var headers = csrfHeaders();
+        headers['Content-Type'] = 'application/json';
+        Data.postJson('/api/tavern/rooms/' + roomId + '/move',
+                { x: target.x, y: target.y }, headers)
+            .then(function (serverPlayer) {
+                if (!tavern.room || tavern.room.id !== roomId) return;
+                var person = mergeLivePlayer(serverPlayer);
+                if (person && !tavern.pendingMove) Scenes.movePatron(dom.screenBody, person);
+            })
+            .catch(function (error) {
+                if (error.sessionExpired) showFault(error);
+                else toast(error.message);
+                loadTavern(true);
+            })
+            .finally(function () {
+                tavern.moveSending = false;
+                var next = tavern.pendingMove;
+                tavern.pendingMove = null;
+                if (next) sendQueuedTavernMove(next);
+            });
+    }
+
+    function tavernMoveTo(x, y) {
+        if (!tavern.room || activeView !== 'taverne' || listMode.taverne) return 0;
+        var me = selfInTavern();
+        if (!me) return 0;
+
+        var target = Scenes.normalizeTavernPoint(x, y);
+        var facing = Math.abs(target.x - me.x) < 2
+            ? (me.facing || 'LEFT')
+            : (target.x < me.x ? 'LEFT' : 'RIGHT');
+        var predicted = Object.assign({}, me, target, {
+            seatKey: null,
+            pose: 'STANDING',
+            facing: facing
+        });
+        var index = tavern.room.players.findIndex(function (p) { return p.self; });
+        tavern.room.players[index] = predicted;
+        var duration = Scenes.movePatron(dom.screenBody, predicted, true);
+        Scenes.showTavernDestination(dom.screenBody, target.x, target.y);
+        sendQueuedTavernMove(target);
+        return duration || 0;
     }
 
     function quitterTaverneSilencieusement() {
@@ -1302,9 +1453,12 @@
                 keepalive: true
             }).catch(function () {});
         } catch (ignored) { /* la présence expirera côté serveur */ }
+        closeTavernLive();
         tavern.room = null;
         tavern.messages = [];
         tavern.lobby.currentRoomId = null;
+        tavern.pendingMove = null;
+        tavern.moveSending = false;
     }
 
     function tavernMutation(url, body, method, after) {
@@ -1530,6 +1684,8 @@
         if (action === 'serve-offer') {
             send('/api/tavern/counter/' + Number(id) + '/serve', undefined, function (result) {
                 loadTavern(true);
+                var me = selfInTavern();
+                if (me) Scenes.animateDrink(dom.screenBody, me.playerId, result && result.recipeName);
                 if (result) {
                     toast(result.effect
                         ? result.recipeName + ' — ' + result.effect.label
@@ -2002,7 +2158,7 @@
             var place = me && me.seatKey ? me.seatKey.replace(/-/g, ' ') : 'choisis une place dans la salle';
             return '<div class="scene__bar scene__bar--tavern tavern-dock">' +
                 '<div class="tavern-dock__room"><span><strong>' + esc(room.name) + '</strong>' +
-                '<small>' + room.players.length + '/' + room.capacity + ' joueurs · ' + esc(place) +
+                '<small>' + room.players.length + '/' + room.capacity + ' joueurs · ' + esc(place) + ' · clic/tap ou ZQSD pour marcher' +
                 (room.type === 'PRIVATE' ? ' · code ' + esc(room.code) : '') + '</small></span>' +
                 '<div class="tavern-emotes" aria-label="Réactions">' +
                 '<button type="button" data-action="tavern-emote" data-id="SKAL" title="Skål !">🍻</button>' +
@@ -3051,6 +3207,15 @@
             focusSearch();
         });
 
+        dom.screenBody.addEventListener('pointerup', function (event) {
+            if (activeView !== 'taverne' || !tavern.room || listMode.taverne) return;
+            if (!event.target.closest || !event.target.closest('.sc-tavern__walk')) return;
+            var svg = event.target.closest('.sc-stage');
+            if (!svg) return;
+            var point = Scenes.tavernPoint(svg, event.clientX, event.clientY);
+            if (point) tavernMoveTo(point.x, point.y);
+        });
+
         dom.screenBody.addEventListener('click', function (event) {
             var button = event.target.closest('[data-action]');
             if (button) runAction(button.dataset.action, button.dataset.id);
@@ -3095,6 +3260,27 @@
         });
 
         document.addEventListener('keydown', function (event) {
+            var targetTag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
+            var typing = targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || event.target.isContentEditable;
+            if (!typing && activeView === 'taverne' && tavern.room && !listMode.taverne) {
+                var key = String(event.key || '').toLowerCase();
+                var delta = {
+                    arrowleft: [-34, 0], a: [-34, 0], q: [-34, 0],
+                    arrowright: [34, 0], d: [34, 0],
+                    arrowup: [0, -24], w: [0, -24], z: [0, -24],
+                    arrowdown: [0, 24], s: [0, 24]
+                }[key];
+                if (delta) {
+                    event.preventDefault();
+                    var now = performance.now();
+                    if (now - tavern.lastKeyMove >= 110) {
+                        tavern.lastKeyMove = now;
+                        var me = selfInTavern();
+                        if (me) tavernMoveTo(Number(me.x || 862) + delta[0], Number(me.y || 405) + delta[1]);
+                    }
+                    return;
+                }
+            }
             if (event.key === 'Escape') {
                 if (!dom.feat.hidden) fermerLaFanfare();
                 else if (dom.screen.classList.contains('is-open')) selectView('monde');

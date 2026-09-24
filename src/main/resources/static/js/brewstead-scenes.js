@@ -703,6 +703,51 @@
         'feu-droite': { x: 570, y: 507, k: .88, face: 'gauche' }
     };
 
+    var TAVERN_TABLES = [
+        { cx: 168, cy: 472, rx: 112, ry: 43 },
+        { cx: 478, cy: 486, rx: 126, ry: 48 },
+        { cx: 792, cy: 468, rx: 106, ry: 41 }
+    ];
+
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
+    function normalizeTavernPoint(x, y) {
+        x = clamp(Number(x) || 862, 72, 888);
+        y = clamp(Number(y) || 405, 382, 520);
+        for (var pass = 0; pass < 2; pass++) {
+            TAVERN_TABLES.forEach(function (table) {
+                var nx = (x - table.cx) / table.rx;
+                var ny = (y - table.cy) / table.ry;
+                var d2 = nx * nx + ny * ny;
+                if (d2 >= 1) return;
+                if (d2 < .0001) {
+                    nx = 0;
+                    ny = y <= table.cy ? -1 : 1;
+                    d2 = 1;
+                }
+                var factor = 1.08 / Math.sqrt(d2);
+                x = clamp(table.cx + nx * factor * table.rx, 72, 888);
+                y = clamp(table.cy + ny * factor * table.ry, 382, 520);
+            });
+        }
+        return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+    }
+
+    function tavernPoint(svg, clientX, clientY) {
+        if (!svg || !svg.createSVGPoint || !svg.getScreenCTM()) return null;
+        var point = svg.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+        var local = point.matrixTransform(svg.getScreenCTM().inverse());
+        return normalizeTavernPoint(local.x, local.y);
+    }
+
+    function tavernScale(y, bodyScale, seatKey) {
+        if (seatKey && TAVERN_SEATS[seatKey]) return TAVERN_SEATS[seatKey].k * bodyScale;
+        var depth = .76 + ((clamp(y, 382, 520) - 382) / 138) * .20;
+        return depth * bodyScale;
+    }
+
     function couleurPersonnage(palette) {
         return {
             ambre: ['#9a542d', '#d18843', '#f1ba68'],
@@ -735,8 +780,11 @@
     }
 
     function patronNode(person, room) {
-        if (!person.seatKey || !TAVERN_SEATS[person.seatKey]) return '';
-        var seat = TAVERN_SEATS[person.seatKey];
+        var seated = !!(person.seatKey && TAVERN_SEATS[person.seatKey]);
+        var seat = seated ? TAVERN_SEATS[person.seatKey] : null;
+        var pos = seated
+            ? { x: seat.x, y: seat.y }
+            : normalizeTavernPoint(person.x == null ? 862 : person.x, person.y == null ? 405 : person.y);
         var palette = couleurPersonnage(person.character && person.character.palette);
         var hairColors = ['#352319', '#5b3a24', '#8a5d30', '#2e2b29', '#b89158'];
         var hc = hairColors[(Number(person.playerId) || 0) % hairColors.length];
@@ -745,11 +793,17 @@
         var emoteAge = person.emoteAt ? Date.now() - new Date(person.emoteAt).getTime() : Infinity;
         var emote = emoteAge < 5500 ? {SKAL:'🍻',SALUT:'👋',RIRE:'😄',COEUR:'♥',MUSIQUE:'♫'}[person.emote] : '';
         var emoteUntil = person.emoteAt ? new Date(person.emoteAt).getTime() + 5500 : 0;
+        var actionAge = person.actionAt ? Date.now() - new Date(person.actionAt).getTime() : Infinity;
+        var drinking = person.action === 'DRINKING' && actionAge < 4500;
         var name = lignes(person.name, 128, 13, 1);
         var speakClass = speech ? ' is-speaking' : '';
         var selfClass = person.self ? ' is-self' : '';
+        var drinkClass = drinking ? ' is-drinking' : '';
         var bodyScale = person.character && person.character.body === 'grand' ? 1.06 :
             (person.character && person.character.body === 'fin' ? .94 : 1);
+        var scale = tavernScale(pos.y, bodyScale, person.seatKey);
+        var facing = person.facing || (seat && seat.face === 'gauche' ? 'LEFT' : 'RIGHT');
+        var pose = seated ? 'SEATED' : (person.pose || 'STANDING');
         var outfit = person.character && person.character.outfit || 'brasseur';
         var apron = outfit === 'brasseur'
             ? '<path class="sc-patron__apron" d="M-22-20q22-10 44 0l-3 52h-38Z"/>'
@@ -766,10 +820,14 @@
                 texteEnLignes('sc-speech__text', 0, 12, 17, words) + '</g>';
         }
 
-        return '<g class="sc-node sc-patron' + speakClass + selfClass + '" data-id="' + person.playerId +
-            '" data-action="tavern-player" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
-            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' + seat.x + ' ' + seat.y + ') scale(' + (seat.k * bodyScale).toFixed(3) + ')">' +
-            '<ellipse class="sc-patron__shadow" cx="0" cy="10" rx="43" ry="12"/>' +
+        return '<g class="sc-node sc-patron' + speakClass + selfClass + drinkClass + '" data-id="' + person.playerId +
+            '" data-action="tavern-player" data-x="' + pos.x + '" data-y="' + pos.y + '" data-k="' + scale.toFixed(3) +
+            '" data-body-scale="' + bodyScale + '" data-facing="' + facing + '" data-pose="' + pose +
+            '" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
+            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' +
+            pos.x + ' ' + pos.y + ') scale(' + scale.toFixed(3) + ')">' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="70" rx="38" ry="9"/>' +
+            '<g class="sc-patron__figure">' +
             '<path class="sc-chair__back" d="M-34-35q34-13 68 0v39h-8l-5-29q-21-8-42 0l-5 29h-8Z"/>' +
             '<g class="sc-patron__body">' +
             '<path class="sc-patron__legs" d="M-23 22l-8 47h15l16-39 16 39h15l-8-47Z"/>' +
@@ -780,7 +838,8 @@
             apron +
             '<g class="sc-patron__arm sc-patron__arm--left"><path d="M-28-18q-17 8-22 33l10 3q7-18 20-25Z"/></g>' +
             '<g class="sc-patron__arm sc-patron__arm--right"><path d="M28-18q17 8 22 31l-10 4Q33 0 20-8Z"/>' +
-            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/></g></g>' +
+            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/>' +
+            '<ellipse class="sc-patron__foam" cx="0" cy="-12" rx="8" ry="3"/></g></g>' +
             '</g>' +
             '<g class="sc-patron__head">' +
             '<path class="sc-patron__neck" d="M-9-34h18v17H-9Z"/>' +
@@ -790,11 +849,11 @@
             '<path class="sc-patron__eyes" d="M-11-53h4m14 0h4"/>' +
             cheveux(person.character && person.character.hair, hc) +
             (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="18" cy="-14" r="4"/>' : '') +
-            '</g>' +
-            texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, 96, 14, name) +
+            '</g></g>' +
+            texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, 101, 14, name) +
             (emote ? '<text class="sc-patron__emote" data-until="' + emoteUntil + '" x="0" y="-105">' + emote + '</text>' : '') +
             bubble +
-            hit(0, -22, 100, 155) +
+            hit(0, -12, 100, 175) +
             '</g>';
     }
 
@@ -845,9 +904,9 @@
             return placeNode(key, occupied[key]);
         }).join('') : '';
 
-        var patrons = room ? people.map(function (person) {
+        var patrons = room ? '<g class="sc-tavern__patrons">' + people.map(function (person) {
             return patronNode(person, room);
-        }).join('') : '';
+        }).join('') + '</g>' : '';
 
         return defs() + painted('taverne') +
             '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
@@ -857,6 +916,12 @@
             '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
             '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
             '</g>' +
+            '<path class="sc-tavern__lightbeam" d="M885 130 960 155 760 520 615 520Z"/>' +
+            '<g class="sc-tavern__embers">' +
+            '<circle cx="65" cy="400" r="2"/><circle cx="82" cy="424" r="1.6"/><circle cx="52" cy="448" r="1.4"/>' +
+            '</g>' +
+            '<rect class="sc-tavern__walk" x="54" y="352" width="852" height="188" rx="28"/>' +
+            '<g class="sc-tavern__cursor"><circle r="13"/><circle class="sc-tavern__cursor-core" r="3"/></g>' +
             '<g class="sc-tavern__beams"><path d="M0 102h960v18H0ZM112 0h18v252H112ZM824 0h18v252h-18Z"/></g>' +
             '<g class="sc-tavern__sign"><path d="M402 160q78-20 156 0l-8 62q-70 18-140 0Z"/>' +
             '<text x="480" y="190">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="210">TAVERNE DU FJORD</text></g>' +
@@ -1410,7 +1475,9 @@
             var messages = room && room.messages || [];
             return (room ? room.id : 'lobby') + '::' +
                 people.map(function (p) {
-                    return p.playerId + ':' + (p.seatKey || '-') + ':' + (p.emote || '-') + ':' + (p.emoteAt || '-');
+                    return p.playerId + ':' + (p.seatKey || '-') + ':' + Number(p.x || 0).toFixed(1) + ':' +
+                        Number(p.y || 0).toFixed(1) + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
+                        (p.emote || '-') + ':' + (p.emoteAt || '-');
                 }).join('|') + '::' +
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
                 (state.tavernCounter || []).map(function (o) {
@@ -1433,6 +1500,94 @@
             }).join('|');
         }
         return '';
+    }
+
+    function sortTavernPatrons(root) {
+        var group = root && root.querySelector('.sc-tavern__patrons');
+        if (!group) return;
+        Array.from(group.querySelectorAll('.sc-patron'))
+            .sort(function (a, b) { return Number(a.dataset.y || 0) - Number(b.dataset.y || 0); })
+            .forEach(function (node) { group.appendChild(node); });
+    }
+
+    function movePatron(root, person, localPrediction) {
+        if (!root || !person) return 0;
+        var node = root.querySelector('.sc-patron[data-id="' + person.playerId + '"]');
+        if (!node) return 0;
+
+        var target = normalizeTavernPoint(person.x, person.y);
+        var bodyScale = Number(node.dataset.bodyScale || 1);
+        var targetScale = tavernScale(target.y, bodyScale, person.seatKey);
+        var fromX = Number(node._brewX == null ? node.dataset.x : node._brewX);
+        var fromY = Number(node._brewY == null ? node.dataset.y : node._brewY);
+        var fromK = Number(node._brewK == null ? node.dataset.k : node._brewK);
+        var distance = Math.hypot(target.x - fromX, (target.y - fromY) * 1.35);
+        var duration = document.documentElement.dataset.mouvement === 'sobre'
+            ? 0 : clamp(distance * 3.25, 170, 1350);
+
+        if (node._brewFrame) cancelAnimationFrame(node._brewFrame);
+        node.dataset.x = target.x;
+        node.dataset.y = target.y;
+        node.dataset.k = targetScale.toFixed(3);
+        node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
+        node.dataset.pose = person.pose || 'STANDING';
+        node.classList.toggle('is-walking', duration > 0 && person.pose !== 'SEATED');
+
+        function paint(x, y, k) {
+            node._brewX = x; node._brewY = y; node._brewK = k;
+            node.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ') scale(' + k.toFixed(4) + ')');
+        }
+
+        if (!duration) {
+            paint(target.x, target.y, targetScale);
+            node.classList.remove('is-walking');
+            sortTavernPatrons(root);
+            return 0;
+        }
+
+        var started = performance.now();
+        function frame(now) {
+            var t = Math.min(1, (now - started) / duration);
+            var ease = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            paint(
+                fromX + (target.x - fromX) * ease,
+                fromY + (target.y - fromY) * ease,
+                fromK + (targetScale - fromK) * ease
+            );
+            if (t < 1) node._brewFrame = requestAnimationFrame(frame);
+            else {
+                node._brewFrame = null;
+                node.classList.remove('is-walking');
+                sortTavernPatrons(root);
+            }
+        }
+        node._brewFrame = requestAnimationFrame(frame);
+        return duration;
+    }
+
+    function animateDrink(root, playerId, drinkName) {
+        if (!root) return;
+        var node = root.querySelector('.sc-patron[data-id="' + playerId + '"]');
+        if (!node) return;
+        node.classList.remove('is-drinking');
+        // Forcer le navigateur à constater le retrait pour rejouer l'animation.
+        void node.getBoundingClientRect();
+        node.classList.add('is-drinking');
+        node.setAttribute('aria-label', (node.getAttribute('aria-label') || '') + ' — boit ' + (drinkName || 'une pinte'));
+        clearTimeout(node._drinkTimer);
+        node._drinkTimer = setTimeout(function () { node.classList.remove('is-drinking'); }, 1700);
+    }
+
+    function showTavernDestination(root, x, y) {
+        if (!root) return;
+        var cursor = root.querySelector('.sc-tavern__cursor');
+        if (!cursor) return;
+        cursor.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
+        cursor.classList.remove('is-active');
+        void cursor.getBoundingClientRect();
+        cursor.classList.add('is-active');
+        clearTimeout(cursor._hideTimer);
+        cursor._hideTimer = setTimeout(function () { cursor.classList.remove('is-active'); }, 650);
     }
 
     function has(place) {
@@ -1511,6 +1666,11 @@
         has: has,
         markup: markup,
         signature: signature,
-        tick: tick
+        tick: tick,
+        tavernPoint: tavernPoint,
+        normalizeTavernPoint: normalizeTavernPoint,
+        movePatron: movePatron,
+        animateDrink: animateDrink,
+        showTavernDestination: showTavernDestination
     };
 })(window);

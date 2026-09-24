@@ -645,7 +645,6 @@ class BrewsteadUiIntegrationTest {
             int guestCoins = profile("ui_full_guest").getCoin();
             int sellerCoins = profile("ui_full_brewer").getCoin();
             ouvrirTaverneEnListe(guest, visitor);
-            click(guest, visitor, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, visitor, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             waitForMutation(guest, visitor);
             assertEquals(guestCoins - 7, profile("ui_full_guest").getCoin());
@@ -792,7 +791,6 @@ class BrewsteadUiIntegrationTest {
             wait.until(d -> offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).isPresent());
             var offer = offerRepository.findFirstByBatchIdAndServingsGreaterThan(batch.getId(), 0).orElseThrow();
             ouvrirTaverneEnListe(guest, guestWait);
-            click(guest, guestWait, By.cssSelector("[data-action='tavern-tab'][data-id='comptoir']"));
             click(guest, guestWait, By.cssSelector("[data-action='serve-offer'][data-id='" + offer.getId() + "']"));
             guestWait.until(d -> offerRepository.findById(offer.getId()).orElseThrow().getServings() == 1);
             assertEquals(1, progressRepository.findByPlayerId(profile("ui_loop_guest").getId()).orElseThrow().getTavernTastings());

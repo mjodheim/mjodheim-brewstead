@@ -478,3 +478,74 @@
     .sc-plot__edge, .sc-row, .sc-badge__bob, .sc-bougie__flamme,
     .sc-bulle-cuve { animation: none !important; }
 }
+
+
+/* Taverne sociale --------------------------------------------------------- */
+.sc-tavern__beams path { fill: rgba(44, 27, 12, .72); }
+.sc-tavern__sign path { fill: #6d4925; stroke: #b98a4d; stroke-width: 3; }
+.sc-tavern__sign text { fill: #f5dfaf; font: 700 18px var(--police-titre); text-anchor: middle; letter-spacing: 2px; }
+.sc-tavern__sign .sc-tavern__sign-small { font-size: 9px; letter-spacing: 1.4px; opacity: .78; }
+
+.sc-seat { cursor: pointer; transform-box: fill-box; transform-origin: center; }
+.sc-seat__ring { fill: rgba(255, 214, 120, .1); stroke: rgba(255, 216, 137, .8); stroke-width: 2; stroke-dasharray: 6 5; animation: sc-seat-breathe 2.8s ease-in-out infinite; }
+.sc-seat__chair { fill: #5f4020; stroke: rgba(28, 16, 5, .7); stroke-width: 2; }
+.sc-seat__plus { fill: #ffe5a6; font: 700 20px var(--police-titre); text-anchor: middle; paint-order: stroke; stroke: rgba(30, 16, 5, .8); stroke-width: 3; }
+.sc-seat:hover .sc-seat__ring, .sc-seat:focus .sc-seat__ring { fill: rgba(255, 221, 145, .22); stroke: #ffe29a; }
+
+@keyframes sc-seat-breathe {
+    0%,100% { opacity: .55; transform: scale(.96); }
+    50% { opacity: 1; transform: scale(1.06); }
+}
+
+.sc-patron { cursor: pointer; animation: sc-patron-idle 5.6s ease-in-out infinite; animation-delay: var(--idle-delay); transform-box: fill-box; transform-origin: center bottom; }
+.sc-patron__shadow { fill: rgba(12, 7, 2, .32); }
+.sc-chair__back { fill: #59401f; stroke: rgba(28, 17, 6, .58); stroke-width: 2; }
+.sc-patron__legs { fill: #3c3128; }
+.sc-patron__boot { fill: #2b211b; }
+.sc-patron__shade { opacity: .72; }
+.sc-patron__highlight { opacity: .42; }
+.sc-patron__apron { fill: #d7c9a5; opacity: .88; }
+.sc-patron__vest { fill: rgba(34, 25, 20, .42); stroke: rgba(240, 210, 157, .2); stroke-width: 2; }
+.sc-patron__belt { fill: #44301e; }
+.sc-patron__arm path { fill: #c9936f; stroke: rgba(54, 31, 18, .28); stroke-width: 1.5; }
+.sc-patron__head { transform-box: fill-box; transform-origin: center bottom; animation: sc-head-look 7s ease-in-out infinite; animation-delay: var(--idle-delay); }
+.sc-patron__neck, .sc-patron__face, .sc-patron__ear { fill: #c9936f; stroke: rgba(55, 31, 18, .25); stroke-width: 1.4; }
+.sc-patron__nose, .sc-patron__eyes { fill: none; stroke: #4b3125; stroke-width: 1.8; stroke-linecap: round; }
+.sc-patron__hair { stroke: rgba(27, 18, 13, .34); stroke-width: 1.4; }
+.sc-patron__broche { fill: #efc45d; stroke: #6f4b20; stroke-width: 1.5; }
+.sc-patron__mug path { fill: #b78b4d; stroke: #60401f; stroke-width: 2.2; stroke-linecap: round; }
+.sc-patron__name { fill: #fff3d4; font: 700 13px var(--police-titre); text-anchor: middle; paint-order: stroke; stroke: rgba(20, 10, 3, .9); stroke-width: 4; }
+.sc-patron__name--self { fill: #ffd76f; }
+
+.sc-patron.is-speaking .sc-patron__arm--right { transform-box: fill-box; transform-origin: left bottom; animation: sc-talk-hand .72s ease-in-out infinite alternate; }
+.sc-patron.is-self .sc-patron__torso { stroke: rgba(255, 220, 120, .75); stroke-width: 2.4; }
+
+.sc-speech { pointer-events: none; animation: sc-speech-pop .3s cubic-bezier(.2,1.2,.35,1) both; transition: opacity .25s ease; }
+.sc-speech__box { fill: rgba(255, 249, 229, .97); stroke: #78532d; stroke-width: 3; }
+.sc-speech__text { fill: #3b291b; font: 600 14px var(--police-texte); text-anchor: middle; }
+.sc-patron__emote { font-size: 29px; text-anchor: middle; paint-order: stroke; stroke: rgba(32,18,6,.75); stroke-width: 4; animation: sc-emote 1.8s ease-out both; transition: opacity .2s ease; }
+
+.sc-barman { transform-box: fill-box; transform-origin: center bottom; animation: sc-barman-breathe 6s ease-in-out infinite; }
+.sc-barman__body { fill: #6e3f2e; stroke: rgba(35,19,10,.5); stroke-width: 2; }
+.sc-barman__apron { fill: #d7c8a5; }
+.sc-barman__hair, .sc-barman__moustache { fill: #493021; }
+.sc-barman__arm { fill: #c9936f; }
+.sc-barman__cloth { fill: #b8c6bc; }
+.sc-barman__glass path { fill: rgba(220,235,232,.35); stroke: rgba(230,245,240,.75); stroke-width: 2; }
+.sc-barman__wipe { transform-box: fill-box; transform-origin: left top; animation: sc-barman-wipe 7s ease-in-out infinite; }
+
+@keyframes sc-patron-idle { 0%,100% { translate: 0 0; } 50% { translate: 0 -2px; } }
+@keyframes sc-head-look { 0%,32%,100% { rotate: 0deg; } 38%,52% { rotate: -2deg; } 58%,72% { rotate: 2deg; } }
+@keyframes sc-talk-hand { from { rotate: -5deg; } to { rotate: 11deg; } }
+@keyframes sc-speech-pop { from { opacity: 0; transform: translateY(8px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes sc-emote { 0% { opacity: 0; transform: translateY(8px) scale(.65); } 25% { opacity: 1; transform: translateY(-2px) scale(1.08); } 100% { opacity: 1; transform: translateY(-16px) scale(1); } }
+@keyframes sc-barman-breathe { 0%,100% { translate: 0 0; } 50% { translate: 0 -1.5px; } }
+@keyframes sc-barman-wipe { 0%,58%,100% { rotate: 0deg; } 65% { rotate: 10deg; } 72% { rotate: -7deg; } 79% { rotate: 8deg; } 86% { rotate: 0deg; } }
+
+:root[data-mouvement="sobre"] .sc-seat__ring,
+:root[data-mouvement="sobre"] .sc-patron,
+:root[data-mouvement="sobre"] .sc-patron__head,
+:root[data-mouvement="sobre"] .sc-patron__arm--right,
+:root[data-mouvement="sobre"] .sc-barman,
+:root[data-mouvement="sobre"] .sc-barman__wipe,
+:root[data-mouvement="sobre"] .sc-patron__emote { animation: none !important; }

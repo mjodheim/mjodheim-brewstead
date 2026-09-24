@@ -2448,3 +2448,58 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
     0%, 80% { opacity: 1; }
     100% { opacity: 0; }
 }
+
+
+/* Taverne — hub social ----------------------------------------------------- */
+.scene__bar--tavern { gap: .65em; }
+.tavern-dock { display: grid; gap: .55em; }
+.tavern-dock__room, .tavern-dock__chat, .tavern-dock__actions {
+    display: flex; align-items: center; gap: .55em; flex-wrap: wrap;
+}
+.tavern-dock__room { justify-content: space-between; }
+.tavern-dock__room span:first-child { display: grid; gap: .05em; min-width: 0; }
+.tavern-dock__room small { color: var(--cream-dim); }
+.tavern-dock__chat input {
+    flex: 1 1 18em; min-width: 10em; border: 1px solid rgba(255,232,188,.3);
+    border-radius: .65em; padding: .58em .72em; background: rgba(26,16,7,.72); color: #fff8e8;
+}
+.tavern-emotes { display: flex; gap: .25em; }
+.tavern-emotes button {
+    min-width: 2.5em; min-height: 2.5em; border-radius: .65em;
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,225,170,.18);
+}
+.tavern-emotes button:hover, .tavern-emotes button:focus { background: rgba(255,220,135,.18); }
+
+.tavern-lobby { display: grid; gap: 1.1em; }
+.tavern-lobby__hero, .tavern-room-card, .tavern-room-list__head {
+    display: flex; gap: 1em; align-items: center; justify-content: space-between;
+}
+.tavern-lobby__hero > div, .tavern-room-card > div, .tavern-room-list__head > div { display: grid; gap: .15em; }
+.tavern-lobby__rooms { display: grid; gap: .55em; grid-template-columns: repeat(auto-fit,minmax(15em,1fr)); }
+.tavern-room-card {
+    padding: .85em; border-radius: .9em; background: rgba(91,60,31,.11);
+    border: 1px solid rgba(111,76,39,.23);
+}
+.tavern-room-card small, .tavern-room-list__head small, .tavern-roster__person small { color: var(--muted); }
+.tavern-lobby__private {
+    display: grid; grid-template-columns: minmax(12em,1.6fr) minmax(10em,1fr) auto minmax(10em,1fr) auto;
+    gap: .55em; align-items: end; padding-top: 1em; border-top: 1px solid var(--border);
+}
+.tavern-lobby__private .account-field { margin: 0; }
+.tavern-room-list { display: grid; gap: 1em; }
+.tavern-room-list__grid { display: grid; grid-template-columns: minmax(12em,.7fr) minmax(18em,1.3fr); gap: 1em; }
+.tavern-roster { display: grid; gap: .4em; }
+.tavern-roster__person {
+    display: flex; align-items: center; gap: .55em; text-align: left; padding: .55em;
+    border-radius: .75em; border: 1px solid rgba(111,76,39,.18); background: rgba(255,255,255,.2);
+}
+.tavern-roster__person > span:last-child { display: grid; }
+.tavern-roster__person.is-self { outline: 2px solid rgba(206,155,55,.35); }
+
+@media (max-width: 760px) {
+    .tavern-lobby__hero, .tavern-room-list__head { align-items: stretch; flex-direction: column; }
+    .tavern-lobby__private { grid-template-columns: 1fr auto; }
+    .tavern-lobby__private > div { grid-column: 1 / -1; }
+    .tavern-room-list__grid { grid-template-columns: 1fr; }
+    .tavern-dock__chat input { flex-basis: 100%; }
+}

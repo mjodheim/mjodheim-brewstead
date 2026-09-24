@@ -692,8 +692,143 @@
      * Les tables du premier plan ne servent à rien, et c'est exactement leur
      * rôle : une salle vide n'est pas une taverne.
      */
+    var TAVERN_SEATS = {
+        'bar-gauche': { x: 332, y: 445, k: .92, face: 'dos' },
+        'bar-droite': { x: 628, y: 445, k: .92, face: 'dos' },
+        'table-gauche-a': { x: 91, y: 486, k: .84, face: 'droite' },
+        'table-gauche-b': { x: 248, y: 488, k: .84, face: 'gauche' },
+        'table-droite-a': { x: 712, y: 480, k: .82, face: 'droite' },
+        'table-droite-b': { x: 873, y: 482, k: .82, face: 'gauche' },
+        'feu-gauche': { x: 389, y: 505, k: .88, face: 'droite' },
+        'feu-droite': { x: 570, y: 507, k: .88, face: 'gauche' }
+    };
+
+    function couleurPersonnage(palette) {
+        return {
+            ambre: ['#9a542d', '#d18843', '#f1ba68'],
+            fjord: ['#31576f', '#4f8296', '#9fc5c5'],
+            mousse: ['#48613b', '#71804b', '#b0ad62'],
+            prune: ['#5b3b55', '#86596f', '#c89492'],
+            cuivre: ['#75432f', '#a7663c', '#dc9b62'],
+            ardoise: ['#3f4b55', '#64727b', '#a6b0ad']
+        }[palette] || ['#5b4a37', '#806848', '#c19b69'];
+    }
+
+    function dernierMessage(room, playerId) {
+        var messages = room && room.messages || [];
+        for (var i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].authorId === playerId) {
+                var age = Date.now() - new Date(messages[i].postedAt).getTime();
+                if (age <= 12000) return messages[i];
+                return null;
+            }
+        }
+        return null;
+    }
+
+    function cheveux(style, color) {
+        if (style === 'rase') return '<path class="sc-patron__hair" fill="' + color + '" d="M-20-57q20-18 40 0v8q-20-9-40 0Z"/>';
+        if (style === 'tresse') return '<path class="sc-patron__hair" fill="' + color + '" d="M-23-55q21-23 45 0v13q-8-15-13-9v21q0 13 9 24l-8 4Q-2-18 1-48q-11-5-24 8Z"/>';
+        if (style === 'long') return '<path class="sc-patron__hair" fill="' + color + '" d="M-25-54q23-23 49 1v34l-12 8 1-37q-15-10-26 0l1 37-13-8Z"/>';
+        if (style === 'boucles') return '<path class="sc-patron__hair" fill="' + color + '" d="M-24-55q4-14 13-9 7-10 15-2 11-7 16 5 11 1 7 14l-8 5q-5-12-14-7-8-8-17 0-7-7-12-1Z"/>';
+        return '<path class="sc-patron__hair" fill="' + color + '" d="M-22-56q20-21 43 0l-3 10q-22-10-38 2Z"/>';
+    }
+
+    function patronNode(person, room) {
+        if (!person.seatKey || !TAVERN_SEATS[person.seatKey]) return '';
+        var seat = TAVERN_SEATS[person.seatKey];
+        var palette = couleurPersonnage(person.character && person.character.palette);
+        var hairColors = ['#352319', '#5b3a24', '#8a5d30', '#2e2b29', '#b89158'];
+        var hc = hairColors[(Number(person.playerId) || 0) % hairColors.length];
+        var speech = dernierMessage(room, person.playerId);
+        var speechUntil = speech ? new Date(speech.postedAt).getTime() + 12000 : 0;
+        var emoteAge = person.emoteAt ? Date.now() - new Date(person.emoteAt).getTime() : Infinity;
+        var emote = emoteAge < 5500 ? {SKAL:'🍻',SALUT:'👋',RIRE:'😄',COEUR:'♥',MUSIQUE:'♫'}[person.emote] : '';
+        var emoteUntil = person.emoteAt ? new Date(person.emoteAt).getTime() + 5500 : 0;
+        var name = lignes(person.name, 128, 13, 1);
+        var speakClass = speech ? ' is-speaking' : '';
+        var selfClass = person.self ? ' is-self' : '';
+        var bodyScale = person.character && person.character.body === 'grand' ? 1.06 :
+            (person.character && person.character.body === 'fin' ? .94 : 1);
+        var outfit = person.character && person.character.outfit || 'brasseur';
+        var apron = outfit === 'brasseur'
+            ? '<path class="sc-patron__apron" d="M-22-20q22-10 44 0l-3 52h-38Z"/>'
+            : outfit === 'marchand'
+                ? '<path class="sc-patron__vest" d="M-27-22l14-8 13 18 13-18 14 8-8 55h-38Z"/>'
+                : '<path class="sc-patron__belt" d="M-27 5h54v8h-54Z"/>';
+
+        var bubble = '';
+        if (speech) {
+            var words = lignes(speech.body, 164, 14, 3);
+            var h = 26 + words.length * 17;
+            bubble = '<g class="sc-speech" data-until="' + speechUntil + '" transform="translate(0 ' + (-128 - h) + ')">' +
+                '<path class="sc-speech__box" d="M-92 0q0-12 12-12h160q12 0 12 12v' + h + 'q0 12-12 12h-69l-13 15-2-15h-76q-12 0-12-12Z"/>' +
+                texteEnLignes('sc-speech__text', 0, 12, 17, words) + '</g>';
+        }
+
+        return '<g class="sc-node sc-patron' + speakClass + selfClass + '" data-id="' + person.playerId +
+            '" data-action="tavern-player" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
+            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' + seat.x + ' ' + seat.y + ') scale(' + (seat.k * bodyScale).toFixed(3) + ')">' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="10" rx="43" ry="12"/>' +
+            '<path class="sc-chair__back" d="M-34-35q34-13 68 0v39h-8l-5-29q-21-8-42 0l-5 29h-8Z"/>' +
+            '<g class="sc-patron__body">' +
+            '<path class="sc-patron__legs" d="M-23 22l-8 47h15l16-39 16 39h15l-8-47Z"/>' +
+            '<path class="sc-patron__boot" d="M-31 66h18l-2 12h-26q0-10 10-12Zm44 0h18q10 2 10 12H15Z"/>' +
+            '<path class="sc-patron__torso" fill="' + palette[1] + '" d="M-31-26q31-17 62 0l-5 55q-26 13-52 0Z"/>' +
+            '<path class="sc-patron__shade" fill="' + palette[0] + '" d="M-31-26q10 4 14 10l-4 43q-7-1-12-5Z"/>' +
+            '<path class="sc-patron__highlight" fill="' + palette[2] + '" d="M18-23q8 4 13 9l-5 36q-5 4-10 5Z"/>' +
+            apron +
+            '<g class="sc-patron__arm sc-patron__arm--left"><path d="M-28-18q-17 8-22 33l10 3q7-18 20-25Z"/></g>' +
+            '<g class="sc-patron__arm sc-patron__arm--right"><path d="M28-18q17 8 22 31l-10 4Q33 0 20-8Z"/>' +
+            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/></g></g>' +
+            '</g>' +
+            '<g class="sc-patron__head">' +
+            '<path class="sc-patron__neck" d="M-9-34h18v17H-9Z"/>' +
+            '<ellipse class="sc-patron__face" cx="0" cy="-50" rx="22" ry="25"/>' +
+            '<circle class="sc-patron__ear" cx="-23" cy="-49" r="5"/><circle class="sc-patron__ear" cx="23" cy="-49" r="5"/>' +
+            '<path class="sc-patron__nose" d="M1-51l-3 9 6 1"/>' +
+            '<path class="sc-patron__eyes" d="M-11-53h4m14 0h4"/>' +
+            cheveux(person.character && person.character.hair, hc) +
+            (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="18" cy="-14" r="4"/>' : '') +
+            '</g>' +
+            texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, 96, 14, name) +
+            (emote ? '<text class="sc-patron__emote" data-until="' + emoteUntil + '" x="0" y="-105">' + emote + '</text>' : '') +
+            bubble +
+            hit(0, -22, 100, 155) +
+            '</g>';
+    }
+
+    function placeNode(key, occupied) {
+        var seat = TAVERN_SEATS[key];
+        if (!seat || occupied) return '';
+        return '<g class="sc-node sc-seat" data-action="tavern-seat" data-id="' + key +
+            '" tabindex="0" role="button" aria-label="S’asseoir : ' + esc(key.replace(/-/g, ' ')) +
+            '" transform="translate(' + seat.x + ' ' + seat.y + ')">' +
+            '<ellipse class="sc-seat__ring" cx="0" cy="5" rx="34" ry="14"/>' +
+            '<path class="sc-seat__chair" d="M-24-20q24-10 48 0v24h-7l-3-18q-14-5-28 0l-3 18h-7Z"/>' +
+            '<text class="sc-seat__plus" x="0" y="2">+</text>' + hit(0, -4, 82, 62) + '</g>';
+    }
+
+    function barman() {
+        return '<g class="sc-barman" transform="translate(480 307)">' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="35" rx="42" ry="9"/>' +
+            '<path class="sc-barman__body" d="M-42-16q42-24 84 0l-6 67h-72Z"/>' +
+            '<path class="sc-barman__apron" d="M-28-8h56l-5 58h-46Z"/>' +
+            '<ellipse class="sc-patron__face" cx="0" cy="-51" rx="23" ry="26"/>' +
+            '<path class="sc-barman__hair" d="M-23-57q23-20 46 0v9q-24-8-46 0Z"/>' +
+            '<path class="sc-barman__moustache" d="M-3-43q-10-8-17 1 11 8 20 2 9 6 20-2-7-9-17-1Z"/>' +
+            '<g class="sc-barman__wipe"><path class="sc-barman__arm" d="M31-10q19 13 24 32l-10 3Q36 8 23 2Z"/>' +
+            '<path class="sc-barman__cloth" d="M43 15q18-6 24 8-15 11-28 2Z"/></g>' +
+            '<g class="sc-barman__glass" transform="translate(-38 19)"><path d="M-8-16h16l-2 28H-6Z"/><path d="M-5 12h10"/></g>' +
+            '</g>';
+    }
+
     function taverne(state) {
         var offres = state.tavernCounter || [];
+        var room = state.tavernRoom;
+        var people = room && room.players || [];
+        var occupied = {};
+        people.forEach(function (person) { if (person.seatKey) occupied[person.seatKey] = true; });
 
         var zinc = comptoir();
         var chopes = '';
@@ -706,6 +841,14 @@
             });
         }
 
+        var places = room ? Object.keys(TAVERN_SEATS).map(function (key) {
+            return placeNode(key, occupied[key]);
+        }).join('') : '';
+
+        var patrons = room ? people.map(function (person) {
+            return patronNode(person, room);
+        }).join('') : '';
+
         return defs() + painted('taverne') +
             '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
             floor(336, 'cellar') +
@@ -714,10 +857,13 @@
             '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
             '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
             '</g>' +
-            zinc + tables() + chopes + light() +
-            (offres.length ? '' :
-                '<text class="sc-salle__vide" x="' + (STAGE_WIDTH / 2) + '" y="300">' +
-                'Le comptoir est vide. Mets un fût en vente depuis la brasserie.</text>');
+            '<g class="sc-tavern__beams"><path d="M0 102h960v18H0ZM112 0h18v252H112ZM824 0h18v252h-18Z"/></g>' +
+            '<g class="sc-tavern__sign"><path d="M406 62q74-22 148 0l-9 68q-65 18-130 0Z"/>' +
+            '<text x="480" y="98">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="119">TAVERNE DU FJORD</text></g>' +
+            zinc + barman() + tables() + places + patrons + chopes + light() +
+            (!room ? '<text class="sc-salle__vide" x="480" y="292">Entre dans une salle pour retrouver les autres brasseurs.</text>' : '') +
+            (room && !people.some(function (p) { return p.seatKey; })
+                ? '<text class="sc-salle__vide" x="480" y="292">Choisis une chaise éclairée : cette place sera la tienne.</text>' : '');
     }
 
     /**
@@ -1256,13 +1402,29 @@
         if (place === 'rucher') {
             return (state.hives || []).map(function (h) { return h.id + ':' + hiveState(h); }).join('|');
         }
+        if (place === 'taverne') {
+            var now = Date.now();
+            root.querySelectorAll('.sc-speech[data-until], .sc-patron__emote[data-until]').forEach(function (node) {
+                if (Number(node.dataset.until) < now) node.style.opacity = '0';
+            });
+            return;
+        }
+
         if (place === 'brasserie') {
             return (state.batches || []).map(function (b) { return b.id + ':' + batchState(b); }).join('|');
         }
         if (place === 'taverne') {
-            return (state.tavernCounter || []).map(function (o) {
-                return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
-            }).join('|');
+            var room = state.tavernRoom;
+            var people = room && room.players || [];
+            var messages = room && room.messages || [];
+            return (room ? room.id : 'lobby') + '::' +
+                people.map(function (p) {
+                    return p.playerId + ':' + (p.seatKey || '-') + ':' + (p.emote || '-') + ':' + (p.emoteAt || '-');
+                }).join('|') + '::' +
+                messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
+                (state.tavernCounter || []).map(function (o) {
+                    return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
+                }).join('|');
         }
         if (place === 'entrepot') {
             return (state.inventory || []).map(function (i) {

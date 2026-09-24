@@ -1289,6 +1289,24 @@
         }, 3000);
     }
 
+    function quitterTaverneSilencieusement() {
+        if (!tavern.room) return;
+        var headers = csrfHeaders();
+        // Le joueur disparaît de la salle dès qu'il retourne à son domaine.
+        // keepalive couvre aussi un onglet que l'on ferme.
+        try {
+            fetch('/api/tavern/rooms/me', {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: headers,
+                keepalive: true
+            }).catch(function () {});
+        } catch (ignored) { /* la présence expirera côté serveur */ }
+        tavern.room = null;
+        tavern.messages = [];
+        tavern.lobby.currentRoomId = null;
+    }
+
     function tavernMutation(url, body, method, after) {
         if (mutationPending) { toast('Une action est déjà en cours.'); return; }
         mutationPending = true;
@@ -2270,6 +2288,7 @@
     function openScreen(view) {
         if (!SECTIONS[view]) return;
         navigationVersion++;
+        if (activeView === 'taverne' && view !== 'taverne') quitterTaverneSilencieusement();
         closePlace();
         activeView = view;
         accountDraft = { avatar: null, displayName: null };
@@ -2285,6 +2304,7 @@
 
     function closeScreen() {
         navigationVersion++;
+        if (activeView === 'taverne') quitterTaverneSilencieusement();
         watchTavern(false);
         updateMarkup(dom.screenBody, '');
         activeView = 'monde';
@@ -3068,6 +3088,10 @@
         // Le portrait est le raccourci que tout le monde essaie en premier.
         dom.playerCard.addEventListener('click', function () {
             openScreen('compte');
+        });
+
+        global.addEventListener('pagehide', function () {
+            quitterTaverneSilencieusement();
         });
 
         document.addEventListener('keydown', function (event) {

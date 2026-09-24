@@ -43,6 +43,13 @@
     var featAller = null;       // où mène le second bouton du carton, s'il y en a un
     var featTimer = null;
     var audio = null;           // créé au premier son, jamais avant
+    var biensConnus = null;     // les compteurs au rendu précédent, pour fêter l'écart
+    var dernierGeste = null;    // { x, y, t } : d'où partent les gains qui s'envolent
+    var pasConnus = null;       // les premiers pas déjà faits, au rendu précédent
+    var pasNeufs = {};          // ceux qui viennent de se cocher et attendent d'être vus
+    var boucleBouclee = false;  // les quatre pas faits pendant cette visite du domaine
+    var visite = null;          // la visite guidée en cours, s'il y en a une
+    var VISITE_KEY = 'brewstead.visite';
 
     function loadSettings() {
         try {
@@ -208,6 +215,21 @@
         dom.toast.classList.add('is-visible');
         clearTimeout(toastTimer);
         toastTimer = setTimeout(function () { dom.toast.classList.remove('is-visible'); }, 2600);
+    }
+
+    /**
+     * Un mot qui attend son tour.
+     *
+     * <p>Un pas coché se découvre au moment même où l'action qui l'a coché
+     * annonce son résultat : dit tout de suite, l'un effaçait l'autre. Celui-ci
+     * patiente jusqu'à ce que la place soit libre.
+     */
+    function toastEnsuite(message) {
+        var essais = 0;
+        (function attendre() {
+            if (dom.toast.classList.contains('is-visible') && essais++ < 20) { setTimeout(attendre, 350); return; }
+            toast(message);
+        })();
     }
 
     /* ------------------------------------------------------- Sections de jeu */
@@ -783,7 +805,12 @@
                     toggle('alertes', 'Me prévenir quand quelque chose est prêt',
                         'Un mot discret dès qu’une récolte, une ruche ou un brassin arrive à terme.') +
                     toggle('sons', 'Sons du domaine',
-                        'Une note à chaque récolte, deux quand tu débloques un haut fait. Rien d’autre ne fait de bruit.');
+                        'Une note à chaque récolte, deux quand tu débloques un haut fait. Rien d’autre ne fait de bruit.') +
+
+                    '<p class="section-title">Aide</p>' +
+                    '<div class="account-actions">' +
+                    '<button class="btn btn--bleu" type="button" data-action="revoir-visite">' +
+                    icon('i-help') + 'Revoir la visite guidée</button></div>';
             }
         },
 
@@ -1476,6 +1503,7 @@
             return;
         }
         if (action === 'open-settings') { openScreen('reglages'); return; }
+        if (action === 'revoir-visite') { lancerVisite(); return; }
 
         if (action === 'change-password') {
             var current = $('pwdCurrent'), fresh = $('pwdNew'), again = $('pwdConfirm');
@@ -1902,6 +1930,8 @@
         renderPlayer();
         applyProgressionStyle();
         renderResources();
+        celebrerLesGains();
+        veillePremiersPas();
         renderReap();
         renderEffects();
         renderQuest();
@@ -2130,6 +2160,322 @@
         var lieu = cible && Data.PLACES.filter(function (p) { return p.id === cible; })[0];
         dom.guideFace.setAttribute('href', '#' + (lieu ? lieu.art : 'art-MEAD'));
         dom.guide.hidden = activeView !== 'monde' || !!activePlace;
+
+        // La bulle réapparaît : sa ligne change, elle le dit en glissant.
+        if (dom.guide._texte !== fil.texte) {
+            dom.guide._texte = fil.texte;
+            rejouer(dom.guide, 'is-neuf');
+        }
+        renderPremiersPas();
+    }
+
+    /**
+     * Les quatre gestes de la boucle, dans le haut de la bulle.
+     *
+     * <p>Un pas qui vient de se cocher attend que la bulle soit visible pour
+     * sauter : fait depuis le tiroir des champs, il sauterait derrière, et
+     * personne ne le verrait.
+     */
+    function renderPremiersPas() {
+        var pas = Data.premiersPas(state);
+        if (pas.fini && !boucleBouclee) { dom.guidePas.hidden = true; return; }
+
+        var visible = !dom.guide.hidden;
+        var neufs = visible ? pasNeufs : {};
+        var html = '<span class="guide-pas__titre">Premiers pas <b>' + pas.faites + '/' + pas.total + '</b></span>' +
+            '<span class="guide-pas__liste">' + pas.etapes.map(function (etape, i) {
+                return '<span class="guide-pas__pas' + (etape.fait ? ' is-fait' : '') +
+                    (i === pas.courante ? ' is-ici' : '') + (neufs[etape.id] ? ' is-neuf' : '') + '"' +
+                    ' title="' + esc(etape.titre + (etape.fait ? ' — fait' : '')) + '">' +
+                    art(etape.art, 'guide-pas__art') +
+                    '<span class="guide-pas__nom">' + esc(etape.titre) + '</span></span>';
+            }).join('') + '</span>';
+        if (dom.guidePas._html !== html) {
+            dom.guidePas.innerHTML = html;
+            dom.guidePas._html = html;
+        }
+        dom.guidePas.hidden = false;
+
+        if (visible && Object.keys(pasNeufs).length) {
+            var suivant = pas.courante === null ? null : pas.etapes[pas.courante];
+            var faits = pas.etapes.filter(function (e) { return pasNeufs[e.id]; })
+                .map(function (e) { return e.titre; });
+            pasNeufs = {};
+            rejouer(dom.guide, 'is-bravo');
+            toastEnsuite('Bien joué : ' + faits.join(', ').toLowerCase() + ' ✓' +
+                (suivant ? ' — prochain pas : ' + suivant.titre.toLowerCase() + '.' : ''));
+        }
+    }
+
+    /**
+     * Ce qui vient de se cocher depuis le dernier rendu.
+     *
+     * <p>Comme pour les hauts faits, la première lecture note l'état sans
+     * rien fêter : on n'applaudit pas un joueur pour ce qu'il avait fait
+     * hier.
+     */
+    function veillePremiersPas() {
+        var pas = Data.premiersPas(state);
+        var faits = pas.etapes.map(function (e) { return e.fait; });
+        if (pasConnus === null) { pasConnus = faits; return; }
+
+        pas.etapes.forEach(function (etape, i) {
+            if (etape.fait && !pasConnus[i]) pasNeufs[etape.id] = true;
+        });
+        var dejaFini = pasConnus.every(Boolean);
+        pasConnus = faits;
+
+        if (pas.fini && !dejaFini) {
+            boucleBouclee = true;
+            featsAFeter.push({
+                kicker: 'Premiers pas',
+                title: 'La boucle est bouclée !',
+                desc: 'Semer, récolter, brasser, livrer : tout le jeu tient là-dedans. La suite, c’est la même boucle ' +
+                    'en plus grand — agrandis tes champs, invente des recettes au laboratoire, grimpe au classement.',
+                reward: ''
+            });
+            if (dom.feat.hidden) feterLeProchain();
+        }
+    }
+
+    /** Relance une animation CSS portée par une classe, même si elle vient de jouer. */
+    function rejouer(node, classe) {
+        if (!node) return;
+        node.classList.remove(classe);
+        void node.offsetWidth;
+        node.classList.add(classe);
+        node.addEventListener('animationend', function fin(event) {
+            if (event.target !== node) return;
+            node.classList.remove(classe);
+            node.removeEventListener('animationend', fin);
+        });
+    }
+
+    /* --------------------------------------------------------- Les gains */
+
+    function lireLesBiens() {
+        var biens = {};
+        Data.RESOURCES.forEach(function (resource) { biens[resource.key] = Number(resource.read(state)) || 0; });
+        biens.xp = Number(state.player && state.player.experience) || 0;
+        biens.reserve = {};
+        (state.inventory || []).forEach(function (item) {
+            biens.reserve[item.ingredientName] = { quantite: Number(item.quantity) || 0, type: item.type, unite: item.unit };
+        });
+        return biens;
+    }
+
+    function mouvementComplet() {
+        return settings.mouvement !== 'sobre' &&
+            !(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    /**
+     * Ce qui a bougé dans les réserves se voit bouger.
+     *
+     * <p>Avant, une récolte changeait un chiffre en haut de l'écran, en
+     * silence, pendant qu'on regardait ailleurs. Maintenant le compteur
+     * rebondit et dit de combien ; et si le gain vient d'un geste du joueur,
+     * quelques objets partent de là où il a cliqué et vont se ranger dans le
+     * compteur. Tout passe par transform et opacity : rien ne se repeint.
+     */
+    function celebrerLesGains() {
+        if (!state || !state.player) return;
+        var maintenant = lireLesBiens();
+        var avant = biensConnus;
+        biensConnus = maintenant;
+        if (!avant) return;
+
+        var geste = dernierGeste && Date.now() - dernierGeste.t < 5000 ? dernierGeste : null;
+        var anime = mouvementComplet();
+        var vol = 0;
+        Data.RESOURCES.forEach(function (resource, i) {
+            var ecart = maintenant[resource.key] - avant[resource.key];
+            if (!ecart) return;
+            var pastille = dom.resources.children[i];
+            var delai = 0;
+            if (ecart > 0 && geste && anime && pastille) {
+                envol(geste, pastille, resource.art, vol++);
+                delai = 620 + vol * 90;
+            }
+            setTimeout(function () {
+                // Relue au moment du rebond : un rafraîchissement a pu
+                // redessiner la rangée entre-temps.
+                var cible = dom.resources.children[i];
+                if (!cible) return;
+                rejouer(cible, 'is-rebond');
+                bulleDeGain(cible, (ecart > 0 ? '+' : '−') + fmt.number(Math.abs(ecart)), ecart < 0);
+            }, delai);
+        });
+
+        // Ce qui n'a pas de compteur au bandeau — la menthe, les pommes, les
+        // levures — se range à l'entrepôt. Sans ça, une récolte de menthe ne
+        // faisait rien bouger du tout : on ne savait pas si elle avait eu lieu.
+        var AU_BANDEAU = { CEREAL: true, HONEY: true, HOP: true };
+        var entrepot = dom.places.querySelector('[data-place="entrepot"]');
+        var rangees = 0;
+        Object.keys(maintenant.reserve).forEach(function (nom) {
+            var item = maintenant.reserve[nom];
+            var ecart = item.quantite - ((avant.reserve[nom] || {}).quantite || 0);
+            if (ecart <= 0 || AU_BANDEAU[item.type] || rangees >= 2 || !visibleALEcran(entrepot)) return;
+            var rang = rangees++;
+            var delai = 0;
+            if (geste && anime) { envol(geste, entrepot, artMatiere(item.type), vol++); delai = 620 + vol * 90; }
+            setTimeout(function () {
+                rejouer(entrepot, 'is-rebond');
+                bulleDeGain(entrepot, '+' + fmt.quantity(ecart, item.unite) + ' ' + nom, false, false, rang);
+            }, delai);
+        });
+
+        var xp = maintenant.xp - avant.xp;
+        if (xp > 0) setTimeout(function () { bulleDeGain(dom.playerCard, '+' + fmt.number(xp) + ' XP', false, true); }, 300);
+        if (geste) dernierGeste = null;
+    }
+
+    function visibleALEcran(node) {
+        if (!node) return false;
+        var r = node.getBoundingClientRect();
+        return r.width > 0 && r.right > 0 && r.left < global.innerWidth && r.bottom > 0 && r.top < global.innerHeight;
+    }
+
+    /** Un « +12 » qui monte au-dessus d'un compteur et s'efface. */
+    function bulleDeGain(cible, texte, perte, xp, rang) {
+        if (!cible || !dom.envols) return;
+        var r = cible.getBoundingClientRect();
+        var bulle = document.createElement('span');
+        bulle.className = 'gain' + (perte ? ' gain--perte' : '') + (xp ? ' gain--xp' : '');
+        bulle.textContent = texte;
+        // Au bord de l'écran, la bulle centrée sur son compteur déborderait.
+        bulle.style.left = Math.round(Math.max(60, Math.min(global.innerWidth - 60, r.left + r.width / 2))) + 'px';
+        bulle.style.top = Math.round(r.bottom - 4 + (rang || 0) * 30) + 'px';
+        dom.envols.appendChild(bulle);
+        var retirer = function () { if (bulle.parentNode) bulle.remove(); };
+        bulle.addEventListener('animationend', retirer);
+        setTimeout(retirer, 2000);
+    }
+
+    /**
+     * Trois objets qui volent du geste au compteur, en arc.
+     *
+     * <p>L'animation web plutôt qu'une classe : chaque vol a son propre
+     * point de départ et d'arrivée, qu'aucune feuille de style ne connaît.
+     */
+    function envol(depart, cible, artId, rang) {
+        if (!dom.envols || !cible.getBoundingClientRect) return;
+        var arrivee = cible.getBoundingClientRect();
+        var ax = arrivee.left + 12;
+        var ay = arrivee.top + arrivee.height / 2;
+        for (var k = 0; k < 3; k++) {
+            var objet = document.createElement('span');
+            objet.className = 'envol';
+            objet.innerHTML = art(artId, 'envol__art');
+            dom.envols.appendChild(objet);
+            var dx = (k - 1) * 22;
+            var hautArc = Math.min(depart.y, ay) - 70 - k * 12;
+            var mx = (depart.x + ax) / 2 + dx;
+            var animation = objet.animate([
+                { transform: 'translate(' + (depart.x + dx) + 'px,' + depart.y + 'px) scale(.4)', opacity: 0 },
+                { transform: 'translate(' + mx + 'px,' + hautArc + 'px) scale(1.15)', opacity: 1, offset: .45 },
+                { transform: 'translate(' + ax + 'px,' + ay + 'px) scale(.55)', opacity: .9 }
+            ], {
+                duration: 620,
+                delay: rang * 90 + k * 70,
+                easing: 'cubic-bezier(.45, .05, .55, .95)',
+                fill: 'both'
+            });
+            animation.onfinish = (function (node) { return function () { node.remove(); }; })(objet);
+        }
+    }
+
+    /* ------------------------------------------------------ La visite guidée */
+
+    function visiteDejaVue() {
+        try { return localStorage.getItem(VISITE_KEY) === 'vue'; } catch (ignored) { return false; }
+    }
+
+    function marquerVisiteVue() {
+        try { localStorage.setItem(VISITE_KEY, 'vue'); } catch (ignored) { /* navigation privée */ }
+    }
+
+    /**
+     * La visite se propose d'elle-même une fois, à un joueur qui arrive :
+     * niveau 1, aucun des quatre premiers pas. Un joueur confirmé qui change
+     * de navigateur n'a pas à la subir — le bouton « ? » la lui rend.
+     */
+    function proposerLaVisite() {
+        if (!state || !state.player || visiteDejaVue()) return;
+        if (Number(state.player.level) > 1 || Data.premiersPas(state).faites > 0) return;
+        lancerVisite();
+    }
+
+    function lancerVisite() {
+        if (visite || !state || !global.BrewsteadVisite) return;
+        selectView('monde');
+        var nom = state.player.displayName || state.player.username || '';
+        var boucle = '<ol class="visite-boucle">' + [
+            ['art-HERB', 'Semer'], ['art-CEREAL', 'Récolter'], ['art-vat', 'Brasser'], ['art-scroll', 'Livrer']
+        ].map(function (pas) {
+            return '<li>' + art(pas[0], 'visite-boucle__art') + '<span>' + pas[1] + '</span></li>';
+        }).join('') + '</ol>';
+
+        visite = global.BrewsteadVisite.demarrer({
+            racine: dom.game,
+            etapes: [
+                {
+                    titre: 'Bienvenue à Brewstead' + (nom ? ', ' + nom : '') + ' !',
+                    texte: 'Ce domaine au bord du fjord est à toi. Ici on cultive, on brasse, on vend — et la renommée ' +
+                        'suit. Une minute de visite, et tu sauras tout ce qu’il faut pour démarrer.',
+                    bouton: 'Faire le tour'
+                },
+                {
+                    titre: 'Le jeu tient en quatre gestes',
+                    texte: 'Les champs donnent le grain, la brasserie en fait une boisson, les commandes la paient. ' +
+                        'Avec les pièces, tu agrandis le domaine… et tu recommences, en plus grand.',
+                    corps: boucle
+                },
+                {
+                    cible: '#resources',
+                    titre: 'Tes réserves',
+                    texte: 'Pièces, céréales, miel, houblon, et ce qui repose en cave. Touche un compteur pour ouvrir ' +
+                        'l’endroit où il se range.'
+                },
+                {
+                    cible: '#places',
+                    titre: 'Les sept lieux',
+                    texte: 'Les champs et le rucher produisent, la brasserie transforme, le laboratoire invente, ' +
+                        'les commandes et la taverne rapportent. Touche un nom ici, ou le bâtiment sur la carte.'
+                },
+                {
+                    cible: '#guide',
+                    titre: 'Ton fil conducteur',
+                    texte: 'Plus d’idée ? Cette bulle dit toujours quoi faire, et pourquoi. Touche-la, elle t’y ' +
+                        'emmène. Les quatre cases du haut se cochent à chacun de tes premiers pas.'
+                },
+                {
+                    cible: '#quest',
+                    titre: 'L’objectif du jour',
+                    texte: 'Une petite mission par jour, des pièces à la clé. Reviens demain pour la suivante — ' +
+                        'et pour allonger ta série de visites.'
+                },
+                {
+                    cible: '#renownBtn',
+                    titre: 'La renommée',
+                    texte: 'Tes hauts faits, le classement du fjord et, dès le niveau 2, la voie que prendra ton domaine.'
+                },
+                {
+                    cible: '#helpBtn',
+                    titre: 'Un trou de mémoire ?',
+                    texte: 'Ce bouton relance la visite quand tu veux. Allez, tes champs t’attendent !'
+                }
+            ],
+            surFin: function (auBout) {
+                visite = null;
+                marquerVisiteVue();
+                // Au bout de la visite, on y va : le premier geste plutôt
+                // qu'un écran de plus à lire.
+                if (auBout) suivreLeFil();
+                else renderGuide();
+            }
+        });
     }
 
     function suivreLeFil() {
@@ -2410,6 +2756,18 @@
     /* ---------------------------------------------------------- Événements */
 
     function bind() {
+        // D'où partent les gains : le dernier endroit touché. Au clavier, le
+        // centre du bouton activé.
+        document.addEventListener('pointerdown', function (event) {
+            dernierGeste = { x: event.clientX, y: event.clientY, t: Date.now() };
+        }, true);
+        document.addEventListener('click', function (event) {
+            if (event.detail !== 0 || !event.target.getBoundingClientRect) return;
+            var r = event.target.getBoundingClientRect();
+            dernierGeste = { x: r.left + r.width / 2, y: r.top + r.height / 2, t: Date.now() };
+        }, true);
+
+        dom.helpBtn.addEventListener('click', lancerVisite);
         dom.guide.addEventListener('click', suivreLeFil);
         dom.featClose.addEventListener('click', fermerLaFanfare);
         dom.featGo.addEventListener('click', function () {
@@ -2586,6 +2944,7 @@
             'renownBtn', 'place', 'placeKicker', 'placeTitle', 'placeIntro', 'placeBody',
             'placeAction', 'placeClose', 'screen', 'screenTitle', 'screenBody', 'screenClose', 'toast',
             'playerCard', 'settingsBtn', 'reapBtn', 'reapCount', 'places', 'lieux', 'fault', 'faultTitle', 'faultText', 'faultRetry', 'faultLogin', 'effects',
+            'helpBtn', 'guidePas', 'envols',
         ].forEach(function (id) { dom[id] = $(id); });
 
         loadSettings();
@@ -2599,6 +2958,7 @@
         camera.reset();
 
         refresh().catch(function () { /* panneau de panne déjà affiché */ }).then(function () {
+            proposerLaVisite();
             setInterval(function () {
                 if (!state || document.hidden) return;
                 renderMarkers();

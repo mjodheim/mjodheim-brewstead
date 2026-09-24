@@ -379,6 +379,59 @@
         };
     }
 
+    /* --------------------------------------------------------- Premiers pas */
+
+    /** L'avancement d'un haut fait, lu tel que le serveur le compte. */
+    function avancement(state, code) {
+        var faits = (state.progression && state.progression.achievements) || [];
+        var fait = faits.find(function (a) { return a.code === code; });
+        return fait ? Number(fait.progress) || 0 : 0;
+    }
+
+    /**
+     * Les quatre gestes de la boucle, et ceux que le joueur a déjà faits.
+     *
+     * <p>Le fil conducteur dit quoi faire maintenant ; ceci dit où l'on en
+     * est. Un joueur qui arrive ne sait pas que la partie tient en quatre
+     * gestes — semer, récolter, brasser, livrer — ni qu'après, tout le reste
+     * n'est que la même boucle en plus grand. Il le voit se cocher.
+     *
+     * <p>Rien n'est compté ici : chaque case lit un compteur que le serveur
+     * tient déjà pour ses hauts faits. Recharger la page, changer
+     * d'appareil ou jouer d'ailleurs ne décoche rien.
+     */
+    function premiersPas(state) {
+        var champs = state.fields || [];
+        var etapes = [
+            {
+                id: 'semer', titre: 'Semer', art: 'art-HERB', lieu: 'champs',
+                fait: champs.some(function (f) { return f.status && f.status !== 'EMPTY'; })
+                    || avancement(state, 'FIRST_HARVEST') > 0
+            },
+            {
+                id: 'recolter', titre: 'Récolter', art: 'art-CEREAL', lieu: 'champs',
+                fait: avancement(state, 'FIRST_HARVEST') > 0 || avancement(state, 'HONEY_KEEPER') > 0
+            },
+            {
+                id: 'brasser', titre: 'Brasser', art: 'art-vat', lieu: 'brasserie',
+                fait: avancement(state, 'FIRST_BREW') > 0 || (state.batches || []).length > 0
+            },
+            {
+                id: 'livrer', titre: 'Livrer', art: 'art-scroll', lieu: 'commandes',
+                fait: avancement(state, 'TRUSTED_SUPPLIER') > 0 || avancement(state, 'GOOD_NEIGHBOUR') > 0
+            }
+        ];
+        var faites = etapes.filter(function (e) { return e.fait; }).length;
+        var courante = etapes.findIndex(function (e) { return !e.fait; });
+        return {
+            etapes: etapes,
+            faites: faites,
+            total: etapes.length,
+            courante: courante < 0 ? null : courante,
+            fini: faites === etapes.length
+        };
+    }
+
     /** Assez de tout en réserve pour lancer cette recette ? */
     function brewable(state, recipe) {
         return (recipe.ingredients || []).every(function (line) {
@@ -455,6 +508,7 @@
         XP_PER_LEVEL: XP_PER_LEVEL,
         load: load,
         guide: guide,
+        premiersPas: premiersPas,
         placeState: placeState,
         placeCount: placeCount,
         harvestableCount: harvestableCount,

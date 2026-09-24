@@ -138,7 +138,23 @@
         commandes: { x: 1372, y: 520, width: 330 }
     };
 
-    var ART = '/images/brewstead-domaine.webp';
+    /**
+     * Le tableau du fond, déjà flouté.
+     *
+     * <p>Le flou était calculé par le navigateur, dans le même SVG que les
+     * épis qui ondulent et les abeilles qui tournent : sept pixels de flou
+     * sur une image plein cadre, refaits à chaque image de chaque
+     * animation. Dans les champs, un tiers du temps de calcul y passait. Le
+     * flou est maintenant dans l'image, fait une fois pour toutes.
+     *
+     * <p>L'adresse vient de la page : le serveur sert chaque fichier sous un
+     * nom qui porte l'empreinte de son contenu, que ce script ne sait pas
+     * calculer.
+     */
+    function art() {
+        var carte = global.document && global.document.getElementById('worldArt');
+        return (carte && carte.getAttribute('data-flou')) || '/images/brewstead-domaine-flou.webp';
+    }
 
     function painted(place) {
         var crop = CROPS[place] || CROPS.champs;
@@ -148,7 +164,7 @@
         var top = crop.y - height / 2;
 
         return '<g class="sc-far">' +
-            '<image href="' + ART + '" x="' + (-left * scale).toFixed(1) + '" y="' + (-top * scale).toFixed(1) +
+            '<image href="' + art() + '" x="' + (-left * scale).toFixed(1) + '" y="' + (-top * scale).toFixed(1) +
             '" width="' + (1536 * scale).toFixed(1) + '" height="' + (742 * scale).toFixed(1) +
             '" preserveAspectRatio="none"/>' +
             '</g>' +

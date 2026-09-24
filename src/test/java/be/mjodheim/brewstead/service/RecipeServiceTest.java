@@ -76,6 +76,42 @@ class RecipeServiceTest {
     }
 
     @Test
+    void findAvailableRecipesReadsTheWholeGrimoireInTwoQueries() {
+        when(playerRepository.findById(7L)).thenReturn(Optional.of(player(7)));
+        Recipe first = recipe(1);
+        Recipe second = recipe(2);
+        Recipe bare = recipe(3);
+        when(recipeRepository.findAvailableWithOwner(7L)).thenReturn(List.of(first, second, bare));
+
+        Ingredient barley = ingredient(1, IngredientType.CEREAL);
+        Ingredient honey = ingredient(2, IngredientType.HONEY);
+        RecipeIngredient a = RecipeIngredient.builder().id(10L).recipe(first).ingredient(barley).quantity(BigDecimal.ONE).build();
+        RecipeIngredient b = RecipeIngredient.builder().id(11L).recipe(second).ingredient(honey).quantity(BigDecimal.TEN).build();
+        RecipeIngredient c = RecipeIngredient.builder().id(12L).recipe(first).ingredient(honey).quantity(BigDecimal.ONE).build();
+        when(recipeIngredientRepository.findAllWithIngredientByRecipeIdIn(List.of(1L, 2L, 3L)))
+                .thenReturn(List.of(a, b, c));
+
+        service.findAvailableRecipes(7L);
+
+        // Chaque recette reçoit ses propres lignes, dans l'ordre ; une recette
+        // sans ligne reçoit une liste vide, pas celle de sa voisine.
+        verify(mapper).toResponse(first, List.of(a, c));
+        verify(mapper).toResponse(second, List.of(b));
+        verify(mapper).toResponse(bare, List.of());
+        // Plus de lecture recette par recette.
+        verify(recipeIngredientRepository, never()).findAllByRecipeId(any());
+    }
+
+    @Test
+    void findAvailableRecipesWithAnEmptyGrimoireAsksNothingMore() {
+        when(playerRepository.findById(7L)).thenReturn(Optional.of(player(7)));
+        when(recipeRepository.findAvailableWithOwner(7L)).thenReturn(List.of());
+
+        assertTrue(service.findAvailableRecipes(7L).isEmpty());
+        verifyNoInteractions(recipeIngredientRepository);
+    }
+
+    @Test
     void createRecipePersistsTrimmedRecipeAndIngredients() {
         PlayerProfile owner = player(7);
         Ingredient honey = ingredient(1, IngredientType.HONEY);

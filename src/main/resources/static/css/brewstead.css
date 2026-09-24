@@ -440,12 +440,37 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .marker[data-state="idle"] .marker__plate { opacity: .9; }
 .marker[data-state="idle"]:hover .marker__plate { opacity: 1; }
 
+.marker__pin { position: relative; }
+
+/* L'onde verte autour de l'épingle. Elle animait une ombre portée, que le
+   navigateur doit repeindre à chaque image : avec deux lieux prêts, la
+   carte entière se repeignait dix fois par seconde. Un anneau qui grandit
+   et s'efface donne la même onde, sans rien repeindre. */
+.marker__pin::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 3px solid rgba(116, 200, 63, .75);
+    opacity: 0;
+    pointer-events: none;
+}
+
 .marker[data-state="ready"] .marker__pin { animation: pin-pulse 2.4s ease-in-out infinite; opacity: 1; }
+.marker[data-state="ready"] .marker__pin::after { animation: pin-wave 2.4s ease-out infinite; }
 
 @keyframes pin-pulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 246, 223, .8), 0 0 0 0 rgba(116, 200, 63, .6); }
-    50% { transform: scale(1.15); box-shadow: 0 0 0 2px rgba(255, 246, 223, .8), 0 0 0 10px rgba(116, 200, 63, 0); }
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
 }
+
+@keyframes pin-wave {
+    0% { transform: scale(1); opacity: .9; }
+    70%, 100% { transform: scale(2.6); opacity: 0; }
+}
+
+:root[data-mouvement="sobre"] .marker__pin,
+:root[data-mouvement="sobre"] .marker__pin::after { animation: none; }
 
 /* --------------------------------------------------------------------------
    Habillage : bois et parchemin
@@ -864,7 +889,7 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
     transform: translateX(-50%);
     display: grid;
     grid-template-columns: auto 1fr auto;
-    grid-template-areas: "visage texte fleche" "visage raison fleche";
+    grid-template-areas: "pas pas pas" "visage texte fleche" "visage raison fleche";
     align-items: center;
     gap: .05em .8em;
     max-width: min(32em, calc(100% - 2.4em));
@@ -1782,7 +1807,8 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
        qui je suis et mes boutons, puis mes biens, puis les lieux. */
     .bandeau__joueur { order: 1; }
     .bandeau__joueur + .bandeau__biens { order: 3; }
-    #renownBtn { order: 2; margin-left: auto; }
+    #helpBtn { order: 2; margin-left: auto; }
+    #renownBtn { order: 2; }
     #settingsBtn { order: 2; }
     .bandeau__biens { order: 3; flex: 1 1 100%; }
     .bandeau__objectif { order: 3; }
@@ -2048,4 +2074,377 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
 @media (max-width: 520px) {
     .feat__card { padding: 3em 1.1em 1.3em; }
     .feat__title { font-size: 1.4em; }
+}
+
+/* ==========================================================================
+   Premiers pas, gains, visite guidée
+
+   Tout ce qui bouge ici bouge par transform, translate, scale ou opacity :
+   la carte graphique s'en charge sans rien repeindre. La bulle du fil
+   conducteur est centrée par un transform ; on l'anime donc par les
+   propriétés « translate » et « scale », qui s'ajoutent au transform au lieu
+   de l'écraser.
+   ========================================================================== */
+
+/* Les premiers pas, en tête de la bulle ------------------------------------- */
+
+.world__guide-pas {
+    grid-area: pas;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .35em .7em;
+    padding-bottom: .45em;
+    margin-bottom: .35em;
+    border-bottom: 1.5px dashed rgba(107, 66, 19, .25);
+}
+
+.world__guide-pas[hidden] { display: none; }
+
+.guide-pas__titre {
+    font: 700 .76em var(--police-titre);
+    letter-spacing: .02em;
+    color: var(--encre-douce);
+    white-space: nowrap;
+}
+
+.guide-pas__titre b { color: var(--vert-fonce); }
+
+.guide-pas__liste { display: flex; gap: .3em; }
+
+.guide-pas__pas {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .2em;
+    padding: .12em .5em .12em .18em;
+    font: 700 .72em var(--police-titre);
+    color: var(--encre-douce);
+    background: rgba(107, 66, 19, .08);
+    border: 1.5px solid transparent;
+    border-radius: 99px;
+    opacity: .72;
+}
+
+.guide-pas__art { width: 1.5em; height: 1.5em; flex: none; }
+
+.guide-pas__pas.is-ici {
+    color: var(--encre);
+    background: linear-gradient(180deg, #fff6cf, #ffe38a);
+    border-color: var(--jaune-levre);
+    opacity: 1;
+}
+
+.guide-pas__pas.is-fait {
+    color: var(--vert-fonce);
+    background: rgba(116, 200, 63, .2);
+    opacity: 1;
+}
+
+/* La coche : une pastille verte posée sur l'illustration. */
+.guide-pas__pas.is-fait::after {
+    content: "✓";
+    position: absolute;
+    left: .95em;
+    top: -.35em;
+    display: grid;
+    place-items: center;
+    width: 1.15em;
+    height: 1.15em;
+    font-size: .9em;
+    line-height: 1;
+    color: #fff;
+    background: radial-gradient(circle at 35% 30%, #aef07c, var(--vert-fonce) 75%);
+    border: 1.5px solid #fff;
+    border-radius: 50%;
+}
+
+.guide-pas__pas.is-neuf { animation: pas-saute .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+
+@keyframes pas-saute {
+    0% { scale: .6; }
+    55% { scale: 1.3; }
+    100% { scale: 1; }
+}
+
+/* Sur un téléphone, seul le pas en cours garde son nom. */
+@media (max-width: 720px) {
+    .guide-pas__pas:not(.is-ici) .guide-pas__nom { display: none; }
+    .guide-pas__pas:not(.is-ici) { padding-right: .2em; }
+}
+
+/* La bulle arrive, ou change de conseil : elle glisse et se pose. */
+.world__guide.is-neuf { animation: guide-arrive .55s cubic-bezier(.2, 1.1, .35, 1) both; }
+
+@keyframes guide-arrive {
+    from { translate: 0 1.4em; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+/* Un pas franchi : la bulle bondit. */
+.world__guide.is-bravo { animation: guide-bravo .7s cubic-bezier(.2, 1.4, .4, 1); }
+
+@keyframes guide-bravo {
+    0%, 100% { scale: 1; }
+    35% { scale: 1.06; }
+    65% { scale: .98; }
+}
+
+/* La flèche verte fait signe de temps en temps, sans insister. */
+.game[data-view="monde"] .world__guide-go { animation: guide-signe 5s ease-in-out 2s infinite; }
+
+@keyframes guide-signe {
+    0%, 78%, 100% { translate: 0 0; }
+    84% { translate: .3em 0; }
+    90% { translate: -.05em 0; }
+    95% { translate: .18em 0; }
+}
+
+/* Les gains ------------------------------------------------------------------ */
+
+.envols {
+    position: fixed;
+    inset: 0;
+    z-index: 57;
+    overflow: hidden;
+    pointer-events: none;
+    font-size: calc(var(--ui) * var(--ui-facteur));
+}
+
+.envol {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.9em;
+    height: 1.9em;
+    margin: -.95em 0 0 -.95em;
+    will-change: transform, opacity;
+}
+
+.envol__art { width: 100%; height: 100%; }
+
+.gain {
+    position: absolute;
+    translate: -50% 0;
+    padding: .05em .45em;
+    font: 700 1.05em var(--police-titre);
+    white-space: nowrap;
+    color: #fff;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+    background: radial-gradient(circle at 35% 30%, #aef07c, var(--vert-fonce) 80%);
+    border: 2px solid #fff;
+    border-radius: 99px;
+    box-shadow: 0 .15em .4em rgba(20, 10, 2, .35);
+    animation: gain-monte 1.5s cubic-bezier(.2, .8, .3, 1) forwards;
+}
+
+.gain--perte { background: radial-gradient(circle at 35% 30%, #ffb3a3, var(--rouge-fonce) 80%); }
+.gain--xp { background: radial-gradient(circle at 35% 30%, #9fd8fa, var(--bleu-fonce) 80%); }
+
+@keyframes gain-monte {
+    0% { transform: translateY(.4em) scale(.6); opacity: 0; }
+    18% { transform: translateY(0) scale(1.08); opacity: 1; }
+    70% { transform: translateY(-1em) scale(1); opacity: 1; }
+    100% { transform: translateY(-1.7em) scale(.95); opacity: 0; }
+}
+
+/* Le compteur qui reçoit : un petit bond. */
+.resource.is-rebond,
+.place-chip.is-rebond { animation: pastille-bond .55s cubic-bezier(.2, 1.5, .4, 1); }
+
+@keyframes pastille-bond {
+    0%, 100% { scale: 1; }
+    40% { scale: 1.16; }
+    70% { scale: .96; }
+}
+
+/* La visite guidée -------------------------------------------------------- */
+
+.visite {
+    position: fixed;
+    inset: 0;
+    z-index: 58;
+    font-size: calc(var(--ui) * var(--ui-facteur));
+    opacity: 0;
+    transition: opacity .3s ease;
+}
+
+.visite.is-ouverte { opacity: 1; }
+.visite.is-sortie { opacity: 0; pointer-events: none; }
+
+/* Le projecteur : une découpe claire dans un voile sombre. L'ombre immense
+   est le voile ; le trou, c'est la boîte elle-même. */
+.visite__halo {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    border-radius: 1em;
+    box-shadow: 0 0 0 200vmax rgba(14, 9, 3, .66);
+    transition: transform .45s cubic-bezier(.2, .8, .25, 1), width .45s cubic-bezier(.2, .8, .25, 1),
+        height .45s cubic-bezier(.2, .8, .25, 1);
+    pointer-events: none;
+}
+
+.visite.a-une-cible .visite__halo {
+    box-shadow: 0 0 0 200vmax rgba(14, 9, 3, .66), 0 0 0 3px var(--jaune), 0 0 1.6em .3em rgba(255, 210, 110, .5);
+}
+
+/* Une onde part de l'élément éclairé, pour que l'œil le trouve tout de suite. */
+.visite.a-une-cible .visite__halo::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 3px solid rgba(255, 214, 120, .9);
+    animation: visite-onde 1.8s ease-out infinite;
+}
+
+@keyframes visite-onde {
+    0% { transform: scale(1); opacity: .9; }
+    80%, 100% { transform: scale(1.14); opacity: 0; }
+}
+
+.visite__bulle {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: min(25em, calc(100vw - 24px));
+    padding: 1em 1.15em 1.05em;
+    color: var(--encre);
+    background: linear-gradient(180deg, #fffdf6, var(--creme));
+    border: .35em solid var(--bois);
+    border-radius: 1.2em;
+    box-shadow: 0 0 0 2px var(--bois-bord), 0 .45em 0 var(--bois-bord), 0 1em 2.2em rgba(20, 10, 2, .5);
+    transition: transform .45s cubic-bezier(.2, .8, .25, 1);
+}
+
+.visite__bulle.is-entree > * { animation: visite-contenu .4s cubic-bezier(.2, .9, .3, 1) both; }
+.visite__bulle.is-entree > :nth-child(2) { animation-delay: .04s; }
+.visite__bulle.is-entree > :nth-child(3) { animation-delay: .08s; }
+.visite__bulle.is-entree > :nth-child(4) { animation-delay: .12s; }
+
+@keyframes visite-contenu {
+    from { translate: 0 .5em; opacity: 0; }
+    to { translate: 0 0; opacity: 1; }
+}
+
+.visite__compte {
+    margin: 0 0 .2em;
+    font: 700 .74em var(--police-titre);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--jaune-levre);
+}
+
+.visite__titre {
+    margin: 0 0 .35em;
+    font: 600 1.4em var(--police-titre);
+    line-height: 1.15;
+    color: var(--encre);
+}
+
+.visite__texte { margin: 0; line-height: 1.5; color: var(--encre-douce); }
+
+.visite__corps { margin-top: .8em; }
+.visite__corps[hidden] { display: none; }
+
+.visite__points { display: flex; gap: .35em; margin: .9em 0 .2em; }
+
+.visite__points i {
+    width: .55em;
+    height: .55em;
+    border-radius: 50%;
+    background: rgba(107, 66, 19, .2);
+    transition: background .2s ease, scale .2s ease;
+}
+
+.visite__points i.is-vu { background: var(--vert); }
+.visite__points i.is-ici { background: var(--jaune-fonce); scale: 1.35; }
+
+.visite__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5em;
+    margin-top: .7em;
+}
+
+.visite__passer {
+    margin-right: auto;
+    --fond-haut: #efe2c6; --fond-bas: #d9c5a0; --levre: #a88d63;
+    color: var(--encre);
+    text-shadow: none;
+}
+
+.visite__actions [hidden] { display: none; }
+
+/* La boucle en quatre images, qui arrivent l'une après l'autre. */
+.visite-boucle {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .2em;
+    margin: 0;
+    padding: .7em .5em .55em;
+    list-style: none;
+    background: rgba(255, 255, 255, .55);
+    border: 1.5px dashed rgba(107, 66, 19, .3);
+    border-radius: .9em;
+}
+
+.visite-boucle li {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .25em;
+    font: 700 .82em var(--police-titre);
+    color: var(--encre);
+    animation: boucle-pas .5s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+
+.visite-boucle li:nth-child(2) { animation-delay: .15s; }
+.visite-boucle li:nth-child(3) { animation-delay: .3s; }
+.visite-boucle li:nth-child(4) { animation-delay: .45s; }
+
+/* La flèche entre deux gestes. */
+.visite-boucle li + li::before {
+    content: "›";
+    position: absolute;
+    left: -.45em;
+    top: .55em;
+    font-size: 1.6em;
+    line-height: 1;
+    color: var(--jaune-levre);
+}
+
+.visite-boucle__art { width: 2.6em; height: 2.6em; }
+
+@keyframes boucle-pas {
+    from { scale: .5; opacity: 0; }
+    to { scale: 1; opacity: 1; }
+}
+
+/* Le mode sobre garde tout, sans le mouvement. */
+:root[data-mouvement="sobre"] .world__guide.is-neuf,
+:root[data-mouvement="sobre"] .world__guide.is-bravo,
+:root[data-mouvement="sobre"] .world__guide-go,
+:root[data-mouvement="sobre"] .guide-pas__pas.is-neuf,
+:root[data-mouvement="sobre"] .resource.is-rebond,
+:root[data-mouvement="sobre"] .place-chip.is-rebond,
+:root[data-mouvement="sobre"] .visite__bulle.is-entree > *,
+:root[data-mouvement="sobre"] .visite-boucle li,
+:root[data-mouvement="sobre"] .visite__halo::after { animation: none; }
+:root[data-mouvement="sobre"] .gain { animation: gain-sobre 1.5s linear forwards; }
+:root[data-mouvement="sobre"] .visite,
+:root[data-mouvement="sobre"] .visite__halo,
+:root[data-mouvement="sobre"] .visite__bulle { transition: none; }
+
+@keyframes gain-sobre {
+    0%, 80% { opacity: 1; }
+    100% { opacity: 0; }
 }

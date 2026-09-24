@@ -34,4 +34,11 @@ spring:
 
 server:
   port: ${PORT:8081}
+  # L'état du domaine pèse deux cents kilo-octets de JSON, relus toutes les
+  # quinze secondes ; compressé, il en fait une vingtaine. Même chose pour le
+  # JavaScript et les feuilles de style au premier chargement.
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,text/javascript,application/javascript,image/svg+xml
+    min-response-size: 1024
   forward-headers-strategy: framework

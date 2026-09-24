@@ -486,8 +486,12 @@ class BrewsteadUiIntegrationTest {
 
             assertTrue(alice.findElement(By.cssSelector(".sc-barman")).isDisplayed(),
                     "Le barman doit faire partie de la scène.");
-            assertTrue(alice.findElement(By.cssSelector(".sc-tavern__sign")).isDisplayed(),
-                    "La salle doit avoir son identité graphique.");
+            assertTrue((Boolean) ((JavascriptExecutor) alice).executeScript("""
+                    const e = document.querySelector('.sc-tavern__sign');
+                    if (!e) return false;
+                    const r = e.getBoundingClientRect();
+                    return r.width > 20 && r.height > 20 && r.bottom > 0 && r.top < innerHeight;
+                    """), "L’enseigne MJÖDHEIM doit être réellement visible dans le cadrage.");
             assertFalse(alice.findElements(By.cssSelector(".sc-seat")).isEmpty(),
                     "Les places libres doivent rester visibles et choisissables.");
 

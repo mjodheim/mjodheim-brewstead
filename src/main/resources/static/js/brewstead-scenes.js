@@ -695,10 +695,10 @@
     var TAVERN_SEATS = {
         'bar-gauche': { x: 332, y: 445, k: .92, face: 'dos' },
         'bar-droite': { x: 628, y: 445, k: .92, face: 'dos' },
-        'table-gauche-a': { x: 91, y: 486, k: .84, face: 'droite' },
-        'table-gauche-b': { x: 248, y: 488, k: .84, face: 'gauche' },
-        'table-droite-a': { x: 712, y: 480, k: .82, face: 'droite' },
-        'table-droite-b': { x: 873, y: 482, k: .82, face: 'gauche' },
+        'table-gauche-a': { x: 118, y: 486, k: .84, face: 'droite' },
+        'table-gauche-b': { x: 254, y: 488, k: .84, face: 'gauche' },
+        'table-droite-a': { x: 706, y: 480, k: .82, face: 'droite' },
+        'table-droite-b': { x: 842, y: 482, k: .82, face: 'gauche' },
         'feu-gauche': { x: 389, y: 505, k: .88, face: 'droite' },
         'feu-droite': { x: 570, y: 507, k: .88, face: 'gauche' }
     };
@@ -727,11 +727,11 @@
     }
 
     function cheveux(style, color) {
-        if (style === 'rase') return '<path class="sc-patron__hair" fill="' + color + '" d="M-20-57q20-18 40 0v8q-20-9-40 0Z"/>';
-        if (style === 'tresse') return '<path class="sc-patron__hair" fill="' + color + '" d="M-23-55q21-23 45 0v13q-8-15-13-9v21q0 13 9 24l-8 4Q-2-18 1-48q-11-5-24 8Z"/>';
-        if (style === 'long') return '<path class="sc-patron__hair" fill="' + color + '" d="M-25-54q23-23 49 1v34l-12 8 1-37q-15-10-26 0l1 37-13-8Z"/>';
-        if (style === 'boucles') return '<path class="sc-patron__hair" fill="' + color + '" d="M-24-55q4-14 13-9 7-10 15-2 11-7 16 5 11 1 7 14l-8 5q-5-12-14-7-8-8-17 0-7-7-12-1Z"/>';
-        return '<path class="sc-patron__hair" fill="' + color + '" d="M-22-56q20-21 43 0l-3 10q-22-10-38 2Z"/>';
+        if (style === 'rase') return '<path class="sc-patron__hair" fill="' + color + '" d="M-20-69q20-12 40 0v8q-20-6-40 0Z"/>';
+        if (style === 'tresse') return '<path class="sc-patron__hair" fill="' + color + '" d="M-23-67q21-17 45 0v10q-20-8-39 0l-6 22 8 2 8-23q4-3 8-3v31q0 12 9 22l-8 4Q-7-17-5-57q-9 1-18 8Z"/>';
+        if (style === 'long') return '<path class="sc-patron__hair" fill="' + color + '" d="M-25-67q23-17 49 0v43l-12 9 1-40q-14-7-26 0l1 40-13-9Z"/>';
+        if (style === 'boucles') return '<path class="sc-patron__hair" fill="' + color + '" d="M-24-67q4-12 13-8 7-9 15-2 11-6 16 5 10 1 7 12l-8 5q-5-9-14-6-8-6-17 0-7-5-12-1Z"/>';
+        return '<path class="sc-patron__hair" fill="' + color + '" d="M-22-68q20-16 43 0l-3 12q-20-8-38 1Z"/>';
     }
 
     function patronNode(person, room) {
@@ -858,8 +858,8 @@
             '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
             '</g>' +
             '<g class="sc-tavern__beams"><path d="M0 102h960v18H0ZM112 0h18v252H112ZM824 0h18v252h-18Z"/></g>' +
-            '<g class="sc-tavern__sign"><path d="M406 62q74-22 148 0l-9 68q-65 18-130 0Z"/>' +
-            '<text x="480" y="98">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="119">TAVERNE DU FJORD</text></g>' +
+            '<g class="sc-tavern__sign"><path d="M402 160q78-20 156 0l-8 62q-70 18-140 0Z"/>' +
+            '<text x="480" y="190">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="210">TAVERNE DU FJORD</text></g>' +
             zinc + barman() + tables() + places + patrons + chopes + light() +
             (!room ? '<text class="sc-salle__vide" x="480" y="292">Entre dans une salle pour retrouver les autres brasseurs.</text>' : '') +
             (room && !people.some(function (p) { return p.seatKey; })
@@ -881,10 +881,9 @@
         out += '<path class="sc-bar__etagere" d="M18 226h924v16H18Z"/>' +
             '<path class="sc-bar__console" d="M96 242h16v26H96ZM440 242h16v26h-16ZM848 242h16v26h-16Z"/>';
 
-        for (var i = 0; i < 5; i++) {
-            var x = 128 + i * 176;
+        [145, 340, 620, 815].forEach(function (x) {
             out += futCouche(x, 222, 0.92);
-        }
+        });
 
         // Le plateau. Le liseré clair sur l'arête est ce qui fait « zinc ».
         out += '<path class="sc-bar__front" d="M34 344h892v112H34Z"/>';

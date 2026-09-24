@@ -33,6 +33,7 @@ class TavernChatServiceTest {
     @Mock PlayerProfileRepository playerRepository;
     @Mock TavernRoomRepository roomRepository;
     @Mock TavernPresenceRepository presenceRepository;
+    @Mock TavernLiveService liveService;
     @InjectMocks TavernChatService service;
 
     @Test
@@ -80,6 +81,7 @@ class TavernChatServiceTest {
 
         assertEquals("Skål  ici", result.body());
         verify(messageRepository).save(argThat(message -> message.getRoom() == room));
+        verify(liveService).publish(eq(9L), any());
         assertThrows(IllegalStateException.class,
                 () -> service.postInRoom(10L, 1L, new PostMessageRequest("ailleurs")));
     }

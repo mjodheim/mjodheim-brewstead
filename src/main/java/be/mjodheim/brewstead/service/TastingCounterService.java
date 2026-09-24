@@ -4,16 +4,20 @@ import be.mjodheim.brewstead.dto.brew.TastingResponse;
 import be.mjodheim.brewstead.dto.effect.PlayerEffectResponse;
 import be.mjodheim.brewstead.dto.tavern.OpenOfferRequest;
 import be.mjodheim.brewstead.dto.tavern.TastingOfferResponse;
+import be.mjodheim.brewstead.dto.tavern.TavernLiveEventResponse;
+import be.mjodheim.brewstead.dto.tavern.TavernPresenceResponse;
 import be.mjodheim.brewstead.entity.Batch;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.TastingOffer;
+import be.mjodheim.brewstead.entity.TavernPresence;
 import be.mjodheim.brewstead.enums.BatchStatus;
 import be.mjodheim.brewstead.enums.ProgressAction;
 import be.mjodheim.brewstead.exception.InsufficientCoinsException;
 import be.mjodheim.brewstead.repository.BatchRepository;
 import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.TastingOfferRepository;
+import be.mjodheim.brewstead.repository.TavernPresenceRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,6 +45,8 @@ public class TastingCounterService {
     private final PlayerService playerService;
     private final EffectService effectService;
     private final ProgressionService progressionService;
+    private final TavernPresenceRepository presenceRepository;
+    private final TavernLiveService liveService;
 
     @Transactional
     public List<TastingOfferResponse> counter(Long viewerId) {
@@ -120,7 +126,39 @@ public class TastingCounterService {
         Recipe recipe = offer.getBatch().getRecipe();
         PlayerEffectResponse effect = effectService.grant(playerId, recipe);
         progressionService.record(playerId, ProgressAction.TASTE_AT_TAVERN);
+
+        LocalDateTime now = LocalDateTime.now();
+        presenceRepository.findByPlayerId(playerId).ifPresent(presence -> {
+            presence.setAction("DRINKING");
+            presence.setActionAt(now);
+            presence.setLastSeenAt(now);
+            presenceRepository.save(presence);
+            TavernPresenceResponse player = tavernPresence(presence, playerId);
+            liveService.publish(presence.getRoom().getId(),
+                    TavernLiveEventResponse.drink(presence.getRoom().getId(), player, recipe.getName()));
+        });
+
         return new TastingResponse(recipe.getName(), recipe.getFlavour(), effect);
+    }
+
+    private TavernPresenceResponse tavernPresence(TavernPresence presence, Long viewerId) {
+        PlayerProfile player = presence.getPlayer();
+        TavernNavigation.Seat seat = presence.getSeatKey() == null ? null : TavernNavigation.seat(presence.getSeatKey());
+        TavernNavigation.Point point = seat != null
+                ? new TavernNavigation.Point(seat.x(), seat.y())
+                : presence.getPositionX() != null && presence.getPositionY() != null
+                    ? TavernNavigation.normalize(presence.getPositionX(), presence.getPositionY())
+                    : TavernNavigation.spawn();
+        return new TavernPresenceResponse(
+                player.getId(), player.getDisplayName(), player.getLevel(), player.getReputation(),
+                presence.getSeatKey(), player.getId().equals(viewerId),
+                // Le client a déjà l'apparence complète dans son snapshot ;
+                // l'événement de boisson ne doit transporter qu'un état léger.
+                null, presence.getEmote(), presence.getEmoteAt(),
+                point.x(), point.y(),
+                presence.getFacing() == null ? "LEFT" : presence.getFacing(),
+                presence.getPose() == null ? "STANDING" : presence.getPose(),
+                "DRINKING", presence.getActionAt());
     }
 
     private TastingOfferResponse toResponse(TastingOffer offer, Long viewerId) {

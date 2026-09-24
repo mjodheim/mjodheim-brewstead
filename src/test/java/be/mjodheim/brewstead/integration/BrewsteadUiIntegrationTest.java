@@ -472,8 +472,15 @@ class BrewsteadUiIntegrationTest {
             b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
             // Le remplissage dense doit les mettre dans la même petite salle.
-            a.until(d -> d.findElements(By.cssSelector(".sc-patron")).size() >= 2);
-            assertEquals(2, alice.findElements(By.cssSelector(".sc-patron")).size());
+            // D'autres navigateurs d'un test précédent peuvent encore être
+            // dans la fenêtre de présence : on vérifie nos deux joueurs, pas
+            // un nombre global artificiellement exact.
+            long aliceId = profile("ui_tavern_alice").getId();
+            long bobId = profile("ui_tavern_bob").getId();
+            a.until(d -> !d.findElements(By.cssSelector(".sc-patron[data-id='" + aliceId + "']")).isEmpty()
+                    && !d.findElements(By.cssSelector(".sc-patron[data-id='" + bobId + "']")).isEmpty());
+            assertTrue(alice.findElements(By.cssSelector(".sc-patron")).size() <= 6,
+                    "Une salle ne doit jamais dépasser sa capacité.");
 
             WebElement talk = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             talk.sendKeys("À la nôtre, Bob !");
@@ -483,6 +490,45 @@ class BrewsteadUiIntegrationTest {
 
             click(bob, b, By.cssSelector("[data-action='tavern-emote'][data-id='SKAL']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron__emote")));
+
+            // Alice quitte sa chaise en cliquant réellement sur le plancher.
+            // Le client la déplace tout de suite ; Bob doit recevoir le même
+            // mouvement par SSE, bien avant le polling de secours (12 s).
+            long movementStarted = System.nanoTime();
+            ((JavascriptExecutor) alice).executeScript("""
+                    const svg = document.querySelector('.sc-stage');
+                    const floor = document.querySelector('.sc-tavern__walk');
+                    const point = svg.createSVGPoint();
+                    point.x = 590; point.y = 405;
+                    const screen = point.matrixTransform(svg.getScreenCTM());
+                    floor.dispatchEvent(new PointerEvent('pointerup', {
+                      bubbles: true, pointerType: 'mouse',
+                      clientX: screen.x, clientY: screen.y
+                    }));
+                    """);
+
+            By aliceOnAlice = By.cssSelector(".sc-patron.is-self");
+            a.until(d -> {
+                WebElement node = d.findElement(aliceOnAlice);
+                return "STANDING".equals(node.getAttribute("data-pose"))
+                        && Math.abs(Double.parseDouble(node.getAttribute("data-x")) - 590.0) < 3;
+            });
+
+            By aliceOnBob = By.cssSelector(".sc-patron[data-id='" + aliceId + "']");
+            b.until(d -> {
+                List<WebElement> nodes = d.findElements(aliceOnBob);
+                if (nodes.isEmpty()) return false;
+                String x = nodes.getFirst().getAttribute("data-x");
+                return x != null && !x.isBlank() && Math.abs(Double.parseDouble(x) - 590.0) < 3;
+            });
+            long liveLatencyMs = Duration.ofNanos(System.nanoTime() - movementStarted).toMillis();
+            assertTrue(liveLatencyMs < 5000,
+                    "Le mouvement live a mis " + liveLatencyMs + " ms : le polling ne doit pas faire le travail du SSE.");
+
+            // Et le clavier doit fonctionner sans passer par un champ de texte.
+            alice.findElement(By.tagName("body")).sendKeys(Keys.ARROW_RIGHT);
+            a.until(d -> Double.parseDouble(d.findElement(aliceOnAlice).getAttribute("data-x")) > 610);
+            b.until(d -> Double.parseDouble(d.findElement(aliceOnBob).getAttribute("data-x")) > 610);
 
             assertTrue(alice.findElement(By.cssSelector(".sc-barman")).isDisplayed(),
                     "Le barman doit faire partie de la scène.");
@@ -496,11 +542,13 @@ class BrewsteadUiIntegrationTest {
                     "Les places libres doivent rester visibles et choisissables.");
 
             screenshot(alice, "14-taverne-sociale-desktop.png");
+            screenshot(bob, "16-taverne-libre-live-desktop.png");
 
             alice.manage().window().setSize(new Dimension(390, 844));
             new Actions(alice).pause(Duration.ofMillis(400)).perform();
             assertTrue(alice.findElement(By.cssSelector(".tavern-dock")).isDisplayed());
             screenshot(alice, "15-taverne-sociale-mobile.png");
+            screenshot(alice, "17-taverne-libre-mobile.png");
 
             assertNoApplicationJavascriptErrors(alice);
             assertNoApplicationJavascriptErrors(bob);

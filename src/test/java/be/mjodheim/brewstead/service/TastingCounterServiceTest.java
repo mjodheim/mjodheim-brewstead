@@ -7,11 +7,14 @@ import be.mjodheim.brewstead.entity.Batch;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.Recipe;
 import be.mjodheim.brewstead.entity.TastingOffer;
+import be.mjodheim.brewstead.entity.TavernPresence;
+import be.mjodheim.brewstead.entity.TavernRoom;
 import be.mjodheim.brewstead.enums.BatchStatus;
 import be.mjodheim.brewstead.exception.InsufficientCoinsException;
 import be.mjodheim.brewstead.repository.BatchRepository;
 import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.TastingOfferRepository;
+import be.mjodheim.brewstead.repository.TavernPresenceRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -40,6 +43,8 @@ class TastingCounterServiceTest {
     @Mock PlayerService playerService;
     @Mock EffectService effectService;
     @Mock ProgressionService progressionService;
+    @Mock TavernPresenceRepository presenceRepository;
+    @Mock TavernLiveService liveService;
     @InjectMocks TastingCounterService service;
 
     @Test
@@ -128,6 +133,10 @@ class TastingCounterServiceTest {
         TastingOffer offer = offer(8, seller, readyBatch(4, seller, recipe, "5.00"), 2, 25);
         when(offerRepository.findById(8L)).thenReturn(Optional.of(offer));
         when(playerRepository.findById(2L)).thenReturn(Optional.of(drinker));
+        TavernRoom room = TavernRoom.builder().id(11L).code("ROOM11").name("Salle").capacity(6).build();
+        TavernPresence presence = TavernPresence.builder().room(room).player(drinker)
+                .positionX(500.0).positionY(430.0).build();
+        when(presenceRepository.findByPlayerId(2L)).thenReturn(Optional.of(presence));
 
         TastingResponse result = service.serve(2L, 8L);
 
@@ -136,6 +145,8 @@ class TastingCounterServiceTest {
         verify(effectService).grant(2L, recipe);
         assertEquals(1, offer.getServings());
         assertEquals(recipe.getName(), result.recipeName());
+        assertEquals("DRINKING", presence.getAction());
+        verify(liveService).publish(eq(11L), any());
     }
 
     @Test

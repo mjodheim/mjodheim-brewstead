@@ -3,11 +3,14 @@ package be.mjodheim.brewstead.controller;
 import be.mjodheim.brewstead.dto.tavern.*;
 import be.mjodheim.brewstead.service.CurrentPlayerService;
 import be.mjodheim.brewstead.service.TavernChatService;
+import be.mjodheim.brewstead.service.TavernLiveService;
 import be.mjodheim.brewstead.service.TavernRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.security.Principal;
 
@@ -18,6 +21,7 @@ public class TavernSocialController {
 
     private final TavernRoomService roomService;
     private final TavernChatService chatService;
+    private final TavernLiveService liveService;
     private final CurrentPlayerService currentPlayer;
 
     @GetMapping
@@ -60,6 +64,18 @@ public class TavernSocialController {
     @PostMapping("/{roomId}/emotes/{emote}")
     public TavernRoomSnapshot emote(Principal principal, @PathVariable Long roomId, @PathVariable String emote) {
         return roomService.emote(currentPlayer.id(principal), roomId, emote);
+    }
+
+    @PostMapping("/{roomId}/move")
+    public TavernPresenceResponse move(Principal principal, @PathVariable Long roomId,
+                                       @RequestBody TavernMoveRequest request) {
+        return roomService.move(currentPlayer.id(principal), roomId, request);
+    }
+
+    @GetMapping(value = "/{roomId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events(Principal principal, @PathVariable Long roomId) {
+        roomService.assertPresent(currentPlayer.id(principal), roomId);
+        return liveService.subscribe(roomId);
     }
 
     @PostMapping("/{roomId}/messages")

@@ -157,6 +157,17 @@
     }
 
     function painted(place) {
+        // La taverne a maintenant sa propre peinture, légère (~50 KiB), au
+        // lieu d'un zoom dans le domaine flouté. C'est plus détaillé et
+        // moins coûteux qu'un décor reconstruit à chaque frame.
+        if (place === 'taverne') {
+            return '<g class="sc-far sc-far--tavern">' +
+                '<image href="/images/lieux/taverne.webp" x="0" y="0" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT +
+                '" preserveAspectRatio="xMidYMid slice"/>' +
+                '</g>' +
+                '<rect class="sc-brume sc-brume--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
+        }
+
         var crop = CROPS[place] || CROPS.champs;
         var height = crop.width * STAGE_HEIGHT / STAGE_WIDTH;
         var scale = STAGE_WIDTH / crop.width;
@@ -168,8 +179,6 @@
             '" width="' + (1536 * scale).toFixed(1) + '" height="' + (742 * scale).toFixed(1) +
             '" preserveAspectRatio="none"/>' +
             '</g>' +
-            // Hors du groupe flouté : une brume nette se lit comme de l'air,
-            // une brume floue comme une tache.
             '<rect class="sc-brume" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
     }
 
@@ -703,6 +712,51 @@
         'feu-droite': { x: 570, y: 507, k: .88, face: 'gauche' }
     };
 
+    var TAVERN_TABLES = [
+        { cx: 168, cy: 472, rx: 112, ry: 43 },
+        { cx: 478, cy: 486, rx: 126, ry: 48 },
+        { cx: 792, cy: 468, rx: 106, ry: 41 }
+    ];
+
+    function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
+    function normalizeTavernPoint(x, y) {
+        x = clamp(Number(x) || 862, 72, 888);
+        y = clamp(Number(y) || 405, 382, 520);
+        for (var pass = 0; pass < 2; pass++) {
+            TAVERN_TABLES.forEach(function (table) {
+                var nx = (x - table.cx) / table.rx;
+                var ny = (y - table.cy) / table.ry;
+                var d2 = nx * nx + ny * ny;
+                if (d2 >= 1) return;
+                if (d2 < .0001) {
+                    nx = 0;
+                    ny = y <= table.cy ? -1 : 1;
+                    d2 = 1;
+                }
+                var factor = 1.08 / Math.sqrt(d2);
+                x = clamp(table.cx + nx * factor * table.rx, 72, 888);
+                y = clamp(table.cy + ny * factor * table.ry, 382, 520);
+            });
+        }
+        return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+    }
+
+    function tavernPoint(svg, clientX, clientY) {
+        if (!svg || !svg.createSVGPoint || !svg.getScreenCTM()) return null;
+        var point = svg.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+        var local = point.matrixTransform(svg.getScreenCTM().inverse());
+        return normalizeTavernPoint(local.x, local.y);
+    }
+
+    function tavernScale(y, bodyScale, seatKey) {
+        if (seatKey && TAVERN_SEATS[seatKey]) return TAVERN_SEATS[seatKey].k * bodyScale;
+        var depth = .76 + ((clamp(y, 382, 520) - 382) / 138) * .20;
+        return depth * bodyScale;
+    }
+
     function couleurPersonnage(palette) {
         return {
             ambre: ['#9a542d', '#d18843', '#f1ba68'],
@@ -735,8 +789,11 @@
     }
 
     function patronNode(person, room) {
-        if (!person.seatKey || !TAVERN_SEATS[person.seatKey]) return '';
-        var seat = TAVERN_SEATS[person.seatKey];
+        var seated = !!(person.seatKey && TAVERN_SEATS[person.seatKey]);
+        var seat = seated ? TAVERN_SEATS[person.seatKey] : null;
+        var pos = seated
+            ? { x: seat.x, y: seat.y }
+            : normalizeTavernPoint(person.x == null ? 862 : person.x, person.y == null ? 405 : person.y);
         var palette = couleurPersonnage(person.character && person.character.palette);
         var hairColors = ['#352319', '#5b3a24', '#8a5d30', '#2e2b29', '#b89158'];
         var hc = hairColors[(Number(person.playerId) || 0) % hairColors.length];
@@ -745,11 +802,17 @@
         var emoteAge = person.emoteAt ? Date.now() - new Date(person.emoteAt).getTime() : Infinity;
         var emote = emoteAge < 5500 ? {SKAL:'🍻',SALUT:'👋',RIRE:'😄',COEUR:'♥',MUSIQUE:'♫'}[person.emote] : '';
         var emoteUntil = person.emoteAt ? new Date(person.emoteAt).getTime() + 5500 : 0;
+        var actionAge = person.actionAt ? Date.now() - new Date(person.actionAt).getTime() : Infinity;
+        var drinking = person.action === 'DRINKING' && actionAge < 4500;
         var name = lignes(person.name, 128, 13, 1);
         var speakClass = speech ? ' is-speaking' : '';
         var selfClass = person.self ? ' is-self' : '';
+        var drinkClass = drinking ? ' is-drinking' : '';
         var bodyScale = person.character && person.character.body === 'grand' ? 1.06 :
             (person.character && person.character.body === 'fin' ? .94 : 1);
+        var scale = tavernScale(pos.y, bodyScale, person.seatKey);
+        var facing = person.facing || (seat && seat.face === 'gauche' ? 'LEFT' : 'RIGHT');
+        var pose = seated ? 'SEATED' : (person.pose || 'STANDING');
         var outfit = person.character && person.character.outfit || 'brasseur';
         var apron = outfit === 'brasseur'
             ? '<path class="sc-patron__apron" d="M-22-20q22-10 44 0l-3 52h-38Z"/>'
@@ -766,10 +829,14 @@
                 texteEnLignes('sc-speech__text', 0, 12, 17, words) + '</g>';
         }
 
-        return '<g class="sc-node sc-patron' + speakClass + selfClass + '" data-id="' + person.playerId +
-            '" data-action="tavern-player" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
-            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' + seat.x + ' ' + seat.y + ') scale(' + (seat.k * bodyScale).toFixed(3) + ')">' +
-            '<ellipse class="sc-patron__shadow" cx="0" cy="10" rx="43" ry="12"/>' +
+        return '<g class="sc-node sc-patron' + speakClass + selfClass + drinkClass + '" data-id="' + person.playerId +
+            '" data-action="tavern-player" data-x="' + pos.x + '" data-y="' + pos.y + '" data-k="' + scale.toFixed(3) +
+            '" data-body-scale="' + bodyScale + '" data-facing="' + facing + '" data-pose="' + pose +
+            '" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
+            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' +
+            pos.x + ' ' + pos.y + ') scale(' + scale.toFixed(3) + ')">' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="70" rx="38" ry="9"/>' +
+            '<g class="sc-patron__figure">' +
             '<path class="sc-chair__back" d="M-34-35q34-13 68 0v39h-8l-5-29q-21-8-42 0l-5 29h-8Z"/>' +
             '<g class="sc-patron__body">' +
             '<path class="sc-patron__legs" d="M-23 22l-8 47h15l16-39 16 39h15l-8-47Z"/>' +
@@ -780,21 +847,29 @@
             apron +
             '<g class="sc-patron__arm sc-patron__arm--left"><path d="M-28-18q-17 8-22 33l10 3q7-18 20-25Z"/></g>' +
             '<g class="sc-patron__arm sc-patron__arm--right"><path d="M28-18q17 8 22 31l-10 4Q33 0 20-8Z"/>' +
-            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/></g></g>' +
+            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/>' +
+            '<ellipse class="sc-patron__foam" cx="0" cy="-12" rx="8" ry="3"/></g></g>' +
+            '<path class="sc-patron__folds" d="M-12-13q4 23 2 39M12-13q-4 23-2 39"/>' +
+            '<path class="sc-patron__collar" d="M-15-24 0-11l15-13"/>' +
             '</g>' +
             '<g class="sc-patron__head">' +
             '<path class="sc-patron__neck" d="M-9-34h18v17H-9Z"/>' +
             '<ellipse class="sc-patron__face" cx="0" cy="-50" rx="22" ry="25"/>' +
             '<circle class="sc-patron__ear" cx="-23" cy="-49" r="5"/><circle class="sc-patron__ear" cx="23" cy="-49" r="5"/>' +
             '<path class="sc-patron__nose" d="M1-51l-3 9 6 1"/>' +
-            '<path class="sc-patron__eyes" d="M-11-53h4m14 0h4"/>' +
+            '<path class="sc-patron__eyes" d="M-12-54q4-2 7 0m10 0q4-2 7 0"/>' +
+            '<path class="sc-patron__brows" d="M-13-60q5-3 10 0m6 0q5-3 10 0"/>' +
+            '<path class="sc-patron__mouth" d="M-7-39q7 5 14 0"/>' +
+            (((Number(person.playerId) || 0) % 3 === 0)
+                ? '<path class="sc-patron__beard" fill="' + hc + '" d="M-18-42q18 17 36 0-2 25-18 28-16-3-18-28Z"/>'
+                : '') +
             cheveux(person.character && person.character.hair, hc) +
             (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="18" cy="-14" r="4"/>' : '') +
-            '</g>' +
-            texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, 96, 14, name) +
+            '</g></g>' +
+            texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, 101, 14, name) +
             (emote ? '<text class="sc-patron__emote" data-until="' + emoteUntil + '" x="0" y="-105">' + emote + '</text>' : '') +
             bubble +
-            hit(0, -22, 100, 155) +
+            hit(0, -12, 100, 175) +
             '</g>';
     }
 
@@ -823,6 +898,63 @@
             '</g>';
     }
 
+    function tavernInteriorDecor() {
+        return '<g class="sc-tavern__interior" aria-hidden="true">' +
+            // Lambris et grosses poutres : profondeur nette par-dessus le tableau peint.
+            '<path class="sc-tavern__panel" d="M0 116H960V326H0Z"/>' +
+            '<path class="sc-tavern__beam-deep" d="M0 112h960v18H0ZM84 112h20v214H84ZM856 112h20v214h-20Z"/>' +
+            '<path class="sc-tavern__beam-edge" d="M0 130h960M104 112v214M856 112v214"/>' +
+
+            // Étagère gauche : bouteilles, cruches et plantes suspendues.
+            '<g class="sc-tavern__shelf" transform="translate(18 164)">' +
+            '<path class="sc-tavern__shelf-board" d="M0 70h190v14H0Z"/>' +
+            '<path class="sc-tavern__shelf-brace" d="M22 84h12v26H22ZM160 84h12v26h-12Z"/>' +
+            '<g class="sc-tavern__bottles">' +
+            '<path d="M20 34h16v36H18V45l5-5v-6Z"/><path d="M49 20h13v50H47V32l4-4v-8Z"/>' +
+            '<path d="M75 39h20v31H73V47l6-4v-4Z"/><path d="M111 27h15v43h-17V39l4-4v-8Z"/>' +
+            '<path d="M143 35h22v35h-24V45l6-4v-6Z"/>' +
+            '</g>' +
+            '<g class="sc-tavern__herbs">' +
+            '<path d="M42 0v26M39 4q-15 9 0 17M45 7q15 8 0 16"/>' +
+            '<path d="M130-3v31M126 2q-16 8 0 18M134 4q16 9 0 20"/>' +
+            '</g></g>' +
+
+            // Coin droit : tableau des brassins et trophée de chasse stylisé.
+            '<g class="sc-tavern__board" transform="translate(735 148)">' +
+            '<path d="M0 0h116v112H0Z"/><path class="sc-tavern__board-frame" d="M0 0h116v112H0Z"/>' +
+            '<path class="sc-tavern__chalk" d="M17 22h56M17 41h77M17 60h64M17 79h72"/>' +
+            '<circle class="sc-tavern__chalk-dot" cx="94" cy="22" r="3"/>' +
+            '<circle class="sc-tavern__chalk-dot" cx="83" cy="60" r="3"/></g>' +
+            '<g class="sc-tavern__crest" transform="translate(891 158)">' +
+            '<path d="M0 16 24 0l24 16-5 52-19 15L5 68Z"/>' +
+            '<path class="sc-tavern__antler" d="M17 38q-15-14-9-27m8 18L5 23m26 15q15-14 9-27m-8 18 11-6"/>' +
+            '<circle cx="24" cy="42" r="10"/></g>' +
+
+            // Petit foyer latéral, loin du joueur : seulement deux flammes.
+            '<g class="sc-tavern__hearth" transform="translate(18 268)">' +
+            '<path class="sc-tavern__hearth-stone" d="M0 58V8Q0 0 8 0h86q8 0 8 8v50H86V18H16v40Z"/>' +
+            '<path class="sc-tavern__hearth-dark" d="M16 58V18h70v40Z"/>' +
+            '<path class="sc-tavern__log" d="M25 51 72 38l4 8-48 13Z"/>' +
+            '<path class="sc-tavern__fire sc-tavern__fire--a" d="M48 50q-18-18 1-37-3 17 9 22 9-15 16-20 6 23-10 35Z"/>' +
+            '<path class="sc-tavern__fire sc-tavern__fire--b" d="M52 51q-8-12 5-24-1 10 6 14 5-9 8-11 3 13-6 21Z"/></g>' +
+
+            // Tapis central : masse colorée fixe, quasiment gratuite à rendre.
+            '<path class="sc-tavern__rug-shadow" d="M255 448Q480 405 705 448L664 542H296Z"/>' +
+            '<path class="sc-tavern__rug" d="M271 451Q480 415 689 451L651 531H309Z"/>' +
+            '<path class="sc-tavern__rug-line" d="M318 470Q480 441 642 470M335 503Q480 478 625 503"/>' +
+
+            // Lustres simples : lumière réelle portée par les halos existants.
+            '<g class="sc-tavern__chandelier" transform="translate(258 100)">' +
+            '<path d="M0 0v50m-38 7q38 17 76 0M-38 57v19m76-19v19"/>' +
+            '<path class="sc-tavern__candle" d="M-43 76h10v24h-10Zm76 0h10v24H33Z"/>' +
+            '<ellipse class="sc-tavern__flame" cx="-38" cy="72" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="38" cy="72" rx="4" ry="8"/></g>' +
+            '<g class="sc-tavern__chandelier" transform="translate(700 94)">' +
+            '<path d="M0 0v48m-35 7q35 16 70 0M-35 55v18m70-18v18"/>' +
+            '<path class="sc-tavern__candle" d="M-40 73h10v24h-10Zm70 0h10v24H30Z"/>' +
+            '<ellipse class="sc-tavern__flame" cx="-35" cy="69" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="35" cy="69" rx="4" ry="8"/></g>' +
+            '</g>';
+    }
+
     function taverne(state) {
         var offres = state.tavernCounter || [];
         var room = state.tavernRoom;
@@ -845,18 +977,24 @@
             return placeNode(key, occupied[key]);
         }).join('') : '';
 
-        var patrons = room ? people.map(function (person) {
+        var patrons = room ? '<g class="sc-tavern__patrons">' + people.map(function (person) {
             return patronNode(person, room);
-        }).join('') : '';
+        }).join('') + '</g>' : '';
 
         return defs() + painted('taverne') +
-            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
-            floor(336, 'cellar') +
+            '<rect class="sc-dusk sc-dusk--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            floor(336, 'cellar') + tavernInteriorDecor() +
             '<g class="sc-lanterns">' +
             '<ellipse cx="150" cy="150" rx="104" ry="92" fill="url(#sc-halo)"/>' +
             '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
             '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
             '</g>' +
+            '<path class="sc-tavern__lightbeam" d="M885 130 960 155 760 520 615 520Z"/>' +
+            '<g class="sc-tavern__embers">' +
+            '<circle cx="65" cy="400" r="2"/><circle cx="82" cy="424" r="1.6"/><circle cx="52" cy="448" r="1.4"/>' +
+            '</g>' +
+            '<rect class="sc-tavern__walk" x="54" y="352" width="852" height="188" rx="28"/>' +
+            '<g class="sc-tavern__cursor"><circle r="13"/><circle class="sc-tavern__cursor-core" r="3"/></g>' +
             '<g class="sc-tavern__beams"><path d="M0 102h960v18H0ZM112 0h18v252H112ZM824 0h18v252h-18Z"/></g>' +
             '<g class="sc-tavern__sign"><path d="M402 160q78-20 156 0l-8 62q-70 18-140 0Z"/>' +
             '<text x="480" y="190">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="210">TAVERNE DU FJORD</text></g>' +
@@ -1410,7 +1548,9 @@
             var messages = room && room.messages || [];
             return (room ? room.id : 'lobby') + '::' +
                 people.map(function (p) {
-                    return p.playerId + ':' + (p.seatKey || '-') + ':' + (p.emote || '-') + ':' + (p.emoteAt || '-');
+                    return p.playerId + ':' + (p.seatKey || '-') + ':' + Number(p.x || 0).toFixed(1) + ':' +
+                        Number(p.y || 0).toFixed(1) + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
+                        (p.emote || '-') + ':' + (p.emoteAt || '-');
                 }).join('|') + '::' +
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
                 (state.tavernCounter || []).map(function (o) {
@@ -1433,6 +1573,94 @@
             }).join('|');
         }
         return '';
+    }
+
+    function sortTavernPatrons(root) {
+        var group = root && root.querySelector('.sc-tavern__patrons');
+        if (!group) return;
+        Array.from(group.querySelectorAll('.sc-patron'))
+            .sort(function (a, b) { return Number(a.dataset.y || 0) - Number(b.dataset.y || 0); })
+            .forEach(function (node) { group.appendChild(node); });
+    }
+
+    function movePatron(root, person, localPrediction) {
+        if (!root || !person) return 0;
+        var node = root.querySelector('.sc-patron[data-id="' + person.playerId + '"]');
+        if (!node) return 0;
+
+        var target = normalizeTavernPoint(person.x, person.y);
+        var bodyScale = Number(node.dataset.bodyScale || 1);
+        var targetScale = tavernScale(target.y, bodyScale, person.seatKey);
+        var fromX = Number(node._brewX == null ? node.dataset.x : node._brewX);
+        var fromY = Number(node._brewY == null ? node.dataset.y : node._brewY);
+        var fromK = Number(node._brewK == null ? node.dataset.k : node._brewK);
+        var distance = Math.hypot(target.x - fromX, (target.y - fromY) * 1.35);
+        var duration = document.documentElement.dataset.mouvement === 'sobre'
+            ? 0 : clamp(distance * 3.25, 170, 1350);
+
+        if (node._brewFrame) cancelAnimationFrame(node._brewFrame);
+        node.dataset.x = target.x;
+        node.dataset.y = target.y;
+        node.dataset.k = targetScale.toFixed(3);
+        node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
+        node.dataset.pose = person.pose || 'STANDING';
+        node.classList.toggle('is-walking', duration > 0 && person.pose !== 'SEATED');
+
+        function paint(x, y, k) {
+            node._brewX = x; node._brewY = y; node._brewK = k;
+            node.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ') scale(' + k.toFixed(4) + ')');
+        }
+
+        if (!duration) {
+            paint(target.x, target.y, targetScale);
+            node.classList.remove('is-walking');
+            sortTavernPatrons(root);
+            return 0;
+        }
+
+        var started = performance.now();
+        function frame(now) {
+            var t = Math.min(1, (now - started) / duration);
+            var ease = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            paint(
+                fromX + (target.x - fromX) * ease,
+                fromY + (target.y - fromY) * ease,
+                fromK + (targetScale - fromK) * ease
+            );
+            if (t < 1) node._brewFrame = requestAnimationFrame(frame);
+            else {
+                node._brewFrame = null;
+                node.classList.remove('is-walking');
+                sortTavernPatrons(root);
+            }
+        }
+        node._brewFrame = requestAnimationFrame(frame);
+        return duration;
+    }
+
+    function animateDrink(root, playerId, drinkName) {
+        if (!root) return;
+        var node = root.querySelector('.sc-patron[data-id="' + playerId + '"]');
+        if (!node) return;
+        node.classList.remove('is-drinking');
+        // Forcer le navigateur à constater le retrait pour rejouer l'animation.
+        void node.getBoundingClientRect();
+        node.classList.add('is-drinking');
+        node.setAttribute('aria-label', (node.getAttribute('aria-label') || '') + ' — boit ' + (drinkName || 'une pinte'));
+        clearTimeout(node._drinkTimer);
+        node._drinkTimer = setTimeout(function () { node.classList.remove('is-drinking'); }, 1700);
+    }
+
+    function showTavernDestination(root, x, y) {
+        if (!root) return;
+        var cursor = root.querySelector('.sc-tavern__cursor');
+        if (!cursor) return;
+        cursor.setAttribute('transform', 'translate(' + x + ' ' + y + ')');
+        cursor.classList.remove('is-active');
+        void cursor.getBoundingClientRect();
+        cursor.classList.add('is-active');
+        clearTimeout(cursor._hideTimer);
+        cursor._hideTimer = setTimeout(function () { cursor.classList.remove('is-active'); }, 650);
     }
 
     function has(place) {
@@ -1511,6 +1739,11 @@
         has: has,
         markup: markup,
         signature: signature,
-        tick: tick
+        tick: tick,
+        tavernPoint: tavernPoint,
+        normalizeTavernPoint: normalizeTavernPoint,
+        movePatron: movePatron,
+        animateDrink: animateDrink,
+        showTavernDestination: showTavernDestination
     };
 })(window);

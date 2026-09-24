@@ -32,12 +32,13 @@ class TavernRoomServiceTest {
     @Mock PlayerProfileRepository players;
     @Mock TavernChatService chat;
     @Mock TastingCounterService counter;
+    @Mock TavernLiveService live;
 
     TavernRoomService service;
 
     @BeforeEach
     void setUp() {
-        service = new TavernRoomService(rooms, presences, players, chat, counter);
+        service = new TavernRoomService(rooms, presences, players, chat, counter, live);
     }
 
     @Test
@@ -88,6 +89,27 @@ class TavernRoomServiceTest {
         TavernRoomSnapshot seated = service.takeSeat(7L, 4L, "feu-gauche");
         assertEquals(8, seated.seats().size());
         assertEquals("feu-gauche", mine.getSeatKey());
+    }
+
+    @Test
+    void freeMovementLeavesTheSeatAndAvoidsTheCenterTable() {
+        PlayerProfile me = player(7);
+        TavernRoom room = room(4, TavernRoomType.COMMON);
+        TavernPresence mine = presence(room, me);
+        mine.setSeatKey("bar-gauche");
+        mine.setPositionX(332.0);
+        mine.setPositionY(445.0);
+
+        when(presences.findByPlayerId(7L)).thenReturn(Optional.of(mine));
+
+        var moved = service.move(7L, 4L, new be.mjodheim.brewstead.dto.tavern.TavernMoveRequest(478, 486));
+
+        assertNull(mine.getSeatKey());
+        assertEquals("STANDING", moved.pose());
+        double dx = (moved.x() - 478) / 126.0;
+        double dy = (moved.y() - 486) / 48.0;
+        assertTrue(dx * dx + dy * dy >= 1.0, "La destination doit sortir de la table centrale.");
+        verify(live).publish(eq(4L), any());
     }
 
     @Test

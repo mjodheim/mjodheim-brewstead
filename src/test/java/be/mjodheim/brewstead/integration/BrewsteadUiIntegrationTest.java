@@ -336,11 +336,8 @@ class BrewsteadUiIntegrationTest {
         try {
             registerAndLogin(alice, a, "ui_chat_alice");
             registerAndLogin(bob, b, "ui_chat_bob");
-            // Le repère de la taverne ouvre directement la salle dessinée ;
-            // le fil de discussion est derrière « Voir la liste ».
-            click(alice, a, By.cssSelector("#markers [data-place='taverne']"));
+            ouvrirTaverneEnListe(alice, a);
             waitForScreen(a, "Taverne");
-            click(alice, a, By.cssSelector("[data-action='show-list'][data-id='taverne']"));
             assertEquals(1, alice.findElements(By.id("chatInput")).size(), "Pas de champ caché homonyme");
             WebElement draft = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             draft.sendKeys("Un message rédigé lentement");
@@ -363,7 +360,8 @@ class BrewsteadUiIntegrationTest {
             ((JavascriptExecutor) alice).executeScript("""
                     const original = window.fetch;
                     window.fetch = function(url, options) {
-                        if (url === '/api/tavern/chat' && options?.method === 'POST') {
+                        if (String(url).includes('/api/tavern/rooms/') && String(url).endsWith('/messages')
+                                && options?.method === 'POST') {
                             window.fetch = original;
                             return Promise.reject(new Error('Réseau indisponible'));
                         }
@@ -442,6 +440,69 @@ class BrewsteadUiIntegrationTest {
         } catch (RuntimeException | AssertionError failure) {
             screenshot(alice, "failure-chat-alice.png");
             screenshot(bob, "failure-chat-bob.png");
+            throw failure;
+        } finally {
+            alice.quit();
+            bob.quit();
+        }
+    }
+
+    @Test
+    void tavernRoomsSeatsCharactersChatAndEmotesFeelLikeAPlace() {
+        WebDriver alice = newBrowser();
+        WebDriver bob = newBrowser();
+        WebDriverWait a = new WebDriverWait(alice, Duration.ofSeconds(25));
+        WebDriverWait b = new WebDriverWait(bob, Duration.ofSeconds(25));
+        try {
+            registerAndLogin(alice, a, "ui_tavern_alice");
+            registerAndLogin(bob, b, "ui_tavern_bob");
+
+            ouvrirVue(alice, a, "taverne");
+            waitForScreen(a, "Taverne");
+            click(alice, a, By.cssSelector("[data-action='tavern-join-auto']"));
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
+            click(alice, a, By.cssSelector(".sc-seat[data-id='table-gauche-a']"));
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
+
+            ouvrirVue(bob, b, "taverne");
+            waitForScreen(b, "Taverne");
+            click(bob, b, By.cssSelector("[data-action='tavern-join-auto']"));
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
+            click(bob, b, By.cssSelector(".sc-seat[data-id='table-gauche-b']"));
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
+
+            // Le remplissage dense doit les mettre dans la même petite salle.
+            a.until(d -> d.findElements(By.cssSelector(".sc-patron")).size() >= 2);
+            assertEquals(2, alice.findElements(By.cssSelector(".sc-patron")).size());
+
+            WebElement talk = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
+            talk.sendKeys("À la nôtre, Bob !");
+            talk.sendKeys(Keys.ENTER);
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-speech")));
+            assertTrue(bob.findElement(By.cssSelector(".sc-speech")).getText().contains("À la nôtre"));
+
+            click(bob, b, By.cssSelector("[data-action='tavern-emote'][data-id='SKAL']"));
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron__emote")));
+
+            assertTrue(alice.findElement(By.cssSelector(".sc-barman")).isDisplayed(),
+                    "Le barman doit faire partie de la scène.");
+            assertTrue(alice.findElement(By.cssSelector(".sc-tavern__sign")).isDisplayed(),
+                    "La salle doit avoir son identité graphique.");
+            assertFalse(alice.findElements(By.cssSelector(".sc-seat")).isEmpty(),
+                    "Les places libres doivent rester visibles et choisissables.");
+
+            screenshot(alice, "14-taverne-sociale-desktop.png");
+
+            alice.manage().window().setSize(new Dimension(390, 844));
+            new Actions(alice).pause(Duration.ofMillis(400)).perform();
+            assertTrue(alice.findElement(By.cssSelector(".tavern-dock")).isDisplayed());
+            screenshot(alice, "15-taverne-sociale-mobile.png");
+
+            assertNoApplicationJavascriptErrors(alice);
+            assertNoApplicationJavascriptErrors(bob);
+        } catch (RuntimeException | AssertionError failure) {
+            screenshot(alice, "failure-taverne-sociale-alice.png");
+            screenshot(bob, "failure-taverne-sociale-bob.png");
             throw failure;
         } finally {
             alice.quit();
@@ -1123,17 +1184,23 @@ class BrewsteadUiIntegrationTest {
     private void ouvrirTaverneEnListe(WebDriver driver, WebDriverWait wait) {
         ouvrirVue(driver, wait, "taverne");
         waitForScreen(wait, "Taverne");
-        // La salle se redessine toute seule quand le comptoir bouge : garder
-        // une référence sur son bouton la rend caduque entre deux lignes.
-        // On cherche, on clique et on vérifie dans la même tentative.
+        By rejoindre = By.cssSelector("[data-action='tavern-join-auto']");
         By versListe = By.cssSelector("[data-action='show-list'][data-id='taverne']");
         wait.ignoring(StaleElementReferenceException.class)
                 .ignoring(ElementClickInterceptedException.class)
                 .until(d -> {
-                    if (!d.findElements(By.cssSelector(".tabs")).isEmpty()) return true;
+                    if (!d.findElements(By.cssSelector(".tavern-room-list")).isEmpty()) return true;
+                    if (!d.findElements(By.cssSelector(".tavern-lobby")).isEmpty()) {
+                        List<WebElement> join = d.findElements(rejoindre);
+                        if (!join.isEmpty() && join.getFirst().isDisplayed()) {
+                            click(d, join.getFirst());
+                            return false;
+                        }
+                    }
                     List<WebElement> bouton = d.findElements(versListe);
-                    if (bouton.isEmpty()) return false;
-                    click(d, bouton.getFirst());
+                    if (!bouton.isEmpty() && bouton.getFirst().isDisplayed()) {
+                        click(d, bouton.getFirst());
+                    }
                     return false;
                 });
     }

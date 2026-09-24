@@ -4,8 +4,12 @@ import be.mjodheim.brewstead.dto.tavern.PostMessageRequest;
 import be.mjodheim.brewstead.dto.tavern.TavernMessageResponse;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.TavernMessage;
+import be.mjodheim.brewstead.entity.TavernPresence;
+import be.mjodheim.brewstead.entity.TavernRoom;
 import be.mjodheim.brewstead.repository.PlayerProfileRepository;
 import be.mjodheim.brewstead.repository.TavernMessageRepository;
+import be.mjodheim.brewstead.repository.TavernPresenceRepository;
+import be.mjodheim.brewstead.repository.TavernRoomRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -27,6 +31,8 @@ class TavernChatServiceTest {
 
     @Mock TavernMessageRepository messageRepository;
     @Mock PlayerProfileRepository playerRepository;
+    @Mock TavernRoomRepository roomRepository;
+    @Mock TavernPresenceRepository presenceRepository;
     @InjectMocks TavernChatService service;
 
     @Test
@@ -51,6 +57,31 @@ class TavernChatServiceTest {
         List<TavernMessageResponse> result = service.recent(2L);
 
         assertEquals(List.of(3L, 4L), result.stream().map(TavernMessageResponse::id).toList());
+    }
+
+    @Test
+    void roomChatRequiresPresenceAndStaysInsideTheRoom() {
+        PlayerProfile author = player(1);
+        TavernRoom room = TavernRoom.builder().id(9L).name("Salle").code("ABC123").capacity(6).build();
+        TavernPresence presence = TavernPresence.builder().room(room).player(author).build();
+
+        when(presenceRepository.findByPlayerId(1L)).thenReturn(Optional.of(presence));
+        when(messageRepository.countByRoomIdAndAuthorIdAndPostedAtAfter(eq(9L), eq(1L), any(LocalDateTime.class)))
+                .thenReturn(0L);
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(author));
+        when(roomRepository.findById(9L)).thenReturn(Optional.of(room));
+        when(messageRepository.save(any(TavernMessage.class))).thenAnswer(invocation -> {
+            TavernMessage saved = invocation.getArgument(0);
+            saved.setId(12L);
+            return saved;
+        });
+
+        TavernMessageResponse result = service.postInRoom(9L, 1L, new PostMessageRequest("  Skål   ici  "));
+
+        assertEquals("Skål  ici", result.body());
+        verify(messageRepository).save(argThat(message -> message.getRoom() == room));
+        assertThrows(IllegalStateException.class,
+                () -> service.postInRoom(10L, 1L, new PostMessageRequest("ailleurs")));
     }
 
     @Test

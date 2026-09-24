@@ -2388,12 +2388,21 @@
 
     /* ------------------------------------------------------ La visite guidée */
 
+    function visiteKey() {
+        // La visite appartient au joueur, pas au navigateur. Sur un ordinateur
+        // partagé, un compte qui a déjà fait le tour ne doit pas priver le
+        // prochain nouveau brasseur de son accueil.
+        var joueur = state && state.player;
+        var identite = joueur && (joueur.id != null ? joueur.id : joueur.username);
+        return identite == null ? VISITE_KEY : VISITE_KEY + '.' + String(identite);
+    }
+
     function visiteDejaVue() {
-        try { return localStorage.getItem(VISITE_KEY) === 'vue'; } catch (ignored) { return false; }
+        try { return localStorage.getItem(visiteKey()) === 'vue'; } catch (ignored) { return false; }
     }
 
     function marquerVisiteVue() {
-        try { localStorage.setItem(VISITE_KEY, 'vue'); } catch (ignored) { /* navigation privée */ }
+        try { localStorage.setItem(visiteKey(), 'vue'); } catch (ignored) { /* navigation privée */ }
     }
 
     /**

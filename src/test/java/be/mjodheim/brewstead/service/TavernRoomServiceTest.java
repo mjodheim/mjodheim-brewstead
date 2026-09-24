@@ -47,7 +47,8 @@ class TavernRoomServiceTest {
         TavernRoom lively = room(2, TavernRoomType.COMMON);
         TavernPresence joined = presence(lively, me);
 
-        when(presences.findByPlayerId(7L)).thenReturn(Optional.empty(), Optional.of(joined));
+        when(presences.findByPlayerId(7L))
+                .thenReturn(Optional.empty(), Optional.empty(), Optional.of(joined));
         when(rooms.findAllByTypeOrderByCreatedAtAsc(TavernRoomType.COMMON)).thenReturn(List.of(empty, lively));
         when(presences.countByRoomId(1L)).thenReturn(0L);
         when(presences.countByRoomId(2L)).thenReturn(4L);

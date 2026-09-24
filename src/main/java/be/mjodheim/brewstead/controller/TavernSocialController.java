@@ -3,6 +3,7 @@ package be.mjodheim.brewstead.controller;
 import be.mjodheim.brewstead.dto.tavern.*;
 import be.mjodheim.brewstead.service.CurrentPlayerService;
 import be.mjodheim.brewstead.service.TavernChatService;
+import be.mjodheim.brewstead.service.TavernLiveService;
 import be.mjodheim.brewstead.service.TavernRoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

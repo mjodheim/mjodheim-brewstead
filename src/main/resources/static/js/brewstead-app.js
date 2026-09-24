@@ -19,7 +19,12 @@
     var accountDraft = null;
     var picker = null;          // { kind, fieldId, query }
     var recipeQuery = '';
-    var tavern = { tab: 'salle', messages: [], counter: [], timer: null, requests: {}, draft: '', sending: false, error: '', connectionError: '' };
+    var tavern = {
+        tab: 'salle', messages: [], counter: [], timer: null, requests: {},
+        draft: '', sending: false, error: '', connectionError: '',
+        lobby: { rooms: [], currentRoomId: null }, room: null,
+        privateName: '', inviteCode: ''
+    };
     var refreshJob = null;
     var mutationPending = false;
     var navigationVersion = 0;
@@ -758,14 +763,7 @@
             title: 'Taverne',
             scene: 'taverne',
             render: function (s) {
-                var tabs = '<div class="tabs">' +
-                    ['salle', 'comptoir'].map(function (key) {
-                        return '<button class="tabs__tab' + (tavern.tab === key ? ' is-active' : '') + '"' +
-                            ' type="button" data-action="tavern-tab" data-id="' + key + '">' +
-                            (key === 'salle' ? 'La salle' : 'Le comptoir') + '</button>';
-                    }).join('') + '</div>';
-
-                return tabs + (tavern.tab === 'salle' ? renderChat(s) : renderCounter(s));
+                return tavern.room ? renderTavernRoomList(s) : renderTavernLobby();
             }
         },
 
@@ -1104,6 +1102,53 @@
         }).join('');
     }
 
+    function renderTavernLobby() {
+        var rooms = (tavern.lobby && tavern.lobby.rooms) || [];
+        var cards = rooms.length ? '<div class="tavern-lobby__rooms">' + rooms.map(function (room) {
+            var full = room.occupancy >= room.capacity;
+            return '<article class="tavern-room-card">' +
+                '<div><strong>' + esc(room.name) + '</strong><small>' +
+                room.occupancy + '/' + room.capacity + ' joueurs</small></div>' +
+                '<button class="btn' + (full ? '' : ' btn--gold') + '" type="button" data-action="tavern-join-room" data-id="' +
+                room.id + '"' + (full ? ' disabled' : '') + '>' + (full ? 'Complet' : 'Entrer') + '</button>' +
+                '</article>';
+        }).join('') + '</div>' : '<p class="hint">Aucune salle publique occupée pour l’instant. Tu peux ouvrir la première.</p>';
+
+        return '<div class="tavern-lobby">' +
+            '<div class="tavern-lobby__hero"><div><p class="section-title">La grande salle</p>' +
+            '<p>Entre dans une petite salle de six joueurs maximum. Le système remplit d’abord les salles déjà vivantes.</p></div>' +
+            '<button class="btn btn--gold" type="button" data-action="tavern-join-auto">Trouver une place</button></div>' +
+            cards +
+            '<div class="tavern-lobby__private">' +
+            '<div><p class="section-title">Une table pour votre groupe</p><p class="hint">Crée un salon et partage son code, ou rejoins celui d’un ami.</p></div>' +
+            '<label class="account-field"><input id="tavernPrivateName" maxlength="40" placeholder="Nom du salon" value="' + esc(tavern.privateName) + '"></label>' +
+            '<button class="btn" type="button" data-action="tavern-create-private">Créer</button>' +
+            '<label class="account-field"><input id="tavernInviteCode" maxlength="6" placeholder="Code à 6 caractères" value="' + esc(tavern.inviteCode) + '"></label>' +
+            '<button class="btn" type="button" data-action="tavern-join-code">Rejoindre</button>' +
+            '</div></div>';
+    }
+
+    function renderTavernRoomList(s) {
+        var room = tavern.room;
+        var roster = '<div class="tavern-roster">' + room.players.map(function (person) {
+            return '<button class="tavern-roster__person' + (person.self ? ' is-self' : '') +
+                '" type="button" data-action="tavern-player" data-id="' + person.playerId + '">' +
+                '<span class="chat__avatar">' + icon('av-' + ((person.character && person.character.avatar) || 'CERF')) + '</span>' +
+                '<span><strong>' + esc(person.name) + '</strong><small>' +
+                (person.seatKey ? esc(person.seatKey.replace(/-/g, ' ')) : 'debout') +
+                ' · niv. ' + person.level + '</small></span></button>';
+        }).join('') + '</div>';
+
+        return '<div class="tavern-room-list">' +
+            '<div class="tavern-room-list__head"><div><strong>' + esc(room.name) + '</strong><small>' +
+            room.players.length + '/' + room.capacity + ' joueurs' +
+            (room.type === 'PRIVATE' ? ' · code ' + esc(room.code) : '') + '</small></div>' +
+            '<button class="btn" type="button" data-action="tavern-leave">Quitter la salle</button></div>' +
+            '<div class="tavern-room-list__grid"><section><p class="section-title">Présents</p>' + roster + '</section>' +
+            '<section><p class="section-title">Discussion</p>' + renderChat(s) + '</section></div>' +
+            '<section><p class="section-title">Au comptoir</p>' + renderCounter(s) + '</section></div>';
+    }
+
     /* ------------------------------------------------------------- Actions */
 
     function csrfHeaders() {
@@ -1194,23 +1239,30 @@
             .slice(-60);
     }
 
+    function applyTavernSnapshot(snapshot) {
+        tavern.room = snapshot || null;
+        if (!snapshot) return;
+        tavern.messages = snapshot.messages || [];
+        tavern.counter = snapshot.offers || [];
+        tavern.lobby.currentRoomId = snapshot.id;
+    }
+
     function loadTavern(force) {
-        // Dans la salle dessinée, ce sont les chopes du comptoir qu'il faut,
-        // quel que soit l'onglet choisi pour la vue en liste.
-        var tab = (activeView === 'taverne' && !listMode.taverne) ? 'comptoir' : tavern.tab;
-        if (tavern.requests[tab]) return tavern.requests[tab];
+        if (tavern.requests.social) return tavern.requests.social;
         var log = $('chatLog');
         var atBottom = !log || log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-        // Relire la fenêtre bornée évite de perdre un message dont la transaction
-        // se termine après celle d'un id plus récent.
-        var job = tab === 'salle'
-            ? Data.get('/api/tavern/chat')
-                .then(function (messages) {
-                    tavern.messages = mergeMessages(tavern.messages, messages);
-                })
-            : Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers; });
 
-        tavern.requests[tab] = job.then(function () {
+        var job = tavern.room
+            ? Data.get('/api/tavern/rooms/' + tavern.room.id).then(applyTavernSnapshot)
+            : Data.get('/api/tavern/rooms').then(function (lobby) {
+                tavern.lobby = lobby || { rooms: [], currentRoomId: null };
+                if (lobby && lobby.currentRoomId) {
+                    return Data.get('/api/tavern/rooms/' + lobby.currentRoomId).then(applyTavernSnapshot);
+                }
+                return Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers || []; });
+            });
+
+        tavern.requests.social = job.then(function () {
             tavern.connectionError = '';
             if (activeView === 'taverne') {
                 renderScreen();
@@ -1220,8 +1272,8 @@
             tavern.connectionError = 'Connexion interrompue. Nouvelle tentative automatique…';
             if (error.sessionExpired) showFault(error);
             if (activeView === 'taverne') renderScreen();
-        }).finally(function () { delete tavern.requests[tab]; });
-        return tavern.requests[tab];
+        }).finally(function () { delete tavern.requests.social; });
+        return tavern.requests.social;
     }
 
     function scrollChat() {
@@ -1234,7 +1286,43 @@
         tavern.timer = null;
         if (on) tavern.timer = setInterval(function () {
             if (!document.hidden) loadTavern(false);
-        }, 4000);
+        }, 3000);
+    }
+
+    function quitterTaverneSilencieusement() {
+        if (!tavern.room) return;
+        var headers = csrfHeaders();
+        // Le joueur disparaît de la salle dès qu'il retourne à son domaine.
+        // keepalive couvre aussi un onglet que l'on ferme.
+        try {
+            fetch('/api/tavern/rooms/me', {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: headers,
+                keepalive: true
+            }).catch(function () {});
+        } catch (ignored) { /* la présence expirera côté serveur */ }
+        tavern.room = null;
+        tavern.messages = [];
+        tavern.lobby.currentRoomId = null;
+    }
+
+    function tavernMutation(url, body, method, after) {
+        if (mutationPending) { toast('Une action est déjà en cours.'); return; }
+        mutationPending = true;
+        var headers = csrfHeaders();
+        if (body !== undefined) headers['Content-Type'] = 'application/json';
+        Data.postJson(url, body, headers, method || 'POST')
+            .then(function (payload) {
+                if (payload) applyTavernSnapshot(payload);
+                if (after) after(payload);
+                if (activeView === 'taverne') renderScreen();
+            })
+            .catch(function (error) {
+                if (error.sessionExpired) showFault(error);
+                else toast(error.message);
+            })
+            .finally(function () { mutationPending = false; });
     }
 
     function runAction(action, id) {
@@ -1340,6 +1428,73 @@
             return;
         }
 
+        if (action === 'tavern-join-auto') {
+            tavernMutation('/api/tavern/rooms/join-auto', undefined, 'POST', function () {
+                listMode.taverne = false;
+                toast('Une table t’attend.');
+            });
+            return;
+        }
+
+        if (action === 'tavern-join-room') {
+            tavernMutation('/api/tavern/rooms/' + Number(id) + '/join', undefined, 'POST', function () {
+                listMode.taverne = false;
+            });
+            return;
+        }
+
+        if (action === 'tavern-create-private') {
+            var privateField = $('tavernPrivateName');
+            var name = privateField ? privateField.value : tavern.privateName;
+            tavernMutation('/api/tavern/rooms/private', { name: name || '' }, 'POST', function (room) {
+                tavern.privateName = '';
+                listMode.taverne = false;
+                if (room) toast('Salon ouvert — code ' + room.code);
+            });
+            return;
+        }
+
+        if (action === 'tavern-join-code') {
+            var codeField = $('tavernInviteCode');
+            var code = String(codeField ? codeField.value : tavern.inviteCode || '').trim().toUpperCase();
+            if (!code) { toast('Entre le code du salon.'); return; }
+            tavernMutation('/api/tavern/rooms/join-code/' + encodeURIComponent(code), undefined, 'POST', function () {
+                tavern.inviteCode = '';
+                listMode.taverne = false;
+            });
+            return;
+        }
+
+        if (action === 'tavern-leave') {
+            tavernMutation('/api/tavern/rooms/me', undefined, 'DELETE', function () {
+                tavern.room = null;
+                tavern.messages = [];
+                tavern.lobby.currentRoomId = null;
+                listMode.taverne = true;
+                loadTavern(true);
+            });
+            return;
+        }
+
+        if (action === 'tavern-seat') {
+            if (!tavern.room) return;
+            tavernMutation('/api/tavern/rooms/' + tavern.room.id + '/seats/' + encodeURIComponent(id), undefined, 'POST');
+            return;
+        }
+
+        if (action === 'tavern-emote') {
+            if (!tavern.room) return;
+            tavernMutation('/api/tavern/rooms/' + tavern.room.id + '/emotes/' + encodeURIComponent(id), undefined, 'POST');
+            return;
+        }
+
+        if (action === 'tavern-player') {
+            if (!tavern.room) return;
+            var person = tavern.room.players.find(function (p) { return String(p.playerId) === String(id); });
+            if (person) toast(person.name + ' · niveau ' + person.level + ' · ' + person.reputation + ' renommée');
+            return;
+        }
+
         if (action === 'chat-send') {
             var field = $('chatInput');
             if (!field || !field.value.trim() || tavern.sending) return;
@@ -1350,7 +1505,10 @@
             tavern.sending = true;
             tavern.error = '';
             renderScreen();
-            Data.postJson('/api/tavern/chat', { body: text }, headers)
+            var chatUrl = tavern.room
+                ? '/api/tavern/rooms/' + tavern.room.id + '/messages'
+                : '/api/tavern/chat';
+            Data.postJson(chatUrl, { body: text }, headers)
                 .then(function (message) {
                     tavern.messages = mergeMessages(tavern.messages, [message]);
                     if (tavern.draft === text) {
@@ -1364,7 +1522,7 @@
                     if (error.sessionExpired) showFault(error);
                 }).finally(function () {
                     tavern.sending = false;
-                    if (activeView === 'taverne' && tavern.tab === 'salle') { renderScreen(); scrollChat(); }
+                    if (activeView === 'taverne') { loadTavern(true); renderScreen(); scrollChat(); }
                 });
             return;
         }
@@ -1829,11 +1987,43 @@
     }
 
     function sceneBar(view, vue) {
+        if (view === 'taverne') {
+            if (!tavern.room) {
+                return '<div class="scene__bar scene__bar--tavern">' +
+                    '<p class="scene__hint">La taverne vit en petites salles. Rejoins automatiquement un groupe ou choisis le tien.</p>' +
+                    '<div class="tavern-dock__actions">' +
+                    '<button class="btn btn--gold" type="button" data-action="tavern-join-auto">Entrer dans une salle</button>' +
+                    '<button class="btn" type="button" data-action="show-list" data-id="taverne">Choisir une salle</button>' +
+                    '</div></div>';
+            }
+
+            var room = tavern.room;
+            var me = room.players.find(function (p) { return p.self; });
+            var place = me && me.seatKey ? me.seatKey.replace(/-/g, ' ') : 'choisis une place dans la salle';
+            return '<div class="scene__bar scene__bar--tavern tavern-dock">' +
+                '<div class="tavern-dock__room"><span><strong>' + esc(room.name) + '</strong>' +
+                '<small>' + room.players.length + '/' + room.capacity + ' joueurs · ' + esc(place) +
+                (room.type === 'PRIVATE' ? ' · code ' + esc(room.code) : '') + '</small></span>' +
+                '<div class="tavern-emotes" aria-label="Réactions">' +
+                '<button type="button" data-action="tavern-emote" data-id="SKAL" title="Skål !">🍻</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="SALUT" title="Saluer">👋</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="RIRE" title="Rire">😄</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="COEUR" title="Apprécier">♥</button>' +
+                '</div></div>' +
+                '<div class="tavern-dock__chat">' +
+                '<input id="chatInput" aria-label="Parler dans cette salle" type="text" maxlength="280" value="' +
+                esc(tavern.draft) + '" placeholder="Dire quelque chose à la table…" autocomplete="off">' +
+                '<button class="btn btn--gold" type="button" data-action="chat-send"' +
+                (tavern.sending ? ' disabled' : '') + '>' + (tavern.sending ? 'Envoi…' : 'Parler') + '</button>' +
+                '<button class="btn" type="button" data-action="show-list" data-id="taverne">Journal</button>' +
+                '<button class="btn" type="button" data-action="tavern-leave">Sortir</button>' +
+                '</div></div>';
+        }
+
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
             brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
-            taverne: 'Touche une chope pour goûter ce qu’un voisin sert. « Voir la liste » ouvre la salle et son fil de discussion.',
             entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.',
             commandes: 'Touche une feuille pour prendre le contrat, ou pour livrer quand ta cave suit. « Voir la liste » ouvre le marché entre domaines.'
         }[view] || '';
@@ -1850,11 +2040,9 @@
             actions += '<button class="btn btn--gold" type="button" data-action="open-brew">' +
                 icon('i-plus') + 'Lancer un brassin</button>';
         }
-        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">' +
-            'Voir la liste</button>';
+        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">Voir la liste</button>';
 
-        return '<div class="scene__bar">' +
-            '<p class="scene__hint">' + esc(hint) + '</p>' + actions + '</div>';
+        return '<div class="scene__bar"><p class="scene__hint">' + esc(hint) + '</p>' + actions + '</div>';
     }
 
     /**
@@ -1893,6 +2081,7 @@
     function decor() {
         return Object.assign({}, state, {
             tavernCounter: tavern.counter,
+            tavernRoom: tavern.room,
             labLines: lab ? lab.lines : []
         });
     }
@@ -2099,6 +2288,7 @@
     function openScreen(view) {
         if (!SECTIONS[view]) return;
         navigationVersion++;
+        if (activeView === 'taverne' && view !== 'taverne') quitterTaverneSilencieusement();
         closePlace();
         activeView = view;
         accountDraft = { avatar: null, displayName: null };
@@ -2114,6 +2304,7 @@
 
     function closeScreen() {
         navigationVersion++;
+        if (activeView === 'taverne') quitterTaverneSilencieusement();
         watchTavern(false);
         updateMarkup(dom.screenBody, '');
         activeView = 'monde';
@@ -2848,6 +3039,8 @@
 
         dom.screenBody.addEventListener('input', function (event) {
             if (event.target.id === 'chatInput') { tavern.draft = event.target.value; return; }
+            if (event.target.id === 'tavernPrivateName') { tavern.privateName = event.target.value; return; }
+            if (event.target.id === 'tavernInviteCode') { tavern.inviteCode = event.target.value.toUpperCase(); return; }
             if (event.target.id !== 'pickerSearch') return;
             if (activeView === 'commande') orders.query = event.target.value;
             else if (activeView === 'recettes') recipeQuery = event.target.value;
@@ -2895,6 +3088,10 @@
         // Le portrait est le raccourci que tout le monde essaie en premier.
         dom.playerCard.addEventListener('click', function () {
             openScreen('compte');
+        });
+
+        global.addEventListener('pagehide', function () {
+            quitterTaverneSilencieusement();
         });
 
         document.addEventListener('keydown', function (event) {

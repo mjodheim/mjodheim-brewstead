@@ -16,5 +16,13 @@ public interface TavernMessageRepository extends JpaRepository<TavernMessage, Lo
     @EntityGraph(attributePaths = "author")
     List<TavernMessage> findByIdGreaterThanOrderByIdAsc(Long id, Limit limit);
 
+    @EntityGraph(attributePaths = "author")
+    List<TavernMessage> findByRoomIdOrderByIdDesc(Long roomId, Limit limit);
+
+    @EntityGraph(attributePaths = "author")
+    List<TavernMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long id, Limit limit);
+
+    long countByRoomIdAndAuthorIdAndPostedAtAfter(Long roomId, Long authorId, LocalDateTime moment);
+
     long countByAuthorIdAndPostedAtAfter(Long authorId, LocalDateTime moment);
 }

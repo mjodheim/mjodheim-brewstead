@@ -21,6 +21,11 @@ public class TavernMessage {
     @JoinColumn(name = "author_id", nullable = false)
     private PlayerProfile author;
 
+    /** Nul seulement pour les anciens messages du chat global. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id")
+    private TavernRoom room;
+
     @Column(nullable = false, length = 280)
     private String body;
 

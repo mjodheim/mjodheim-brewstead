@@ -157,6 +157,17 @@
     }
 
     function painted(place) {
+        // La taverne a maintenant sa propre peinture, légère (~50 KiB), au
+        // lieu d'un zoom dans le domaine flouté. C'est plus détaillé et
+        // moins coûteux qu'un décor reconstruit à chaque frame.
+        if (place === 'taverne') {
+            return '<g class="sc-far sc-far--tavern">' +
+                '<image href="/images/lieux/taverne.webp" x="0" y="0" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT +
+                '" preserveAspectRatio="xMidYMid slice"/>' +
+                '</g>' +
+                '<rect class="sc-brume sc-brume--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
+        }
+
         var crop = CROPS[place] || CROPS.champs;
         var height = crop.width * STAGE_HEIGHT / STAGE_WIDTH;
         var scale = STAGE_WIDTH / crop.width;
@@ -168,8 +179,6 @@
             '" width="' + (1536 * scale).toFixed(1) + '" height="' + (742 * scale).toFixed(1) +
             '" preserveAspectRatio="none"/>' +
             '</g>' +
-            // Hors du groupe flouté : une brume nette se lit comme de l'air,
-            // une brume floue comme une tache.
             '<rect class="sc-brume" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
     }
 

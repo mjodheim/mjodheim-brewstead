@@ -472,8 +472,15 @@ class BrewsteadUiIntegrationTest {
             b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
             // Le remplissage dense doit les mettre dans la même petite salle.
-            a.until(d -> d.findElements(By.cssSelector(".sc-patron")).size() >= 2);
-            assertEquals(2, alice.findElements(By.cssSelector(".sc-patron")).size());
+            // D'autres navigateurs d'un test précédent peuvent encore être
+            // dans la fenêtre de présence : on vérifie nos deux joueurs, pas
+            // un nombre global artificiellement exact.
+            long aliceId = profile("ui_tavern_alice").getId();
+            long bobId = profile("ui_tavern_bob").getId();
+            a.until(d -> !d.findElements(By.cssSelector(".sc-patron[data-id='" + aliceId + "']")).isEmpty()
+                    && !d.findElements(By.cssSelector(".sc-patron[data-id='" + bobId + "']")).isEmpty());
+            assertTrue(alice.findElements(By.cssSelector(".sc-patron")).size() <= 6,
+                    "Une salle ne doit jamais dépasser sa capacité.");
 
             WebElement talk = a.until(ExpectedConditions.visibilityOfElementLocated(By.id("chatInput")));
             talk.sendKeys("À la nôtre, Bob !");
@@ -487,7 +494,6 @@ class BrewsteadUiIntegrationTest {
             // Alice quitte sa chaise en cliquant réellement sur le plancher.
             // Le client la déplace tout de suite ; Bob doit recevoir le même
             // mouvement par SSE, bien avant le polling de secours (12 s).
-            long aliceId = profile("ui_tavern_alice").getId();
             long movementStarted = System.nanoTime();
             ((JavascriptExecutor) alice).executeScript("""
                     const svg = document.querySelector('.sc-stage');

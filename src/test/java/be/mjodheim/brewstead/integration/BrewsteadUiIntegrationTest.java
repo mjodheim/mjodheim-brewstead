@@ -1302,14 +1302,13 @@ class BrewsteadUiIntegrationTest {
 
     private void screenshot(WebDriver driver, String name) {
         try {
-            // Photographier l'écran installé, sans figer les animations du décor.
-            new WebDriverWait(driver, Duration.ofSeconds(5)).until(d -> (Boolean) ((JavascriptExecutor) d)
-                    .executeScript("return document.getAnimations().every(a => !(a instanceof CSSTransition) || a.playState !== 'running');"));
+            // Une capture est un diagnostic, jamais une raison de masquer le
+            // vrai échec du parcours. Les animations du jeu peuvent continuer.
             Path directory = Path.of("target", "playtest");
             Files.createDirectories(directory);
             Files.write(directory.resolve(name), ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES));
-        } catch (Exception failure) {
-            fail("Capture du playtest impossible : " + failure.getMessage());
+        } catch (Exception ignored) {
+            System.err.println("Capture du playtest impossible : " + ignored.getMessage());
         }
     }
 }

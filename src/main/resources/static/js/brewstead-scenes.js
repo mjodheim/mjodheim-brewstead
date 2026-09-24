@@ -840,13 +840,20 @@
             '<g class="sc-patron__arm sc-patron__arm--right"><path d="M28-18q17 8 22 31l-10 4Q33 0 20-8Z"/>' +
             '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/>' +
             '<ellipse class="sc-patron__foam" cx="0" cy="-12" rx="8" ry="3"/></g></g>' +
+            '<path class="sc-patron__folds" d="M-12-13q4 23 2 39M12-13q-4 23-2 39"/>' +
+            '<path class="sc-patron__collar" d="M-15-24 0-11l15-13"/>' +
             '</g>' +
             '<g class="sc-patron__head">' +
             '<path class="sc-patron__neck" d="M-9-34h18v17H-9Z"/>' +
             '<ellipse class="sc-patron__face" cx="0" cy="-50" rx="22" ry="25"/>' +
             '<circle class="sc-patron__ear" cx="-23" cy="-49" r="5"/><circle class="sc-patron__ear" cx="23" cy="-49" r="5"/>' +
             '<path class="sc-patron__nose" d="M1-51l-3 9 6 1"/>' +
-            '<path class="sc-patron__eyes" d="M-11-53h4m14 0h4"/>' +
+            '<path class="sc-patron__eyes" d="M-12-54q4-2 7 0m10 0q4-2 7 0"/>' +
+            '<path class="sc-patron__brows" d="M-13-60q5-3 10 0m6 0q5-3 10 0"/>' +
+            '<path class="sc-patron__mouth" d="M-7-39q7 5 14 0"/>' +
+            (((Number(person.playerId) || 0) % 3 === 0)
+                ? '<path class="sc-patron__beard" fill="' + hc + '" d="M-18-42q18 17 36 0-2 25-18 28-16-3-18-28Z"/>'
+                : '') +
             cheveux(person.character && person.character.hair, hc) +
             (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="18" cy="-14" r="4"/>' : '') +
             '</g></g>' +
@@ -882,6 +889,63 @@
             '</g>';
     }
 
+    function tavernInteriorDecor() {
+        return '<g class="sc-tavern__interior" aria-hidden="true">' +
+            // Lambris et grosses poutres : profondeur nette par-dessus le tableau peint.
+            '<path class="sc-tavern__panel" d="M0 116H960V326H0Z"/>' +
+            '<path class="sc-tavern__beam-deep" d="M0 112h960v18H0ZM84 112h20v214H84ZM856 112h20v214h-20Z"/>' +
+            '<path class="sc-tavern__beam-edge" d="M0 130h960M104 112v214M856 112v214"/>' +
+
+            // Étagère gauche : bouteilles, cruches et plantes suspendues.
+            '<g class="sc-tavern__shelf" transform="translate(18 164)">' +
+            '<path class="sc-tavern__shelf-board" d="M0 70h190v14H0Z"/>' +
+            '<path class="sc-tavern__shelf-brace" d="M22 84h12v26H22ZM160 84h12v26h-12Z"/>' +
+            '<g class="sc-tavern__bottles">' +
+            '<path d="M20 34h16v36H18V45l5-5v-6Z"/><path d="M49 20h13v50H47V32l4-4v-8Z"/>' +
+            '<path d="M75 39h20v31H73V47l6-4v-4Z"/><path d="M111 27h15v43h-17V39l4-4v-8Z"/>' +
+            '<path d="M143 35h22v35h-24V45l6-4v-6Z"/>' +
+            '</g>' +
+            '<g class="sc-tavern__herbs">' +
+            '<path d="M42 0v26M39 4q-15 9 0 17M45 7q15 8 0 16"/>' +
+            '<path d="M130-3v31M126 2q-16 8 0 18M134 4q16 9 0 20"/>' +
+            '</g></g>' +
+
+            // Coin droit : tableau des brassins et trophée de chasse stylisé.
+            '<g class="sc-tavern__board" transform="translate(735 148)">' +
+            '<path d="M0 0h116v112H0Z"/><path class="sc-tavern__board-frame" d="M0 0h116v112H0Z"/>' +
+            '<path class="sc-tavern__chalk" d="M17 22h56M17 41h77M17 60h64M17 79h72"/>' +
+            '<circle class="sc-tavern__chalk-dot" cx="94" cy="22" r="3"/>' +
+            '<circle class="sc-tavern__chalk-dot" cx="83" cy="60" r="3"/></g>' +
+            '<g class="sc-tavern__crest" transform="translate(891 158)">' +
+            '<path d="M0 16 24 0l24 16-5 52-19 15L5 68Z"/>' +
+            '<path class="sc-tavern__antler" d="M17 38q-15-14-9-27m8 18L5 23m26 15q15-14 9-27m-8 18 11-6"/>' +
+            '<circle cx="24" cy="42" r="10"/></g>' +
+
+            // Petit foyer latéral, loin du joueur : seulement deux flammes.
+            '<g class="sc-tavern__hearth" transform="translate(18 268)">' +
+            '<path class="sc-tavern__hearth-stone" d="M0 58V8Q0 0 8 0h86q8 0 8 8v50H86V18H16v40Z"/>' +
+            '<path class="sc-tavern__hearth-dark" d="M16 58V18h70v40Z"/>' +
+            '<path class="sc-tavern__log" d="M25 51 72 38l4 8-48 13Z"/>' +
+            '<path class="sc-tavern__fire sc-tavern__fire--a" d="M48 50q-18-18 1-37-3 17 9 22 9-15 16-20 6 23-10 35Z"/>' +
+            '<path class="sc-tavern__fire sc-tavern__fire--b" d="M52 51q-8-12 5-24-1 10 6 14 5-9 8-11 3 13-6 21Z"/></g>' +
+
+            // Tapis central : masse colorée fixe, quasiment gratuite à rendre.
+            '<path class="sc-tavern__rug-shadow" d="M255 448Q480 405 705 448L664 542H296Z"/>' +
+            '<path class="sc-tavern__rug" d="M271 451Q480 415 689 451L651 531H309Z"/>' +
+            '<path class="sc-tavern__rug-line" d="M318 470Q480 441 642 470M335 503Q480 478 625 503"/>' +
+
+            // Lustres simples : lumière réelle portée par les halos existants.
+            '<g class="sc-tavern__chandelier" transform="translate(258 100)">' +
+            '<path d="M0 0v50m-38 7q38 17 76 0M-38 57v19m76-19v19"/>' +
+            '<path class="sc-tavern__candle" d="M-43 76h10v24h-10Zm76 0h10v24H33Z"/>' +
+            '<ellipse class="sc-tavern__flame" cx="-38" cy="72" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="38" cy="72" rx="4" ry="8"/></g>' +
+            '<g class="sc-tavern__chandelier" transform="translate(700 94)">' +
+            '<path d="M0 0v48m-35 7q35 16 70 0M-35 55v18m70-18v18"/>' +
+            '<path class="sc-tavern__candle" d="M-40 73h10v24h-10Zm70 0h10v24H30Z"/>' +
+            '<ellipse class="sc-tavern__flame" cx="-35" cy="69" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="35" cy="69" rx="4" ry="8"/></g>' +
+            '</g>';
+    }
+
     function taverne(state) {
         var offres = state.tavernCounter || [];
         var room = state.tavernRoom;
@@ -909,8 +973,8 @@
         }).join('') + '</g>' : '';
 
         return defs() + painted('taverne') +
-            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
-            floor(336, 'cellar') +
+            '<rect class="sc-dusk sc-dusk--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            floor(336, 'cellar') + tavernInteriorDecor() +
             '<g class="sc-lanterns">' +
             '<ellipse cx="150" cy="150" rx="104" ry="92" fill="url(#sc-halo)"/>' +
             '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +

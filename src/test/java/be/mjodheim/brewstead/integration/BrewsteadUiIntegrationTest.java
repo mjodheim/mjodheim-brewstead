@@ -1144,8 +1144,41 @@ class BrewsteadUiIntegrationTest {
     }
 
     private void waitForScreen(WebDriverWait wait, String title) {
-        wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
-        wait.until(ExpectedConditions.textToBe(By.id("screenTitle"), title));
+        try {
+            wait.until(ExpectedConditions.attributeToBe(By.id("screen"), "aria-hidden", "false"));
+            wait.until(ExpectedConditions.textToBe(By.id("screenTitle"), title));
+        } catch (TimeoutException failure) {
+            WebDriver driver = extractDriver(wait);
+            String details = "";
+            if (driver != null) {
+                String browser = driver.manage().logs().get(LogType.BROWSER).getAll().stream()
+                        .map(LogEntry::toString).collect(java.util.stream.Collectors.joining(" | "));
+                String state = (String) ((JavascriptExecutor) driver).executeScript("""
+                        const screen = document.getElementById('screen');
+                        const place = document.getElementById('place');
+                        return JSON.stringify({
+                          screenHidden: screen?.getAttribute('aria-hidden'),
+                          screenTitle: document.getElementById('screenTitle')?.textContent,
+                          placeHidden: place?.getAttribute('aria-hidden'),
+                          placeTitle: document.getElementById('placeTitle')?.textContent,
+                          activeChip: document.querySelector('#places .place-chip.is-active')?.dataset.place || null
+                        });
+                        """);
+                details = " | DOM=" + state + " | browser=" + browser;
+            }
+            throw new AssertionError("Écran attendu non ouvert : " + title + details, failure);
+        }
+    }
+
+    private WebDriver extractDriver(WebDriverWait wait) {
+        try {
+            var field = org.openqa.selenium.support.ui.FluentWait.class.getDeclaredField("input");
+            field.setAccessible(true);
+            Object input = field.get(wait);
+            return input instanceof WebDriver ? (WebDriver) input : null;
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
     }
 
     /**

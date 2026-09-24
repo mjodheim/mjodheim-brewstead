@@ -1402,14 +1402,6 @@
         if (place === 'rucher') {
             return (state.hives || []).map(function (h) { return h.id + ':' + hiveState(h); }).join('|');
         }
-        if (place === 'taverne') {
-            var now = Date.now();
-            root.querySelectorAll('.sc-speech[data-until], .sc-patron__emote[data-until]').forEach(function (node) {
-                if (Number(node.dataset.until) < now) node.style.opacity = '0';
-            });
-            return;
-        }
-
         if (place === 'brasserie') {
             return (state.batches || []).map(function (b) { return b.id + ':' + batchState(b); }).join('|');
         }
@@ -1490,6 +1482,14 @@
                 if (!node) return;
                 var time = node.querySelector('.sc-feuille__delai');
                 if (time) time.textContent = countdown(order.expiresAt);
+            });
+            return;
+        }
+
+        if (place === 'taverne') {
+            var now = Date.now();
+            root.querySelectorAll('.sc-speech[data-until], .sc-patron__emote[data-until]').forEach(function (node) {
+                if (Number(node.dataset.until) < now) node.style.opacity = '0';
             });
             return;
         }

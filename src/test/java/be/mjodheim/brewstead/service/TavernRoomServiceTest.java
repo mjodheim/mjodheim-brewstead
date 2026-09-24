@@ -61,7 +61,7 @@ class TavernRoomServiceTest {
         TavernRoomSnapshot result = service.joinAuto(7L);
 
         assertEquals(2L, result.id());
-        verify(presences).save(argThat(p -> p.getRoom().getId().equals(2L)));
+        verify(presences, times(2)).save(argThat(p -> p.getRoom().getId().equals(2L)));
     }
 
     @Test

@@ -92,23 +92,24 @@ class TavernRoomServiceTest {
     }
 
     @Test
-    void freeMovementLeavesTheSeatAndAvoidsTheCenterTable() {
+    void freeMovementLeavesTheSeatAndStaysInTheAisle() {
         PlayerProfile me = player(7);
         TavernRoom room = room(4, TavernRoomType.COMMON);
         TavernPresence mine = presence(room, me);
         mine.setSeatKey("bar-gauche");
-        mine.setPositionX(332.0);
-        mine.setPositionY(445.0);
+        mine.setPositionX(552.0);
+        mine.setPositionY(502.0);
 
         when(presences.findByPlayerId(7L)).thenReturn(Optional.of(mine));
 
-        var moved = service.move(7L, 4L, new be.mjodheim.brewstead.dto.tavern.TavernMoveRequest(478, 486));
+        // Une destination au milieu de la table de gauche, là où sont peints
+        // les habitués : on reste dans l'allée du comptoir.
+        var moved = service.move(7L, 4L, new be.mjodheim.brewstead.dto.tavern.TavernMoveRequest(300, 620));
 
         assertNull(mine.getSeatKey());
         assertEquals("STANDING", moved.pose());
-        double dx = (moved.x() - 478) / 126.0;
-        double dy = (moved.y() - 486) / 48.0;
-        assertTrue(dx * dx + dy * dy >= 1.0, "La destination doit sortir de la table centrale.");
+        assertEquals(520.0, moved.x(), "La destination est ramenée au bord de l'allée.");
+        assertEquals(545.0, moved.y());
         verify(live).publish(eq(4L), any());
     }
 

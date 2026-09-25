@@ -3,6 +3,7 @@ package be.mjodheim.brewstead.controller;
 import be.mjodheim.brewstead.dto.tavern.*;
 import be.mjodheim.brewstead.service.CurrentPlayerService;
 import be.mjodheim.brewstead.service.TavernChatService;
+import be.mjodheim.brewstead.service.TavernGamesService;
 import be.mjodheim.brewstead.service.TavernLiveService;
 import be.mjodheim.brewstead.service.TavernRoomService;
 import jakarta.validation.Valid;
@@ -22,6 +23,7 @@ public class TavernSocialController {
     private final TavernRoomService roomService;
     private final TavernChatService chatService;
     private final TavernLiveService liveService;
+    private final TavernGamesService games;
     private final CurrentPlayerService currentPlayer;
 
     @GetMapping
@@ -63,7 +65,10 @@ public class TavernSocialController {
 
     @PostMapping("/{roomId}/emotes/{emote}")
     public TavernRoomSnapshot emote(Principal principal, @PathVariable Long roomId, @PathVariable String emote) {
-        return roomService.emote(currentPlayer.id(principal), roomId, emote);
+        Long playerId = currentPlayer.id(principal);
+        TavernRoomSnapshot snapshot = roomService.emote(playerId, roomId, emote);
+        if ("SKAL".equalsIgnoreCase(emote)) games.onSkal(playerId, roomId);
+        return snapshot;
     }
 
     @PostMapping("/{roomId}/move")

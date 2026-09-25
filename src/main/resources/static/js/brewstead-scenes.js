@@ -133,7 +133,6 @@
         champs: { x: 241, y: 262, width: 470 },
         rucher: { x: 285, y: 150, width: 430 },
         brasserie: { x: 841, y: 232, width: 400 },
-        taverne: { x: 1020, y: 470, width: 420 },
         entrepot: { x: 292, y: 448, width: 400 },
         commandes: { x: 1372, y: 520, width: 330 }
     };
@@ -157,17 +156,6 @@
     }
 
     function painted(place) {
-        // La taverne a maintenant sa propre peinture, légère (~50 KiB), au
-        // lieu d'un zoom dans le domaine flouté. C'est plus détaillé et
-        // moins coûteux qu'un décor reconstruit à chaque frame.
-        if (place === 'taverne') {
-            return '<g class="sc-far sc-far--tavern">' +
-                '<image href="/images/lieux/taverne.webp" x="0" y="0" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT +
-                '" preserveAspectRatio="xMidYMid slice"/>' +
-                '</g>' +
-                '<rect class="sc-brume sc-brume--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>';
-        }
-
         var crop = CROPS[place] || CROPS.champs;
         var height = crop.width * STAGE_HEIGHT / STAGE_WIDTH;
         var scale = STAGE_WIDTH / crop.width;
@@ -692,64 +680,83 @@
     /* ------------------------------------------------------------ Taverne */
 
     /**
-     * La salle.
+     * La salle de la taverne.
      *
-     * <p>Le comptoir était une liste de lignes : « Cervoise du fjord · servi
-     * par Untel · 2 services ». On entre maintenant dans la pièce. Chaque fût
-     * qu'un voisin a mis au comptoir est une chope posée sur le zinc, qu'on
-     * vise et qu'on boit ; les siennes portent une marque au lieu d'un geste.
-     * Les tables du premier plan ne servent à rien, et c'est exactement leur
-     * rôle : une salle vide n'est pas une taverne.
+     * <p>Elle était reconstruite en formes SVG par-dessus une vignette de la
+     * carte : lambris, étagères, fûts, lustres, tables, barman, tout en
+     * tracés. C'est maintenant une peinture, posée en image dans la page, et
+     * les joueurs par-dessus. Une image fixe ne coûte rien à chaque image
+     * affichée ; les tracés animés, eux, se repeignaient sans cesse.
+     *
+     * <p>Les habitués peints (Sigrid, Bjarne, Ylva, Leif, Torvald, Runa) sont
+     * des personnages de la maison : on leur parle. Les joueurs se tiennent
+     * dans l'allée qui longe le comptoir, ou sur ses tabourets libres. Tout
+     * ce qui est devant l'allée — tables, habitués, bancs — est redessiné
+     * par-dessus eux, découpé dans la même peinture : celui qui passe
+     * derrière une table est caché par elle, comme dans une vraie salle.
+     *
+     * <p>Les coordonnées sont celles de la peinture (1672 × 708) et celles
+     * des pieds ; le serveur utilise les mêmes.
      */
+    var TV_W = 1672;
+    var TV_H = 708;
+    var TV_ALLEE = { x0: 520, x1: 1240, y0: 478, y1: 545 };
+    var TV_SPAWN = { x: 1135, y: 520 };
+
+    /** Les tabourets libres du comptoir et quelques places debout. */
     var TAVERN_SEATS = {
-        'bar-gauche': { x: 332, y: 445, k: .92, face: 'dos' },
-        'bar-droite': { x: 628, y: 445, k: .92, face: 'dos' },
-        'table-gauche-a': { x: 118, y: 486, k: .84, face: 'droite' },
-        'table-gauche-b': { x: 254, y: 488, k: .84, face: 'gauche' },
-        'table-droite-a': { x: 706, y: 480, k: .82, face: 'droite' },
-        'table-droite-b': { x: 842, y: 482, k: .82, face: 'gauche' },
-        'feu-gauche': { x: 389, y: 505, k: .88, face: 'droite' },
-        'feu-droite': { x: 570, y: 507, k: .88, face: 'gauche' }
+        'bar-gauche': { x: 552, y: 502, k: 1.46, face: 'droite' },
+        'bar-droite': { x: 642, y: 502, k: 1.46, face: 'droite' },
+        'table-gauche-a': { x: 868, y: 500, k: 1.45, face: 'gauche' },
+        'table-gauche-b': { x: 1060, y: 500, k: 1.45, face: 'gauche' },
+        'table-droite-a': { x: 1188, y: 504, k: 1.46, face: 'gauche' },
+        'table-droite-b': { x: 760, y: 538, k: 1.54, face: 'droite' },
+        'feu-gauche': { x: 528, y: 530, k: 1.52, face: 'droite' },
+        'feu-droite': { x: 1226, y: 540, k: 1.54, face: 'gauche' }
     };
 
-    var TAVERN_TABLES = [
-        { cx: 168, cy: 472, rx: 112, ry: 43 },
-        { cx: 478, cy: 486, rx: 126, ry: 48 },
-        { cx: 792, cy: 468, rx: 106, ry: 41 }
+    /**
+     * Ce qui se tient devant l'allée, découpé dans la peinture. Les contours
+     * suivent les têtes des habitués et le bord des tables ; ils n'ont pas
+     * besoin d'être fins, seulement de passer devant qui marche derrière.
+     */
+    var TV_AVANT = [
+        '0,380 120,380 170,372 240,392 300,392 330,390 420,392 470,428 505,470 512,560 600,600 600,708 0,708',
+        '676,480 700,440 745,420 820,408 872,438 905,394 1000,386 1062,414 1118,466 1150,540 1210,610 1210,708 640,708 640,610 676,560',
+        '1204,470 1300,466 1318,402 1400,384 1468,418 1500,398 1600,392 1672,418 1672,708 1204,708'
     ];
+
+    /** Les habitués peints : où cliquer, et où poser leur pastille. */
+    var TV_HABITUES = [
+        { key: 'sigrid', tete: [185, 385], zone: [185, 470, 80, 92] },
+        { key: 'bjarne', tete: [392, 392], zone: [400, 480, 96, 100] },
+        { key: 'ylva', tete: [800, 408], zone: [792, 500, 80, 92] },
+        { key: 'leif', tete: [985, 390], zone: [1000, 490, 96, 100] },
+        { key: 'torvald', tete: [1385, 385], zone: [1385, 500, 86, 100] },
+        { key: 'runa', tete: [1560, 395], zone: [1560, 500, 80, 92] }
+    ];
+
+    /** Les lueurs qui vacillent : bougies, lanternes, cheminée. En % de la peinture. */
+    var TV_LUEURS = [
+        { x: 2.2, y: 44, t: 11, d: 2.6 },   // cheminée
+        { x: 36.8, y: 16, t: 7, d: 3.4 },   // lanterne gauche
+        { x: 63.4, y: 16, t: 7, d: 3.9 },   // lanterne droite
+        { x: 15.8, y: 75, t: 6, d: 2.9 },   // bougie de Sigrid
+        { x: 54.7, y: 77, t: 7, d: 3.1 },   // bougie du centre
+        { x: 52.2, y: 64, t: 4, d: 2.4 },   // bougies derrière Ylva
+        { x: 88.8, y: 67, t: 5, d: 3.6 },   // bougies de Runa
+        { x: 83.8, y: 10, t: 6, d: 4.3 }    // lustre de droite
+    ];
+
+    /** Les chopes du comptoir, de la plus proche du barman à la plus loin. */
+    var CHOPE_PLACES = [700, 1000, 610, 1090, 520, 1180];
+    var CHOPE_Y = 352;
 
     function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 
-    /**
-     * La salle est dessinée plus haut que ses coordonnées.
-     *
-     * <p>Les places et le plancher vont de y 382 à 520, et un personnage
-     * descend de 78 unités sous son point d'ancrage : assis près du feu ou
-     * marchant au premier plan, il avait les jambes coupées par le bas de la
-     * scène. Le serveur garde les mêmes coordonnées ; seul le dessin remonte,
-     * d'un bloc — tables, chaises, tapis, joueurs et plancher cliquable.
-     */
-    var SALLE_LEVEE = 56;
-
     function normalizeTavernPoint(x, y) {
-        x = clamp(Number(x) || 862, 72, 888);
-        y = clamp(Number(y) || 405, 382, 520);
-        for (var pass = 0; pass < 2; pass++) {
-            TAVERN_TABLES.forEach(function (table) {
-                var nx = (x - table.cx) / table.rx;
-                var ny = (y - table.cy) / table.ry;
-                var d2 = nx * nx + ny * ny;
-                if (d2 >= 1) return;
-                if (d2 < .0001) {
-                    nx = 0;
-                    ny = y <= table.cy ? -1 : 1;
-                    d2 = 1;
-                }
-                var factor = 1.08 / Math.sqrt(d2);
-                x = clamp(table.cx + nx * factor * table.rx, 72, 888);
-                y = clamp(table.cy + ny * factor * table.ry, 382, 520);
-            });
-        }
+        x = clamp(Number.isFinite(Number(x)) ? Number(x) : TV_SPAWN.x, TV_ALLEE.x0, TV_ALLEE.x1);
+        y = clamp(Number.isFinite(Number(y)) ? Number(y) : TV_SPAWN.y, TV_ALLEE.y0, TV_ALLEE.y1);
         return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
     }
 
@@ -758,19 +765,24 @@
         var point = svg.createSVGPoint();
         point.x = clientX;
         point.y = clientY;
-        // On lit le point dans le repère du calque de la salle, pas dans
-        // celui de la scène : le décalage du dessin ne se voit pas ici.
-        var layer = svg.querySelector('.sc-tavern__salle') || svg;
-        var matrix = layer.getScreenCTM ? layer.getScreenCTM() : null;
-        if (!matrix) return null;
-        var local = point.matrixTransform(matrix.inverse());
+        var local = point.matrixTransform(svg.getScreenCTM().inverse());
         return normalizeTavernPoint(local.x, local.y);
     }
 
+    /** La taille d'un personnage : un peu plus grand qui s'approche. */
     function tavernScale(y, bodyScale, seatKey) {
         if (seatKey && TAVERN_SEATS[seatKey]) return TAVERN_SEATS[seatKey].k * bodyScale;
-        var depth = .76 + ((clamp(y, 382, 520) - 382) / 138) * .20;
+        var depth = 1.42 + ((clamp(y, TV_ALLEE.y0, TV_ALLEE.y1) - TV_ALLEE.y0) / (TV_ALLEE.y1 - TV_ALLEE.y0)) * .14;
         return depth * bodyScale;
+    }
+
+    /**
+     * L'adresse de la peinture. Le serveur la donne à la page, avec
+     * l'empreinte de son contenu que ce script ne sait pas calculer.
+     */
+    function peintureTaverne() {
+        var carte = global.document && global.document.getElementById('worldArt');
+        return (carte && carte.getAttribute('data-taverne')) || '/images/lieux/taverne-salle.webp';
     }
 
     function couleurPersonnage(palette) {
@@ -796,12 +808,26 @@
         return null;
     }
 
-    function cheveux(style, color) {
-        if (style === 'rase') return '<path class="sc-patron__hair" fill="' + color + '" d="M-20-69q20-12 40 0v8q-20-6-40 0Z"/>';
-        if (style === 'tresse') return '<path class="sc-patron__hair" fill="' + color + '" d="M-23-67q21-17 45 0v10q-20-8-39 0l-6 22 8 2 8-23q4-3 8-3v31q0 12 9 22l-8 4Q-7-17-5-57q-9 1-18 8Z"/>';
-        if (style === 'long') return '<path class="sc-patron__hair" fill="' + color + '" d="M-25-67q23-17 49 0v43l-12 9 1-40q-14-7-26 0l1 40-13-9Z"/>';
-        if (style === 'boucles') return '<path class="sc-patron__hair" fill="' + color + '" d="M-24-67q4-12 13-8 7-9 15-2 11-6 16 5 10 1 7 12l-8 5q-5-9-14-6-8-6-17 0-7-5-12-1Z"/>';
-        return '<path class="sc-patron__hair" fill="' + color + '" d="M-22-68q20-16 43 0l-3 12q-20-8-38 1Z"/>';
+    /**
+     * La coiffure, en deux temps : ce qui passe derrière la tête (cheveux
+     * longs, tresse) et ce qui la couvre. Du volume et une mèche claire,
+     * comme les habitués peints ; un simple bandeau faisait casquette.
+     */
+    function cheveux(style, color, devant) {
+        var c = ' class="sc-patron__hair" fill="' + color + '"';
+        if (!devant) {
+            if (style === 'long') return '<path' + c + ' d="M-27-52q-3 30 2 44l10 2 1-30M27-52q3 30-2 44l-10 2-1-30Z"/>';
+            if (style === 'tresse') return '<path' + c + ' d="M18-40q12 8 10 30-2 14-8 18l-5-3q5-8 4-17-2-14-7-22Z"/>' +
+                '<circle class="sc-patron__hair-noeud" cx="21" cy="7" r="3.2"/>';
+            return '';
+        }
+        if (style === 'rase') return '<path' + c + ' d="M-25-54q0-22 25-22t25 22q-10-8-25-9-15 1-25 9Z"/>';
+        if (style === 'boucles') return '<path' + c + ' d="M-28-50q-6-10 1-17-2-11 10-13 6-9 17-5 11-4 17 6 11 2 10 13 7 7 1 17-5-9-12-10-6 6-16 3-10 4-17-2-8 1-11 8Z"/>' +
+            '<path class="sc-patron__hair-reflet" d="M-12-70q8-5 16-3"/>';
+        if (style === 'long' || style === 'tresse') return '<path' + c + ' d="M-27-48q-2-30 27-30t27 30q-6-14-17-16-8 8-26 8-9 2-11 8Z"/>' +
+            '<path class="sc-patron__hair-reflet" d="M-14-70q10-5 20-3"/>';
+        return '<path' + c + ' d="M-26-50q-2-28 26-28t26 28q-4-12-12-15-8 6-24 5-12 1-16 10Z"/>' +
+            '<path class="sc-patron__hair-reflet" d="M-13-70q9-5 19-3"/>';
     }
 
     function patronNode(person, room) {
@@ -809,7 +835,7 @@
         var seat = seated ? TAVERN_SEATS[person.seatKey] : null;
         var pos = seated
             ? { x: seat.x, y: seat.y }
-            : normalizeTavernPoint(person.x == null ? 862 : person.x, person.y == null ? 405 : person.y);
+            : normalizeTavernPoint(person.x == null ? TV_SPAWN.x : person.x, person.y == null ? TV_SPAWN.y : person.y);
         var palette = couleurPersonnage(person.character && person.character.palette);
         var hairColors = ['#352319', '#5b3a24', '#8a5d30', '#2e2b29', '#b89158'];
         var hc = hairColors[(Number(person.playerId) || 0) % hairColors.length];
@@ -831,15 +857,17 @@
         var pose = seated ? 'SEATED' : (person.pose || 'STANDING');
         var outfit = person.character && person.character.outfit || 'brasseur';
         var apron = outfit === 'brasseur'
-            ? '<path class="sc-patron__apron" d="M-22-20q22-10 44 0l-3 52h-38Z"/>'
+            ? '<path class="sc-patron__apron" d="M-15-12h30l3 40q-18 5-36 0Z"/>'
             : outfit === 'marchand'
-                ? '<path class="sc-patron__vest" d="M-27-22l14-8 13 18 13-18 14 8-8 55h-38Z"/>'
-                : '<path class="sc-patron__belt" d="M-27 5h54v8h-54Z"/>';
+                ? '<path class="sc-patron__vest" d="M-24-20l10-4 14 20 14-20 10 4 4 46h-56Z"/>'
+                : '';
 
         var bubble = '';
         if (speech) {
             var words = lignes(speech.body, 164, 14, 3);
-            var h = 26 + words.length * 17;
+            // La bulle laissait l'équivalent de deux lignes vides sous le
+            // texte : elle s'arrête maintenant à ce qu'elle contient.
+            var h = 2 + words.length * 17;
             // Deux groupes : la position sur l'un, l'animation d'apparition
             // sur l'autre. Sur un seul, la transformation CSS de l'animation
             // remplaçait le décalage, et la bulle retombait sur le ventre de
@@ -854,245 +882,120 @@
             '" data-action="tavern-player" data-x="' + pos.x + '" data-y="' + pos.y + '" data-k="' + scale.toFixed(3) +
             '" data-body-scale="' + bodyScale + '" data-facing="' + facing + '" data-pose="' + pose +
             '" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
-            ' style="--idle-delay:-' + ((Number(person.playerId) || 0) % 7) + 's" transform="translate(' +
-            pos.x + ' ' + pos.y + ') scale(' + scale.toFixed(3) + ')">' +
-            '<ellipse class="sc-patron__shadow" cx="0" cy="70" rx="38" ry="9"/>' +
+            ' transform="translate(' + pos.x + ' ' + pos.y + ') scale(' + scale.toFixed(3) + ')">' +
+            // L'origine du personnage est à ses pieds, là où le serveur le
+            // place ; le dessin, lui, est centré sur le buste.
+            '<g transform="translate(0 -78)">' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="76" rx="32" ry="8"/>' +
             '<g class="sc-patron__figure">' +
-            '<path class="sc-chair__back" d="M-34-35q34-13 68 0v39h-8l-5-29q-21-8-42 0l-5 29h-8Z"/>' +
             '<g class="sc-patron__body">' +
-            '<path class="sc-patron__legs" d="M-23 22l-8 47h15l16-39 16 39h15l-8-47Z"/>' +
-            '<path class="sc-patron__boot" d="M-31 66h18l-2 12h-26q0-10 10-12Zm44 0h18q10 2 10 12H15Z"/>' +
-            '<path class="sc-patron__torso" fill="' + palette[1] + '" d="M-31-26q31-17 62 0l-5 55q-26 13-52 0Z"/>' +
-            '<path class="sc-patron__shade" fill="' + palette[0] + '" d="M-31-26q10 4 14 10l-4 43q-7-1-12-5Z"/>' +
-            '<path class="sc-patron__highlight" fill="' + palette[2] + '" d="M18-23q8 4 13 9l-5 36q-5 4-10 5Z"/>' +
+            '<path class="sc-patron__legs" d="M-17 24h13l-1 44h-12ZM4 24h13l-1 44H5Z"/>' +
+            '<path class="sc-patron__boot" d="M-19 64h17v12q-14 3-21-1-1-7 4-11ZM2 64h17q6 4 4 11-8 3-21 1Z"/>' +
+            '<g class="sc-patron__arm sc-patron__arm--left"><path fill="' + palette[1] + '" d="M-22-16q-14 8-15 30l11 3q1-16 10-24Z"/>' +
+            '<circle class="sc-patron__hand" cx="-31" cy="18" r="6.5"/></g>' +
+            '<path class="sc-patron__torso" fill="' + palette[1] + '" d="M-24-22q24-10 48 0l6 50q-30 9-60 0Z"/>' +
+            '<path class="sc-patron__shade" fill="' + palette[0] + '" d="M-24-22q7 2 9 9l-4 43q-8 0-11-2Z"/>' +
+            '<path class="sc-patron__highlight" fill="' + palette[2] + '" d="M12-20q9 2 12 7l3 30q-6 3-11 3Z"/>' +
             apron +
-            '<g class="sc-patron__arm sc-patron__arm--left"><path d="M-28-18q-17 8-22 33l10 3q7-18 20-25Z"/></g>' +
-            '<g class="sc-patron__arm sc-patron__arm--right"><path d="M28-18q17 8 22 31l-10 4Q33 0 20-8Z"/>' +
-            '<g class="sc-patron__mug" transform="translate(47 14)"><path d="M-8-12h16v23H-7Z"/><path d="M8-7q12 2 4 13" fill="none"/>' +
-            '<ellipse class="sc-patron__foam" cx="0" cy="-12" rx="8" ry="3"/></g></g>' +
-            '<path class="sc-patron__folds" d="M-12-13q4 23 2 39M12-13q-4 23-2 39"/>' +
-            '<path class="sc-patron__collar" d="M-15-24 0-11l15-13"/>' +
+            '<path class="sc-patron__belt" d="M-28 12q28 6 56 0v8q-28 6-56 0Z"/>' +
+            '<rect class="sc-patron__buckle" x="-5" y="12" width="10" height="10" rx="2"/>' +
+            '<path class="sc-patron__fur" d="M-27-20q-3-8 5-10 4-6 11-4 5-5 11-1 6-4 11 1 7-2 11 4 8 2 5 10-8 9-27 11-19-2-29-11Z"/>' +
+            '<g class="sc-patron__arm sc-patron__arm--right"><path fill="' + palette[1] + '" d="M22-16q14 8 16 27l-11 4q-2-13-9-20Z"/>' +
+            '<circle class="sc-patron__hand" cx="32" cy="15" r="6.5"/>' +
+            '<g class="sc-patron__mug" transform="translate(40 9)"><path d="M-7-11h14v21H-6Z"/><path d="M7-7q10 2 3 12" fill="none"/>' +
+            '<ellipse class="sc-patron__foam" cx="0" cy="-11" rx="7.5" ry="3.2"/></g></g>' +
             '</g>' +
             '<g class="sc-patron__head">' +
-            '<path class="sc-patron__neck" d="M-9-34h18v17H-9Z"/>' +
-            '<ellipse class="sc-patron__face" cx="0" cy="-50" rx="22" ry="25"/>' +
-            '<circle class="sc-patron__ear" cx="-23" cy="-49" r="5"/><circle class="sc-patron__ear" cx="23" cy="-49" r="5"/>' +
-            '<path class="sc-patron__nose" d="M1-51l-3 9 6 1"/>' +
-            '<path class="sc-patron__eyes" d="M-12-54q4-2 7 0m10 0q4-2 7 0"/>' +
-            '<path class="sc-patron__brows" d="M-13-60q5-3 10 0m6 0q5-3 10 0"/>' +
-            '<path class="sc-patron__mouth" d="M-7-39q7 5 14 0"/>' +
+            cheveux(person.character && person.character.hair, hc, false) +
+            '<path class="sc-patron__neck" d="M-7-30h14v10H-7Z"/>' +
+            '<circle class="sc-patron__ear" cx="-25" cy="-48" r="5"/><circle class="sc-patron__ear" cx="25" cy="-48" r="5"/>' +
+            '<ellipse class="sc-patron__face" cx="0" cy="-49" rx="25" ry="24"/>' +
+            '<ellipse class="sc-patron__joue" cx="-14" cy="-40" rx="5.5" ry="3.4"/>' +
+            '<ellipse class="sc-patron__joue" cx="14" cy="-40" rx="5.5" ry="3.4"/>' +
+            '<ellipse class="sc-patron__oeil" cx="-9" cy="-50" rx="3.4" ry="4.4"/>' +
+            '<ellipse class="sc-patron__oeil" cx="9" cy="-50" rx="3.4" ry="4.4"/>' +
+            '<circle class="sc-patron__reflet" cx="-8" cy="-52" r="1.3"/><circle class="sc-patron__reflet" cx="10" cy="-52" r="1.3"/>' +
+            '<path class="sc-patron__brows" d="M-14-58q5-3 9 0m10 0q4-3 9 0"/>' +
+            '<path class="sc-patron__nose" d="M0-46q3 3-1 5"/>' +
+            '<path class="sc-patron__mouth" d="M-6-37q6 5 12 0"/>' +
             (((Number(person.playerId) || 0) % 3 === 0)
-                ? '<path class="sc-patron__beard" fill="' + hc + '" d="M-18-42q18 17 36 0-2 25-18 28-16-3-18-28Z"/>'
+                ? '<path class="sc-patron__beard" fill="' + hc + '" d="M-20-42q4 8 10 7 5-4 10-4t10 4q6 1 10-7-1 22-20 26-19-4-20-26Z"/>'
                 : '') +
-            cheveux(person.character && person.character.hair, hc) +
-            (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="18" cy="-14" r="4"/>' : '') +
+            cheveux(person.character && person.character.hair, hc, true) +
+            (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="17" cy="-14" r="4"/>' : '') +
             '</g></g>' +
             // Le nom au-dessus de la tête : sous les pieds, il sortait de la
             // scène avec eux et se perdait dans les tables du premier plan.
             texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, -86, 14, name) +
             (emote ? '<text class="sc-patron__emote" data-until="' + emoteUntil + '" x="38" y="-58">' + emote + '</text>' : '') +
             bubble +
-            hit(0, -12, 100, 175) +
-            '</g>';
+            hit(0, -80, 76, 160) +
+            '</g></g>';
+    }
+
+    /**
+     * Une place libre, en deux calques : l'anneau au sol passe sous les
+     * joueurs, le bouton au-dessus de tout. D'une pièce, la place
+     * disparaissait sous quiconque se tenait dessus — à commencer par le
+     * nouveau venu, qui apparaît dans l'allée entre les chaises — et plus
+     * personne ne pouvait s'y asseoir.
+     */
+    function placeSol(key, occupied) {
+        var seat = TAVERN_SEATS[key];
+        if (!seat || occupied) return '';
+        return '<ellipse class="sc-seat__ring" cx="' + seat.x + '" cy="' + seat.y + '" rx="34" ry="11"/>';
     }
 
     function placeNode(key, occupied) {
         var seat = TAVERN_SEATS[key];
         if (!seat || occupied) return '';
         return '<g class="sc-node sc-seat" data-action="tavern-seat" data-id="' + key +
-            '" tabindex="0" role="button" aria-label="S’asseoir : ' + esc(key.replace(/-/g, ' ')) +
+            '" tabindex="0" role="button" aria-label="S’installer : ' + esc(key.replace(/-/g, ' ')) +
             '" transform="translate(' + seat.x + ' ' + seat.y + ')">' +
-            '<ellipse class="sc-seat__ring" cx="0" cy="5" rx="34" ry="14"/>' +
-            '<path class="sc-seat__chair" d="M-24-20q24-10 48 0v24h-7l-3-18q-14-5-28 0l-3 18h-7Z"/>' +
-            '<text class="sc-seat__plus" x="0" y="2">+</text>' + hit(0, -4, 82, 62) + '</g>';
-    }
-
-    function barman() {
-        return '<g class="sc-barman" transform="translate(480 307)">' +
-            '<ellipse class="sc-patron__shadow" cx="0" cy="35" rx="42" ry="9"/>' +
-            '<path class="sc-barman__body" d="M-42-16q42-24 84 0l-6 67h-72Z"/>' +
-            '<path class="sc-barman__apron" d="M-28-8h56l-5 58h-46Z"/>' +
-            '<ellipse class="sc-patron__face" cx="0" cy="-51" rx="23" ry="26"/>' +
-            '<path class="sc-barman__hair" d="M-23-57q23-20 46 0v9q-24-8-46 0Z"/>' +
-            '<path class="sc-barman__moustache" d="M-3-43q-10-8-17 1 11 8 20 2 9 6 20-2-7-9-17-1Z"/>' +
-            '<g class="sc-barman__wipe"><path class="sc-barman__arm" d="M31-10q19 13 24 32l-10 3Q36 8 23 2Z"/>' +
-            '<path class="sc-barman__cloth" d="M43 15q18-6 24 8-15 11-28 2Z"/></g>' +
-            '<g class="sc-barman__glass" transform="translate(-38 19)"><path d="M-8-16h16l-2 28H-6Z"/><path d="M-5 12h10"/></g>' +
-            '</g>';
-    }
-
-    function tavernInteriorDecor() {
-        return '<g class="sc-tavern__interior" aria-hidden="true">' +
-            // Lambris et grosses poutres : profondeur nette par-dessus le tableau peint.
-            '<path class="sc-tavern__panel" d="M0 116H960V326H0Z"/>' +
-            '<path class="sc-tavern__beam-deep" d="M0 112h960v18H0ZM84 112h20v214H84ZM856 112h20v214h-20Z"/>' +
-            '<path class="sc-tavern__beam-edge" d="M0 130h960M104 112v214M856 112v214"/>' +
-
-            // Étagère gauche : bouteilles, cruches et plantes suspendues.
-            '<g class="sc-tavern__shelf" transform="translate(18 164)">' +
-            '<path class="sc-tavern__shelf-board" d="M0 70h190v14H0Z"/>' +
-            '<path class="sc-tavern__shelf-brace" d="M22 84h12v26H22ZM160 84h12v26h-12Z"/>' +
-            '<g class="sc-tavern__bottles">' +
-            '<path d="M20 34h16v36H18V45l5-5v-6Z"/><path d="M49 20h13v50H47V32l4-4v-8Z"/>' +
-            '<path d="M75 39h20v31H73V47l6-4v-4Z"/><path d="M111 27h15v43h-17V39l4-4v-8Z"/>' +
-            '<path d="M143 35h22v35h-24V45l6-4v-6Z"/>' +
-            '</g>' +
-            '<g class="sc-tavern__herbs">' +
-            '<path d="M42 0v26M39 4q-15 9 0 17M45 7q15 8 0 16"/>' +
-            '<path d="M130-3v31M126 2q-16 8 0 18M134 4q16 9 0 20"/>' +
-            '</g></g>' +
-
-            // Coin droit : tableau des brassins et trophée de chasse stylisé.
-            '<g class="sc-tavern__board" transform="translate(735 148)">' +
-            '<path d="M0 0h116v112H0Z"/><path class="sc-tavern__board-frame" d="M0 0h116v112H0Z"/>' +
-            '<path class="sc-tavern__chalk" d="M17 22h56M17 41h77M17 60h64M17 79h72"/>' +
-            '<circle class="sc-tavern__chalk-dot" cx="94" cy="22" r="3"/>' +
-            '<circle class="sc-tavern__chalk-dot" cx="83" cy="60" r="3"/></g>' +
-            '<g class="sc-tavern__crest" transform="translate(891 158)">' +
-            '<path d="M0 16 24 0l24 16-5 52-19 15L5 68Z"/>' +
-            '<path class="sc-tavern__antler" d="M17 38q-15-14-9-27m8 18L5 23m26 15q15-14 9-27m-8 18 11-6"/>' +
-            '<circle cx="24" cy="42" r="10"/></g>' +
-
-            // Petit foyer latéral, loin du joueur : seulement deux flammes.
-            '<g class="sc-tavern__hearth" transform="translate(18 268)">' +
-            '<path class="sc-tavern__hearth-stone" d="M0 58V8Q0 0 8 0h86q8 0 8 8v50H86V18H16v40Z"/>' +
-            '<path class="sc-tavern__hearth-dark" d="M16 58V18h70v40Z"/>' +
-            '<path class="sc-tavern__log" d="M25 51 72 38l4 8-48 13Z"/>' +
-            '<path class="sc-tavern__fire sc-tavern__fire--a" d="M48 50q-18-18 1-37-3 17 9 22 9-15 16-20 6 23-10 35Z"/>' +
-            '<path class="sc-tavern__fire sc-tavern__fire--b" d="M52 51q-8-12 5-24-1 10 6 14 5-9 8-11 3 13-6 21Z"/></g>' +
-
-            // Lustres simples : lumière réelle portée par les halos existants.
-            '<g class="sc-tavern__chandelier" transform="translate(258 100)">' +
-            '<path d="M0 0v50m-38 7q38 17 76 0M-38 57v19m76-19v19"/>' +
-            '<path class="sc-tavern__candle" d="M-43 76h10v24h-10Zm76 0h10v24H33Z"/>' +
-            '<ellipse class="sc-tavern__flame" cx="-38" cy="72" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="38" cy="72" rx="4" ry="8"/></g>' +
-            '<g class="sc-tavern__chandelier" transform="translate(700 94)">' +
-            '<path d="M0 0v48m-35 7q35 16 70 0M-35 55v18m70-18v18"/>' +
-            '<path class="sc-tavern__candle" d="M-40 73h10v24h-10Zm70 0h10v24H30Z"/>' +
-            '<ellipse class="sc-tavern__flame" cx="-35" cy="69" rx="4" ry="8"/><ellipse class="sc-tavern__flame" cx="35" cy="69" rx="4" ry="8"/></g>' +
-            '</g>';
-    }
-
-    function taverne(state) {
-        var offres = state.tavernCounter || [];
-        var room = state.tavernRoom;
-        var people = room && room.players || [];
-        var occupied = {};
-        people.forEach(function (person) { if (person.seatKey) occupied[person.seatKey] = true; });
-
-        var zinc = comptoir();
-        // Les chopes se rangent de part et d'autre du barman, en partant de
-        // lui : la première offre est la plus proche, et personne ne le cache.
-        var chopes = offres.slice(0, CHOPE_PLACES.length).map(function (offre, i) {
-            return chopeNode(offre, CHOPE_PLACES[i], 330);
-        }).join('');
-
-        var places = room ? Object.keys(TAVERN_SEATS).map(function (key) {
-            return placeNode(key, occupied[key]);
-        }).join('') : '';
-
-        var patrons = room ? '<g class="sc-tavern__patrons">' + people.map(function (person) {
-            return patronNode(person, room);
-        }).join('') + '</g>' : '';
-
-        var invite = !room
-            ? 'Entre dans une salle pour retrouver les autres brasseurs.'
-            : '';
-
-        return defs() + painted('taverne') +
-            '<rect class="sc-dusk sc-dusk--tavern" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
-            floor(336, 'cellar') + tavernInteriorDecor() +
-            '<g class="sc-lanterns">' +
-            '<ellipse cx="150" cy="150" rx="104" ry="92" fill="url(#sc-halo)"/>' +
-            '<ellipse cx="812" cy="138" rx="94" ry="82" fill="url(#sc-halo)"/>' +
-            '<ellipse cx="480" cy="250" rx="150" ry="70" fill="url(#sc-halo)"/>' +
-            '</g>' +
-            '<path class="sc-tavern__lightbeam" d="M885 130 960 155 760 520 615 520Z"/>' +
-            '<g class="sc-tavern__embers">' +
-            '<circle cx="65" cy="400" r="2"/><circle cx="82" cy="424" r="1.6"/><circle cx="52" cy="448" r="1.4"/>' +
-            '</g>' +
-            '<g class="sc-tavern__beams"><path d="M0 102h960v18H0ZM112 0h18v252H112ZM824 0h18v252h-18Z"/></g>' +
-            '<g class="sc-tavern__sign"><path d="M402 160q78-20 156 0l-8 62q-70 18-140 0Z"/>' +
-            '<text x="480" y="190">MJÖDHEIM</text><text class="sc-tavern__sign-small" x="480" y="210">TAVERNE DU FJORD</text></g>' +
-            zinc + barman() + chopes +
-            '<g class="sc-tavern__salle" transform="translate(0 ' + (-SALLE_LEVEE) + ')">' +
-            '<path class="sc-tavern__rug-shadow" d="M255 448Q480 405 705 448L664 542H296Z"/>' +
-            '<path class="sc-tavern__rug" d="M271 451Q480 415 689 451L651 531H309Z"/>' +
-            '<path class="sc-tavern__rug-line" d="M318 470Q480 441 642 470M335 503Q480 478 625 503"/>' +
-            // Le plancher cliquable commence sous le zinc : plus haut, il
-            // passait devant les chopes et avalait leurs clics.
-            '<rect class="sc-tavern__walk" x="54" y="' + (344 + SALLE_LEVEE) + '" width="852" height="' +
-            (STAGE_HEIGHT - 344) + '" rx="28"/>' +
-            '<g class="sc-tavern__cursor"><circle r="13"/><circle class="sc-tavern__cursor-core" r="3"/></g>' +
-            tables() + places + patrons +
-            '</g>' +
-            light() +
-            (invite
-                ? '<g class="sc-salle__invite"><rect x="230" y="438" width="500" height="46" rx="23"/>' +
-                  '<text x="480" y="467">' + esc(invite) + '</text></g>'
-                : '');
+            '<circle class="sc-seat__pastille" cx="0" cy="-26" r="15"/>' +
+            '<text class="sc-seat__plus" x="0" y="-19">+</text>' + hit(0, -48, 76, 62) + '</g>';
     }
 
     /**
-     * Le zinc, et le rack de fûts derrière.
+     * Un habitué peint, en deux calques.
      *
-     * <p>Un premier essai posait les fûts en simples ellipses : ils
-     * flottaient comme des jetons. Un fût couché se reconnaît à trois
-     * choses — le galbe des douves, les deux cercles de fer, et la bonde.
-     * C'est peu, mais il faut les trois.
+     * <p>Son corps se touche aussi, mais sous les places libres et les
+     * joueurs : posé par-dessus, le corps d'Ylva avalait le clic de la place
+     * voisine, et on ne pouvait plus s'asseoir à côté d'elle. La pastille,
+     * elle, reste au-dessus de tout.
      */
-    function comptoir() {
-        var out = '<g class="sc-bar">';
-
-        // L'étagère qui porte les fûts, sinon ils lévitent.
-        out += '<path class="sc-bar__etagere" d="M18 226h924v16H18Z"/>' +
-            '<path class="sc-bar__console" d="M96 242h16v26H96ZM440 242h16v26h-16ZM848 242h16v26h-16Z"/>';
-
-        [145, 340, 620, 815].forEach(function (x) {
-            out += futCouche(x, 222, 0.92);
-        });
-
-        // Le plateau. Le liseré clair sur l'arête est ce qui fait « zinc ».
-        // Un comptoir à hauteur de hanche : avec la salle remontée, les
-        // clients qui s'y accoudent le cachent à moitié, comme il se doit.
-        out += '<path class="sc-bar__front" d="M34 344h892v64H34Z"/>';
-        for (var j = 1; j < 9; j++) {
-            var px = 34 + j * 99;
-            out += '<path class="sc-bar__planche" d="M' + px + ' 348v56"/>';
-        }
-        out += '<path class="sc-bar__moulure" d="M34 394h892"/>' +
-            '<path class="sc-bar__top" d="M22 326h916l-12 20H34Z"/>' +
-            '<path class="sc-bar__edge" d="M22 326h916"/>' +
-            '</g>';
-        return out;
+    function habitueNom(spot, nom) {
+        var w = nom.length * 8 + 22;
+        return '<g class="tv-habitue__nom" transform="translate(' + spot.tete[0] + ' ' + (spot.tete[1] - 62) + ')">' +
+            '<rect x="' + (-w / 2) + '" y="-14" width="' + w + '" height="26" rx="9"/>' +
+            '<text y="5">' + esc(nom) + '</text></g>';
     }
 
-    /** Un fût couché sur l'étagère, vu de face. */
-    function futCouche(x, y, k) {
-        var rx = 58 * k;
-        var ry = 42 * k;
-        var out = '<g class="sc-fut">';
-        // Le galbe : plus large au milieu qu'aux extrémités.
-        out += '<path class="sc-fut__corps" d="M' + (x - rx) + ' ' + (y - ry * 0.74) +
-            'q' + (-9 * k) + ' ' + (ry * 0.74) + ' 0 ' + (ry * 1.48) +
-            'h' + (rx * 2) + 'q' + (9 * k) + ' ' + (-ry * 0.74) + ' 0 ' + (-ry * 1.48) + 'Z"/>';
-        out += '<ellipse class="sc-fut__fond" cx="' + (x - rx - 3 * k) + '" cy="' + y +
-            '" rx="' + (11 * k) + '" ry="' + (ry * 0.78) + '"/>';
-        for (var d = -2; d <= 2; d++) {
-            var dx = x + d * rx * 0.36;
-            out += '<path class="sc-fut__douve" d="M' + dx.toFixed(1) + ' ' + (y - ry * 0.7) +
-                'q' + (d * 2.5 * k) + ' ' + (ry * 0.7) + ' 0 ' + (ry * 1.4) + '"/>';
-        }
-        out += '<path class="sc-fut__cercle" d="M' + (x - rx * 0.56) + ' ' + (y - ry * 0.78) +
-            'q' + (-6 * k) + ' ' + (ry * 0.78) + ' 0 ' + (ry * 1.56) +
-            'M' + (x + rx * 0.56) + ' ' + (y - ry * 0.78) +
-            'q' + (6 * k) + ' ' + (ry * 0.78) + ' 0 ' + (ry * 1.56) + '"/>' +
-            '<circle class="sc-fut__bonde" cx="' + x + '" cy="' + (y + ry * 0.12) + '" r="' + (6 * k) + '"/>' +
-            '</g>';
-        return out;
+    function nomHabitue(spot, regular) {
+        return regular ? regular.name : spot.key.charAt(0).toUpperCase() + spot.key.slice(1);
     }
 
-    /** Une chope sur le zinc : un fût qu'un voisin propose à la dégustation. */
+    function habitueCorps(spot, regular) {
+        var z = spot.zone;
+        return '<g class="tv-habitue" data-action="tavern-regular" data-id="' + spot.key + '" aria-hidden="true">' +
+            '<ellipse class="tv-habitue__zone" cx="' + z[0] + '" cy="' + z[1] + '" rx="' + z[2] + '" ry="' + z[3] + '"/>' +
+            habitueNom(spot, nomHabitue(spot, regular)) + '</g>';
+    }
+
+    function habitueNode(spot, regular) {
+        var nom = nomHabitue(spot, regular);
+        var attend = regular && regular.request && !regular.request.done;
+        return '<g class="sc-node tv-habitue' + (attend ? ' is-attend' : '') + '" data-action="tavern-regular" data-id="' +
+            spot.key + '" tabindex="0" role="button" aria-label="' + esc(nom) +
+            (attend ? ', attend une chope' : ', parler') + '">' +
+            '<g class="tv-habitue__pastille" transform="translate(' + spot.tete[0] + ' ' + (spot.tete[1] - 26) + ')">' +
+            '<rect x="-17" y="-15" width="34" height="30" rx="12"/>' +
+            '<path d="M-5 13l5 9 5-9Z"/>' +
+            '<text y="7">' + (attend ? '!' : '…') + '</text></g>' +
+            habitueNom(spot, nom) +
+            '</g>';
+    }
+
     /**
      * Coupe un libellé en lignes qui tiennent dans la place de son objet.
      *
@@ -1126,21 +1029,15 @@
             }).join('') + '</text>';
     }
 
-    /** Les places des chopes sur le zinc, de la plus proche du barman à la plus loin. */
-    var CHOPE_PLACES = [392, 568, 306, 654, 220, 740];
-
     /**
-     * Une chope posée sur le zinc.
+     * Une chope posée sur le comptoir.
      *
-     * <p>Chacune portait son nom sur deux lignes, son prix et son vendeur :
-     * six chopes faisaient un mur de texte devant le barman et les clients
-     * accoudés. Elle ne garde plus que son prix sur une étiquette ; le nom
-     * se lit au survol et en entier dans l'intitulé, et le journal donne
-     * tout le détail.
+     * <p>Elle ne porte que son prix sur une étiquette ; le nom se lit au
+     * survol et en entier dans l'intitulé, et le journal donne le détail.
      */
     function chopeNode(offre, x, y) {
         var mienne = !!offre.mine;
-        var k = .72;
+        var k = .95;
         var h = 64 * k;
         var w = 42 * k;
         var top = y - h;
@@ -1149,7 +1046,7 @@
         var payante = !mienne && !!offre.price;
         var prix = mienne ? 'à toi' : (payante ? String(offre.price) : 'offert');
         var largeurPrix = Math.max(40, prix.length * 7.6 + (payante ? 34 : 20));
-        var nom = lignes(offre.recipeName, 150, 13, 1)[0] || '';
+        var nom = lignes(offre.recipeName, 170, 13, 1)[0] || '';
         var largeurNom = Math.max(60, nom.length * 7 + 24);
 
         return '<g class="sc-node sc-chope" data-state="' + (mienne ? 'mine' : 'ready') + '"' +
@@ -1158,13 +1055,6 @@
             ' aria-label="' + esc(offre.recipeName || 'Une chope') +
             (mienne ? ' — ton fût' : ', servi par ' + esc(offre.seller || '') + ', ' +
                 (payante ? prix + ' pièces' : prix)) + '">' +
-
-            (mienne ? '' :
-                '<ellipse class="sc-node__glow" cx="' + x + '" cy="' + (y - h * 0.5).toFixed(1) +
-                '" rx="' + (w * 1.4).toFixed(1) + '" ry="' + (h * 0.85).toFixed(1) + '" fill="url(#sc-halo)"/>') +
-
-            '<ellipse class="sc-contact" cx="' + x + '" cy="' + (y + 2) +
-            '" rx="' + (w * 0.62).toFixed(1) + '" ry="' + (5 * k).toFixed(1) + '"/>' +
             '<path class="sc-chope__body" d="M' + (x - w / 2).toFixed(1) + ' ' + top.toFixed(1) +
             'h' + w.toFixed(1) + 'l' + (-w * 0.08).toFixed(1) + ' ' + h.toFixed(1) +
             'h' + (-w * 0.84).toFixed(1) + 'Z"/>' +
@@ -1175,72 +1065,100 @@
             '" rx="' + (w * 0.46).toFixed(1) + '" ry="' + (h * 0.13).toFixed(1) + '"/>' +
             '<path class="sc-chope__anse" d="M' + (x + w * 0.46).toFixed(1) + ' ' + (top + h * 0.3).toFixed(1) +
             'q' + (w * 0.5).toFixed(1) + ' ' + (h * 0.2).toFixed(1) + ' 0 ' + (h * 0.42).toFixed(1) + '"/>' +
-
             '<g class="sc-chope__prix" transform="translate(' + x + ' ' + (top - 16).toFixed(1) + ')">' +
             '<rect x="' + (-largeurPrix / 2).toFixed(1) + '" y="-11" width="' + largeurPrix.toFixed(1) + '" height="22" rx="11"/>' +
             (payante
                 ? '<circle class="sc-chope__piece" cx="' + (-largeurPrix / 2 + 12).toFixed(1) + '" r="7"/>' +
-                  '<text x="' + (7).toFixed(1) + '" y="5">' + esc(prix) + '</text>'
+                  '<text x="7" y="5">' + esc(prix) + '</text>'
                 : '<text y="5">' + esc(prix) + '</text>') +
             '</g>' +
-
             '<g class="sc-chope__etiquette" transform="translate(' + x + ' ' + (top - 44).toFixed(1) + ')">' +
             '<rect x="' + (-largeurNom / 2).toFixed(1) + '" y="-12" width="' + largeurNom.toFixed(1) + '" height="24" rx="8"/>' +
             '<text y="5">' + esc(nom) + '</text></g>' +
-
             hit(x, top - 30, w * 2.2, h + 34) +
             '</g>';
     }
 
-    /**
-     * Tables et tabourets au premier plan.
-     *
-     * <p>Elles ne servent à rien, et c'est exactement leur rôle : une salle
-     * vide n'est pas une taverne. Le plateau a une tranche — sans elle, une
-     * ellipse sur un pied ressemble à un champignon.
-     */
-    function tables() {
-        var out = '<g class="sc-salle">';
-        [[168, 506, 1], [478, 532, 1.14], [792, 500, 0.95]].forEach(function (t, i) {
-            var x = t[0], y = t[1], k = t[2];
-            var haut = y - 50 * k;
-            var rx = 76 * k;
-            var ry = 21 * k;
+    /** Le contenu de la scène : la couche SVG posée sur la peinture. */
+    function taverne(state) {
+        var offres = state.tavernCounter || [];
+        var room = state.tavernRoom;
+        var people = room && room.players || [];
+        var regulars = {};
+        (state.tavernRegulars || []).forEach(function (r) { regulars[r.key] = r; });
+        var occupied = {};
+        people.forEach(function (person) { if (person.seatKey) occupied[person.seatKey] = true; });
 
-            out += '<ellipse class="sc-contact" cx="' + x + '" cy="' + (y + 8 * k) + '" rx="' + (rx * 1.16) + '" ry="' + (15 * k) + '"/>';
+        var chopes = offres.slice(0, CHOPE_PLACES.length).map(function (offre, i) {
+            return chopeNode(offre, CHOPE_PLACES[i], CHOPE_Y);
+        }).join('');
 
-            // Tabourets derrière la table, pour qu'elle les recouvre.
-            [-1.42, 1.42].forEach(function (cote) {
-                var sx = x + cote * rx;
-                out += '<path class="sc-tabouret__pied" d="M' + (sx - 7 * k) + ' ' + (y - 26 * k) + 'l' + (-3 * k) + ' ' + (28 * k) +
-                    'M' + (sx + 7 * k) + ' ' + (y - 26 * k) + 'l' + (3 * k) + ' ' + (28 * k) + '"/>' +
-                    '<ellipse class="sc-tabouret" cx="' + sx + '" cy="' + (y - 28 * k) + '" rx="' + (23 * k) + '" ry="' + (9 * k) + '"/>' +
-                    '<path class="sc-tabouret__tranche" d="M' + (sx - 23 * k) + ' ' + (y - 28 * k) +
-                    'v' + (5 * k) + 'a' + (23 * k) + ' ' + (9 * k) + ' 0 0 0 ' + (46 * k) + ' 0v' + (-5 * k) + 'Z"/>';
-            });
+        var sols = room ? Object.keys(TAVERN_SEATS).map(function (key) {
+            return placeSol(key, occupied[key]);
+        }).join('') : '';
+        var places = room ? Object.keys(TAVERN_SEATS).map(function (key) {
+            return placeNode(key, occupied[key]);
+        }).join('') : '';
 
-            out += '<path class="sc-table__pied" d="M' + (x - 11 * k) + ' ' + y + 'l' + (4 * k) + ' ' + (-50 * k) +
-                'h' + (14 * k) + 'l' + (4 * k) + ' ' + (50 * k) + 'Z"/>' +
-                '<path class="sc-table__socle" d="M' + (x - 30 * k) + ' ' + y + 'h' + (60 * k) + 'l' + (-6 * k) + ' ' + (-7 * k) +
-                'h' + (-48 * k) + 'Z"/>' +
-                // La tranche du plateau, dessinée avant le dessus.
-                '<path class="sc-table__tranche" d="M' + (x - rx) + ' ' + haut + 'v' + (9 * k) +
-                'a' + rx + ' ' + ry + ' 0 0 0 ' + (rx * 2) + ' 0v' + (-9 * k) + 'Z"/>' +
-                '<ellipse class="sc-table__plateau" cx="' + x + '" cy="' + haut + '" rx="' + rx + '" ry="' + ry + '"/>' +
-                '<ellipse class="sc-table__veine" cx="' + x + '" cy="' + (haut - 2 * k) + '" rx="' + (rx * 0.62) + '" ry="' + (ry * 0.56) + '"/>';
+        var patrons = room ? people.map(function (person) { return patronNode(person, room); }).join('') : '';
 
-            // Une chandelle sur deux tables : la salle respire.
-            if (i !== 1) {
-                var cx = x + 26 * k;
-                out += '<path class="sc-bougeoir" d="M' + (cx - 9 * k) + ' ' + (haut - 3 * k) + 'h' + (18 * k) + 'l' + (-4 * k) + ' ' + (-5 * k) + 'h' + (-10 * k) + 'Z"/>' +
-                    '<path class="sc-bougie" d="M' + cx + ' ' + (haut - 8 * k) + 'v' + (-20 * k) + '"/>' +
-                    '<ellipse class="sc-bougie__flamme" cx="' + cx + '" cy="' + (haut - 33 * k) + '" rx="' + (3.6 * k) + '" ry="' + (6.4 * k) + '"/>' +
-                    '<ellipse class="sc-bougie__halo" cx="' + cx + '" cy="' + (haut - 30 * k) + '" rx="' + (30 * k) + '" ry="' + (24 * k) + '" fill="url(#sc-halo)"/>';
-            }
-        });
-        return out + '</g>';
+        var avant = '<defs><clipPath id="tv-avant-decoupe">' +
+            TV_AVANT.map(function (points) { return '<polygon points="' + points + '"/>'; }).join('') +
+            '</clipPath></defs>' +
+            '<image class="tv-avant" href="' + esc(peintureTaverne()) + '" x="0" y="0" width="' + TV_W +
+            '" height="' + TV_H + '" preserveAspectRatio="none" clip-path="url(#tv-avant-decoupe)"/>';
+
+        return '' +
+            // Repères invisibles sur la peinture : l'enseigne, et le barman
+            // à qui l'on commande une tournée.
+            '<rect class="sc-tavern__sign" x="664" y="36" width="372" height="132"/>' +
+            '<rect class="sc-node sc-barman" data-action="tavern-barman" tabindex="0" role="button"' +
+            ' aria-label="Gunnar, le tavernier" x="772" y="150" width="166" height="196"/>' +
+            chopes +
+            // Le plancher cliquable : l'allée et un peu autour. Le point est
+            // ensuite ramené dans l'allée.
+            '<rect class="sc-tavern__walk" x="440" y="420" width="880" height="190" rx="24"/>' +
+            '<g class="sc-tavern__cursor"><circle r="16"/><circle class="sc-tavern__cursor-core" r="4"/></g>' +
+            TV_HABITUES.map(function (spot) { return habitueCorps(spot, regulars[spot.key]); }).join('') +
+            '<g class="sc-tavern__sols">' + sols + '</g>' +
+            '<g class="sc-tavern__patrons">' + patrons + '</g>' +
+            avant +
+            places +
+            TV_HABITUES.map(function (spot) { return habitueNode(spot, regulars[spot.key]); }).join('');
     }
 
+    /** La scène complète : la peinture en image, les lueurs, la couche SVG. */
+    function taverneMarkup(state) {
+        var src = peintureTaverne();
+        var lueurs = TV_LUEURS.map(function (l) {
+            return '<i style="left:' + l.x + '%;top:' + l.y + '%;--t:' + l.t + '%;--d:' + l.d + 's"></i>';
+        }).join('');
+        var invite = !state.tavernRoom
+            ? '<p class="tv-invite">Entre dans une salle pour retrouver les autres brasseurs.</p>' : '';
+        return '<div class="tv-cadre">' +
+            '<div class="tv-toile">' +
+            '<img class="tv-peinture" src="' + esc(src) + '" alt="" decoding="async" draggable="false">' +
+            '<svg class="sc-stage sc-stage--taverne" viewBox="0 0 ' + TV_W + ' ' + TV_H + '"' +
+            ' preserveAspectRatio="none" role="group" aria-label="La salle de la taverne">' + taverne(state) + '</svg>' +
+            '<div class="tv-lueurs" aria-hidden="true">' + lueurs + '</div>' +
+            invite +
+            '</div></div>';
+    }
+
+    /**
+     * Sur un écran étroit, la salle déborde et défile : on la recentre sur
+     * le joueur. Sur un écran large, elle tient entière et rien ne bouge.
+     */
+    function recentrer(root, x, doucement) {
+        var cadre = root && root.querySelector('.tv-cadre');
+        var toile = cadre && cadre.querySelector('.tv-toile');
+        if (!cadre || !toile || toile.offsetWidth <= cadre.clientWidth + 2) return;
+        var cible = x / TV_W * toile.offsetWidth - cadre.clientWidth / 2;
+        cible = clamp(cible, 0, toile.offsetWidth - cadre.clientWidth);
+        if (Math.abs(cadre.scrollLeft - cible) < 4) return;
+        if (doucement && cadre.scrollTo) cadre.scrollTo({ left: cible, behavior: 'smooth' });
+        else cadre.scrollLeft = cible;
+    }
 
     /* ----------------------------------------------------------- Entrepôt */
 
@@ -1606,6 +1524,9 @@
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
                 (state.tavernCounter || []).map(function (o) {
                     return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');
+                }).join('|') + '::' +
+                (state.tavernRegulars || []).map(function (r) {
+                    return r.key + ':' + (r.request && r.request.done ? 'x' : 'o');
                 }).join('|');
         }
         if (place === 'entrepot') {
@@ -1721,6 +1642,7 @@
     function markup(place, state) {
         var scene = SCENES[place];
         if (!scene) return '';
+        if (place === 'taverne') return taverneMarkup(state);
         var body = scene.build(state);
         if (!body) return '<p class="sc-empty">' + esc(scene.empty) + '</p>';
         return '<svg class="sc-stage" viewBox="0 0 ' + STAGE_WIDTH + ' ' + STAGE_HEIGHT + '"' +
@@ -1795,6 +1717,7 @@
         normalizeTavernPoint: normalizeTavernPoint,
         movePatron: movePatron,
         animateDrink: animateDrink,
-        showTavernDestination: showTavernDestination
+        showTavernDestination: showTavernDestination,
+        recentrer: recentrer
     };
 })(window);

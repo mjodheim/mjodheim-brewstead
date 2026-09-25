@@ -10,6 +10,19 @@ import static org.junit.jupiter.api.Assertions.*;
 class TavernNavigationTest {
 
     @Test
+    void arrivalsLandBetweenTheChairsNotOnThem() {
+        List<TavernNavigation.Point> taken = new ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            TavernNavigation.Point spawn = TavernNavigation.spawn(taken);
+            for (TavernNavigation.Seat seat : TavernNavigation.seats()) {
+                assertTrue(Math.abs(seat.x() - spawn.x()) >= 30,
+                        "L'arrivée " + spawn + " tombe sur la place " + seat);
+            }
+            taken.add(spawn);
+        }
+    }
+
+    @Test
     void eachArrivalTakesAFreeSpotAlongTheBar() {
         List<TavernNavigation.Point> taken = new ArrayList<>();
         for (int i = 0; i < 6; i++) {

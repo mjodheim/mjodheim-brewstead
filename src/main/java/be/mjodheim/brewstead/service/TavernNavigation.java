@@ -4,10 +4,15 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Petit navmesh volontairement simple pour la taverne : on laisse le joueur
- * libre sur le plancher mais on repousse les destinations qui tomberaient
- * dans une table. Le client utilise la même géométrie pour prédire le trajet,
- * le serveur reste l'autorité.
+ * La géométrie de la salle, dans les pixels de la peinture de la taverne
+ * (1672 × 708). Les coordonnées sont celles des pieds : le point où un
+ * personnage touche le plancher, ou le bas du tabouret où il est assis.
+ *
+ * <p>La peinture est pleine : habitués, tables et bancs occupent l'avant de
+ * la salle. On marche donc dans l'allée qui longe le comptoir, entre les
+ * tabourets et les tables ; celui qui passe derrière une table est caché
+ * par elle, la tête au-dessus, comme dans une vraie salle. Le client utilise
+ * la même géométrie pour prédire le trajet, le serveur reste l'autorité.
  */
 public final class TavernNavigation {
 
@@ -16,33 +21,32 @@ public final class TavernNavigation {
     public record Point(double x, double y) {}
     public record Seat(double x, double y, String facing) {}
 
-    private record Ellipse(double cx, double cy, double rx, double ry) {}
+    /** L'allée du comptoir, en coordonnées de pieds. */
+    private static final double MIN_X = 520;
+    private static final double MAX_X = 1240;
+    private static final double MIN_Y = 478;
+    private static final double MAX_Y = 545;
 
-    private static final double MIN_X = 72;
-    private static final double MAX_X = 888;
-    private static final double MIN_Y = 382;
-    private static final double MAX_Y = 520;
-
-    private static final Ellipse[] TABLES = {
-            new Ellipse(168, 472, 112, 43),
-            new Ellipse(478, 486, 126, 48),
-            new Ellipse(792, 468, 106, 41)
-    };
-
+    /** Les tabourets libres du comptoir, et quelques places debout. */
     private static final Map<String, Seat> SEATS = Map.of(
-            "bar-gauche", new Seat(332, 445, "RIGHT"),
-            "bar-droite", new Seat(628, 445, "LEFT"),
-            "table-gauche-a", new Seat(118, 486, "RIGHT"),
-            "table-gauche-b", new Seat(254, 488, "LEFT"),
-            "table-droite-a", new Seat(706, 480, "RIGHT"),
-            "table-droite-b", new Seat(842, 482, "LEFT"),
-            "feu-gauche", new Seat(389, 505, "RIGHT"),
-            "feu-droite", new Seat(570, 507, "LEFT")
+            "bar-gauche", new Seat(552, 502, "RIGHT"),
+            "bar-droite", new Seat(642, 502, "RIGHT"),
+            "table-gauche-a", new Seat(868, 500, "LEFT"),
+            "table-gauche-b", new Seat(1060, 500, "LEFT"),
+            "table-droite-a", new Seat(1188, 504, "LEFT"),
+            "table-droite-b", new Seat(760, 538, "RIGHT"),
+            "feu-gauche", new Seat(528, 530, "RIGHT"),
+            "feu-droite", new Seat(1226, 540, "LEFT")
     );
 
-    /** Les points d'arrivée, le long du comptoir, depuis la porte de droite. */
+    /**
+     * Les points d'arrivée, le long de l'allée, depuis l'escalier de droite.
+     * Ils tombent entre les chaises : posés dessus, l'arrivant masquait la
+     * place où il aurait voulu s'asseoir.
+     */
     private static final int SPAWN_SLOTS = 6;
-    private static final double SPAWN_STEP = 64;
+    private static final double SPAWN_STEP = 110;
+    private static final double SPAWN_FIRST_X = 1135;
 
     public static Point spawn() {
         return spawnSlot(0);
@@ -68,7 +72,11 @@ public final class TavernNavigation {
     }
 
     private static Point spawnSlot(int slot) {
-        return new Point(862 - Math.floorMod(slot, SPAWN_SLOTS) * SPAWN_STEP, 405);
+        return new Point(SPAWN_FIRST_X - Math.floorMod(slot, SPAWN_SLOTS) * SPAWN_STEP, 520);
+    }
+
+    static Collection<Seat> seats() {
+        return SEATS.values();
     }
 
     public static Seat seat(String key) {
@@ -82,30 +90,6 @@ public final class TavernNavigation {
 
         double x = clamp(requestedX, MIN_X, MAX_X);
         double y = clamp(requestedY, MIN_Y, MAX_Y);
-
-        // Deux passages suffisent lorsque deux volumes se frôlent.
-        for (int pass = 0; pass < 2; pass++) {
-            for (Ellipse table : TABLES) {
-                double nx = (x - table.cx()) / table.rx();
-                double ny = (y - table.cy()) / table.ry();
-                double d2 = nx * nx + ny * ny;
-                if (d2 >= 1.0) continue;
-
-                if (d2 < 0.0001) {
-                    ny = y <= table.cy() ? -1.0 : 1.0;
-                    nx = 0;
-                    d2 = 1.0;
-                }
-                double length = Math.sqrt(d2);
-                // Un petit coussin évite que le sprite touche le plateau.
-                double factor = 1.08 / length;
-                x = table.cx() + nx * factor * table.rx();
-                y = table.cy() + ny * factor * table.ry();
-                x = clamp(x, MIN_X, MAX_X);
-                y = clamp(y, MIN_Y, MAX_Y);
-            }
-        }
-
         return new Point(round(x), round(y));
     }
 

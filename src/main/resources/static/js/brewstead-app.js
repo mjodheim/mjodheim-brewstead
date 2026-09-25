@@ -25,7 +25,8 @@
         lobby: { rooms: [], currentRoomId: null }, room: null,
         privateName: '', inviteCode: '',
         source: null, liveRoomId: null,
-        moveSending: false, pendingMove: null, lastKeyMove: 0
+        moveSending: false, pendingMove: null, lastKeyMove: 0,
+        regulars: [], regularsAt: 0, carte: null
     };
     var refreshJob = null;
     var mutationPending = false;
@@ -1265,6 +1266,7 @@
                 return Data.get('/api/tavern/counter').then(function (offers) { tavern.counter = offers || []; });
             });
 
+        chargerHabitues(force);
         tavern.requests.social = job.then(function () {
             tavern.connectionError = '';
             if (activeView === 'taverne') {
@@ -1319,6 +1321,7 @@
             else renderSceneScreen(SECTIONS.taverne);
             return;
         }
+        if (payload.detail && jeuxEnDirect(payload)) return;
         if (payload.player) {
             var person = mergeLivePlayer(payload.player);
             if (!person) return;
@@ -1373,6 +1376,7 @@
         tavern.timer = null;
         if (!on) {
             closeTavernLive();
+            fermerCarte();
             return;
         }
         if (tavern.room) openTavernLive(tavern.room.id);
@@ -1436,6 +1440,7 @@
         tavern.room.players[index] = predicted;
         var duration = Scenes.movePatron(dom.screenBody, predicted, true);
         Scenes.showTavernDestination(dom.screenBody, target.x, target.y);
+        Scenes.recentrer(dom.screenBody, target.x, true);
         sendQueuedTavernMove(target);
         return duration || 0;
     }
@@ -1459,6 +1464,247 @@
         tavern.lobby.currentRoomId = null;
         tavern.pendingMove = null;
         tavern.moveSending = false;
+    }
+
+    /* ------------------------------------------------------ Jeux de taverne */
+
+    var PRIX_TOURNEE = { habitues: 12, parTete: 8 };
+    var MISES = [5, 10, 25];
+    var DES = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+    function chargerHabitues(force) {
+        if (!force && Date.now() - tavern.regularsAt < 60000) return;
+        tavern.regularsAt = Date.now();
+        Data.get('/api/tavern/regulars').then(function (list) {
+            tavern.regulars = list || [];
+            if (activeView === 'taverne' && !listMode.taverne) renderSceneScreen(SECTIONS.taverne);
+            if (tavern.carte && tavern.carte.genre === 'habitue') ouvrirHabitue(tavern.carte.id);
+        }).catch(function () { tavern.regularsAt = 0; });
+    }
+
+    /**
+     * La fiche de la taverne : un petit panneau posé sur la salle, hors de la
+     * scène, pour qu'un redessin des personnages ne l'efface pas.
+     */
+    function carteTaverne() {
+        var el = $('tvCarte');
+        if (el) return el;
+        el = document.createElement('div');
+        el.id = 'tvCarte';
+        el.className = 'tv-carte parchment';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-live', 'polite');
+        el.hidden = true;
+        el.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-action]');
+            if (button && !button.disabled) runAction(button.dataset.action, button.dataset.id);
+        });
+        dom.screen.appendChild(el);
+        return el;
+    }
+
+    function ouvrirCarte(genre, id, html) {
+        var el = carteTaverne();
+        tavern.carte = { genre: genre, id: id };
+        el.dataset.genre = genre;
+        el.innerHTML = '<button class="tv-carte__fermer" type="button" data-action="tv-carte-fermer" aria-label="Fermer">' +
+            icon('i-close') + '</button>' + html;
+        el.hidden = false;
+    }
+
+    function fermerCarte() {
+        tavern.carte = null;
+        var el = $('tvCarte');
+        if (el) { el.hidden = true; el.innerHTML = ''; }
+    }
+
+    function ouvrirHabitue(key) {
+        var r = (tavern.regulars || []).find(function (x) { return x.key === key; });
+        if (!r) { chargerHabitues(true); toast('Un instant, il finit sa chope.'); return; }
+        var q = r.request || {};
+        var geste = q.done
+            ? '<p class="tv-carte__fait">' + icon('i-check') + 'Servi aujourd’hui. Reviens demain.</p>'
+            : '<button class="btn btn--gold" type="button" data-action="tavern-deliver" data-id="' + esc(r.key) + '"' +
+              (q.canDeliver ? '' : ' disabled') + '>Lui servir ' + q.liters + ' L</button>' +
+              (q.canDeliver ? '' : '<p class="tv-carte__manque">Il te faut ' + q.liters + ' L de ' + esc(q.drinkLabel) +
+                  ' prêts en cave.</p>');
+        ouvrirCarte('habitue', key,
+            '<p class="tv-carte__qui"><strong>' + esc(r.name) + '</strong><small>' + esc(r.role) + '</small></p>' +
+            '<blockquote class="tv-carte__dit">« ' + esc(r.rumor) + ' »</blockquote>' +
+            '<div class="tv-carte__demande">' +
+            '<span>' + art(artBoisson(q.drinkType), 'tv-carte__art') + '</span>' +
+            '<p>Aimerait <strong>' + q.liters + ' L de ' + esc(q.drinkLabel) + '</strong><br>' +
+            chip('+' + q.coins + ' pièces', 'gold') + ' ' + chip('+' + q.reputation + ' réputation', 'info') + '</p>' +
+            '</div>' + geste);
+    }
+
+    function prixTournee() {
+        var monde = tavern.room ? tavern.room.players.length : 1;
+        return PRIX_TOURNEE.habitues + PRIX_TOURNEE.parTete * Math.max(1, monde);
+    }
+
+    function ouvrirTavernier() {
+        var monde = tavern.room ? tavern.room.players.length : 0;
+        var offres = (tavern.counter || []).filter(function (o) { return !o.mine; }).length;
+        ouvrirCarte('tavernier', 'gunnar',
+            '<p class="tv-carte__qui"><strong>Gunnar</strong><small>le tavernier</small></p>' +
+            '<blockquote class="tv-carte__dit">« Une tournée pour toute la salle ? Les habitués ne diront pas non. »</blockquote>' +
+            '<div class="tv-carte__demande"><span>' + art('art-BEER', 'tv-carte__art') + '</span>' +
+            '<p><strong>Tournée générale</strong><br>' + chip(prixTournee() + ' pièces', 'gold') + ' ' +
+            chip('+' + (2 + 2 * Math.max(0, monde - 1)) + ' réputation', 'info') + '</p></div>' +
+            '<button class="btn btn--gold" type="button" data-action="tavern-round">Payer la tournée</button>' +
+            (offres ? '<p class="tv-carte__note">' + offres + ' chope' + (offres > 1 ? 's' : '') +
+                ' de voisins au comptoir : touche-les pour goûter.</p>' : ''));
+    }
+
+    function ouvrirJoueur(person) {
+        ouvrirCarte('joueur', String(person.playerId),
+            '<p class="tv-carte__qui"><strong>' + esc(person.name) + '</strong><small>niveau ' + person.level +
+            ' · ' + person.reputation + ' renommée</small></p>' +
+            '<p class="tv-carte__dit">Une partie de dés ? Deux dés chacun, le plus haut empoche la mise.</p>' +
+            '<div class="tv-carte__mises">' + MISES.map(function (mise) {
+                return '<button class="btn btn--sm' + (state.player.coins >= mise ? ' btn--gold' : '') + '" type="button"' +
+                    ' data-action="tavern-dice" data-id="' + person.playerId + ':' + mise + '"' +
+                    (state.player.coins >= mise ? '' : ' disabled') + '>' + mise + ' pièces</button>';
+            }).join('') + '</div>');
+    }
+
+    function ouvrirDefi(d) {
+        ouvrirCarte('defi', d.id,
+            '<p class="tv-carte__qui"><strong>' + esc(d.fromName) + '</strong><small>te défie aux dés</small></p>' +
+            '<p class="tv-carte__dit">Mise : <strong>' + d.stake + ' pièces</strong>. Le plus haut total empoche tout.</p>' +
+            '<div class="tv-carte__mises">' +
+            '<button class="btn btn--gold" type="button" data-action="tavern-dice-accept" data-id="' + esc(d.id) + '">Relever le défi</button>' +
+            '<button class="btn btn--rouge" type="button" data-action="tavern-dice-decline" data-id="' + esc(d.id) + '">Refuser</button>' +
+            '</div>');
+        clearTimeout(tavern.defiTimer);
+        tavern.defiTimer = setTimeout(function () {
+            if (tavern.carte && tavern.carte.genre === 'defi' && tavern.carte.id === d.id) fermerCarte();
+        }, 45000);
+    }
+
+    /** Un panneau qui passe sur la salle quelques secondes : dés, skål. */
+    function annonce(genre, html, duree) {
+        var el = $('tvAnnonce');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'tvAnnonce';
+            el.className = 'tv-annonce';
+            el.setAttribute('role', 'status');
+            dom.screen.appendChild(el);
+        }
+        el.dataset.genre = genre;
+        el.innerHTML = html;
+        el.classList.remove('is-visible');
+        void el.offsetWidth;
+        el.classList.add('is-visible');
+        clearTimeout(el._timer);
+        el._timer = setTimeout(function () { el.classList.remove('is-visible'); }, duree || 4200);
+    }
+
+    function monId() {
+        var me = selfInTavern();
+        return me ? me.playerId : null;
+    }
+
+    function jeuxEnDirect(payload) {
+        var d = payload.detail || {};
+        var moi = monId();
+        if (payload.type === 'ROUND') {
+            (d.drinkers || []).forEach(function (id) { Scenes.animateDrink(dom.screenBody, id, 'la tournée'); });
+            annonce('tournee', '<strong>' + esc(d.buyerName) + '</strong> offre une tournée générale !', 3600);
+            carillon();
+            if (d.buyerId === moi) refresh().catch(function () {});
+            return true;
+        }
+        if (payload.type === 'DICE_CHALLENGE') {
+            if (d.toId === moi) { ouvrirDefi(d); carillon(); }
+            else if (d.fromId === moi) toast('Défi envoyé à ' + d.toName + '. On attend sa réponse…');
+            else toast(d.fromName + ' défie ' + d.toName + ' aux dés.');
+            return true;
+        }
+        if (payload.type === 'DICE_DECLINED') {
+            if (tavern.carte && tavern.carte.genre === 'defi' && tavern.carte.id === d.id) fermerCarte();
+            if (d.fromId === moi) toast(d.toName + ' passe son tour.');
+            return true;
+        }
+        if (payload.type === 'DICE_RESULT') {
+            if (tavern.carte && tavern.carte.genre === 'defi' && tavern.carte.id === d.id) fermerCarte();
+            var f = d.fromDice || [1, 1], t = d.toDice || [1, 1];
+            var gagnant = d.winnerId == null ? 'Égalité : chacun garde sa mise.'
+                : '<strong>' + esc(d.winnerId === d.fromId ? d.fromName : d.toName) + '</strong> gagne ' + d.stake + ' pièces !';
+            annonce('des',
+                '<div class="tv-des">' +
+                '<span><small>' + esc(d.fromName) + '</small><b>' + DES[f[0]] + DES[f[1]] + '</b><em>' + (f[0] + f[1]) + '</em></span>' +
+                '<span class="tv-des__contre">contre</span>' +
+                '<span><small>' + esc(d.toName) + '</small><b>' + DES[t[0]] + DES[t[1]] + '</b><em>' + (t[0] + t[1]) + '</em></span>' +
+                '</div><p>' + gagnant + '</p>', 5200);
+            if (d.fromId === moi || d.toId === moi) {
+                (d.winnerId === moi ? carillon : cliquetis)();
+                refresh().catch(function () {});
+            }
+            return true;
+        }
+        if (payload.type === 'SKAL_COLLECTIF') {
+            (d.players || []).forEach(function (id) { Scenes.animateDrink(dom.screenBody, id, 'skål'); });
+            var gagne = (d.rewarded || []).indexOf(moi) >= 0;
+            annonce('skal', '<b class="tv-skal">Skål !</b><p>' + esc((d.names || []).join(', ')) + ' trinquent ensemble' +
+                (gagne ? ' · <strong>+1 réputation</strong>' : '') + '</p>', 3400);
+            if (gagne) { carillon(); refresh().catch(function () {}); }
+            return true;
+        }
+        return false;
+    }
+
+    function jeuxTaverne(action, id) {
+        if (action === 'tv-carte-fermer') { fermerCarte(); return true; }
+        if (action === 'tavern-regular') { ouvrirHabitue(id); return true; }
+        if (action === 'tavern-barman') { ouvrirTavernier(); return true; }
+        if (action === 'tavern-deliver') {
+            send('/api/tavern/regulars/' + encodeURIComponent(id) + '/deliver', undefined, function (list) {
+                var r = (list || []).find(function (x) { return x.key === id; });
+                tavern.regulars = list || tavern.regulars;
+                tavern.regularsAt = Date.now();
+                if (r) toast(r.name + ' lève sa chope : +' + r.request.coins + ' pièces, +' + r.request.reputation + ' réputation.');
+                carillon();
+                if (activeView === 'taverne' && !listMode.taverne) renderSceneScreen(SECTIONS.taverne);
+                ouvrirHabitue(id);
+            });
+            return true;
+        }
+        if (action === 'tavern-round') {
+            if (!tavern.room) return true;
+            send('/api/tavern/rooms/' + tavern.room.id + '/round', undefined, function (result) {
+                fermerCarte();
+                if (result && result.message) toast(result.message);
+            });
+            return true;
+        }
+        if (action === 'tavern-dice') {
+            if (!tavern.room) return true;
+            var parts = String(id).split(':');
+            var headers = csrfHeaders();
+            headers['Content-Type'] = 'application/json';
+            Data.postJson('/api/tavern/rooms/' + tavern.room.id + '/dice',
+                    { targetId: Number(parts[0]), stake: Number(parts[1]) }, headers)
+                .then(function () { fermerCarte(); })
+                .catch(function (error) { if (error.sessionExpired) showFault(error); else toast(error.message); });
+            return true;
+        }
+        if (action === 'tavern-dice-accept' || action === 'tavern-dice-decline') {
+            if (!tavern.room) return true;
+            var verbe = action === 'tavern-dice-accept' ? 'accept' : 'decline';
+            var entetes = csrfHeaders();
+            Data.postJson('/api/tavern/rooms/' + tavern.room.id + '/dice/' + encodeURIComponent(id) + '/' + verbe,
+                    undefined, entetes)
+                .then(function () { fermerCarte(); })
+                .catch(function (error) {
+                    fermerCarte();
+                    if (error.sessionExpired) showFault(error); else toast(error.message);
+                });
+            return true;
+        }
+        return false;
     }
 
     function tavernMutation(url, body, method, after) {
@@ -1645,9 +1891,12 @@
         if (action === 'tavern-player') {
             if (!tavern.room) return;
             var person = tavern.room.players.find(function (p) { return String(p.playerId) === String(id); });
-            if (person) toast(person.name + ' · niveau ' + person.level + ' · ' + person.reputation + ' renommée');
+            if (!person) return;
+            if (person.self) toast(person.name + ' · niveau ' + person.level + ' · ' + person.reputation + ' renommée');
+            else ouvrirJoueur(person);
             return;
         }
+        if (jeuxTaverne(action, id)) return;
 
         if (action === 'chat-send') {
             var field = $('chatInput');
@@ -2192,6 +2441,7 @@
                 (tavern.sending ? ' disabled' : '') + '>' + (tavern.sending ? 'Envoi…' : 'Parler') + '</button>' +
                 '</div>' +
                 '<div class="tavern-dock__actions">' +
+                '<button class="btn btn--sm btn--gold" type="button" data-action="tavern-barman">Tournée</button>' +
                 '<button class="btn btn--sm" type="button" data-action="show-list" data-id="taverne">Journal</button>' +
                 '<button class="btn btn--sm btn--rouge" type="button" data-action="tavern-leave">Sortir</button>' +
                 '</div></div>';
@@ -2246,6 +2496,10 @@
         dom.screenBody.innerHTML = '<div class="scene scene--' + place + '">' +
             Scenes.markup(place, vu) + sceneBar(place, activeView) + '</div>';
         dom.screenBody._markup = null;
+        if (place === 'taverne') {
+            var moi = selfInTavern();
+            Scenes.recentrer(dom.screenBody, moi ? Number(moi.x) : 880, false);
+        }
     }
 
     /**
@@ -2259,6 +2513,7 @@
         return Object.assign({}, state, {
             tavernCounter: tavern.counter,
             tavernRoom: tavern.room,
+            tavernRegulars: tavern.regulars,
             labLines: lab ? lab.lines : []
         });
     }
@@ -2270,6 +2525,9 @@
 
         var drawable = !!section.scene && !!Scenes && Scenes.has(section.scene);
         dom.screen.classList.toggle('screen--wide', drawable && !listMode[activeView]);
+        // La salle de la taverne n'a pas de hauteur à elle (des calques
+        // superposés) : c'est l'écran qui la lui donne.
+        dom.screen.classList.toggle('screen--taverne', drawable && !listMode[activeView] && activeView === 'taverne');
 
         if (drawable && !listMode[activeView]) {
             renderSceneScreen(section);
@@ -3286,10 +3544,10 @@
             if (!typing && activeView === 'taverne' && tavern.room && !listMode.taverne) {
                 var key = String(event.key || '').toLowerCase();
                 var delta = {
-                    arrowleft: [-34, 0], a: [-34, 0], q: [-34, 0],
-                    arrowright: [34, 0], d: [34, 0],
-                    arrowup: [0, -24], w: [0, -24], z: [0, -24],
-                    arrowdown: [0, 24], s: [0, 24]
+                    arrowleft: [-60, 0], a: [-60, 0], q: [-60, 0],
+                    arrowright: [60, 0], d: [60, 0],
+                    arrowup: [0, -18], w: [0, -18], z: [0, -18],
+                    arrowdown: [0, 18], s: [0, 18]
                 }[key];
                 if (delta) {
                     event.preventDefault();
@@ -3297,7 +3555,7 @@
                     if (now - tavern.lastKeyMove >= 110) {
                         tavern.lastKeyMove = now;
                         var me = selfInTavern();
-                        if (me) tavernMoveTo(Number(me.x || 862) + delta[0], Number(me.y || 405) + delta[1]);
+                        if (me) tavernMoveTo(Number(me.x || 1135) + delta[0], Number(me.y || 520) + delta[1]);
                     }
                     return;
                 }

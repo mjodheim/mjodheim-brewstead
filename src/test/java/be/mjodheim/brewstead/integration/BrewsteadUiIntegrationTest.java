@@ -499,7 +499,7 @@ class BrewsteadUiIntegrationTest {
                     const svg = document.querySelector('.sc-stage');
                     const floor = document.querySelector('.sc-tavern__walk');
                     const point = svg.createSVGPoint();
-                    point.x = 590; point.y = 405;
+                    point.x = 700; point.y = 520;
                     const screen = point.matrixTransform(svg.getScreenCTM());
                     floor.dispatchEvent(new PointerEvent('pointerup', {
                       bubbles: true, pointerType: 'mouse',
@@ -511,7 +511,7 @@ class BrewsteadUiIntegrationTest {
             a.until(d -> {
                 WebElement node = d.findElement(aliceOnAlice);
                 return "STANDING".equals(node.getAttribute("data-pose"))
-                        && Math.abs(Double.parseDouble(node.getAttribute("data-x")) - 590.0) < 3;
+                        && Math.abs(Double.parseDouble(node.getAttribute("data-x")) - 700.0) < 3;
             });
 
             By aliceOnBob = By.cssSelector(".sc-patron[data-id='" + aliceId + "']");
@@ -519,7 +519,7 @@ class BrewsteadUiIntegrationTest {
                 List<WebElement> nodes = d.findElements(aliceOnBob);
                 if (nodes.isEmpty()) return false;
                 String x = nodes.getFirst().getAttribute("data-x");
-                return x != null && !x.isBlank() && Math.abs(Double.parseDouble(x) - 590.0) < 3;
+                return x != null && !x.isBlank() && Math.abs(Double.parseDouble(x) - 700.0) < 3;
             });
             long liveLatencyMs = Duration.ofNanos(System.nanoTime() - movementStarted).toMillis();
             assertTrue(liveLatencyMs < 5000,
@@ -527,8 +527,8 @@ class BrewsteadUiIntegrationTest {
 
             // Et le clavier doit fonctionner sans passer par un champ de texte.
             alice.findElement(By.tagName("body")).sendKeys(Keys.ARROW_RIGHT);
-            a.until(d -> Double.parseDouble(d.findElement(aliceOnAlice).getAttribute("data-x")) > 610);
-            b.until(d -> Double.parseDouble(d.findElement(aliceOnBob).getAttribute("data-x")) > 610);
+            a.until(d -> Double.parseDouble(d.findElement(aliceOnAlice).getAttribute("data-x")) > 720);
+            b.until(d -> Double.parseDouble(d.findElement(aliceOnBob).getAttribute("data-x")) > 720);
 
             assertTrue(alice.findElement(By.cssSelector(".sc-barman")).isDisplayed(),
                     "Le barman doit faire partie de la scène.");

@@ -63,7 +63,12 @@
 .game[data-weather="pluie"] .world__life { --lamp-strength: 1; }
 .game[data-weather="brume"] .cloud-bank { opacity: 1; }
 .game[data-theme="solstice"] .world__life { --lamp-strength: 1; }
-.game:not([data-view="monde"]) .world__life *,
+/* Tout le domaine s'arrête quand un lieu le recouvre : les repères qui
+   battent et les bâtiments qui respirent forçaient une nouvelle image à
+   chaque rafraîchissement sous une feuille opaque. */
+.game:not([data-view="monde"]) .world *,
+.game:not([data-view="monde"]) .world *::before,
+.game:not([data-view="monde"]) .world *::after,
 .game[data-paused="true"] .world__life *,
 .game[data-paused="true"] .weather { animation-play-state: paused; }
 :root[data-mouvement="sobre"] .world__life * { animation: none !important; }

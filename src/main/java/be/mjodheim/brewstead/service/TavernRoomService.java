@@ -224,7 +224,12 @@ public class TavernRoomService {
 
     private TavernPresence presence(TavernRoom room, PlayerProfile player) {
         LocalDateTime now = LocalDateTime.now();
-        TavernNavigation.Point spawn = TavernNavigation.spawn();
+        List<TavernNavigation.Point> taken = room.getId() == null ? List.of()
+                : presenceRepository.findAllByRoomIdOrderByJoinedAtAsc(room.getId()).stream()
+                        .filter(other -> other.getPlayer() == null || !Objects.equals(other.getPlayer().getId(), player.getId()))
+                        .map(this::positionOf)
+                        .toList();
+        TavernNavigation.Point spawn = TavernNavigation.spawn(taken);
         return TavernPresence.builder()
                 .room(room).player(player)
                 .positionX(spawn.x()).positionY(spawn.y())

@@ -1137,7 +1137,7 @@
                 '" type="button" data-action="tavern-player" data-id="' + person.playerId + '">' +
                 '<span class="chat__avatar">' + icon('av-' + ((person.character && person.character.avatar) || 'CERF')) + '</span>' +
                 '<span><strong>' + esc(person.name) + '</strong><small>' +
-                (person.seatKey ? esc(person.seatKey.replace(/-/g, ' ')) : 'debout') +
+                (person.seatKey ? esc(PLACES_TAVERNE[person.seatKey] || 'assis') : 'debout') +
                 ' · niv. ' + person.level + '</small></span></button>';
         }).join('') + '</div>';
 
@@ -2142,6 +2142,18 @@
         });
     }
 
+    /** Les huit places de la salle, dites comme on les dirait à voix haute. */
+    var PLACES_TAVERNE = {
+        'bar-gauche': 'au comptoir, à gauche',
+        'bar-droite': 'au comptoir, à droite',
+        'table-gauche-a': 'à la table de gauche',
+        'table-gauche-b': 'à la table de gauche',
+        'table-droite-a': 'à la table de droite',
+        'table-droite-b': 'à la table de droite',
+        'feu-gauche': 'près du feu',
+        'feu-droite': 'près du feu'
+    };
+
     function sceneBar(view, vue) {
         if (view === 'taverne') {
             if (!tavern.room) {
@@ -2155,24 +2167,33 @@
 
             var room = tavern.room;
             var me = room.players.find(function (p) { return p.self; });
-            var place = me && me.seatKey ? me.seatKey.replace(/-/g, ' ') : 'choisis une place dans la salle';
+            var aide = me && me.seatKey
+                ? 'Ta place : ' + (PLACES_TAVERNE[me.seatKey] || 'une chaise') + '. Touche le plancher pour te lever.'
+                : 'Touche une chaise jaune pour t’asseoir, ou le plancher pour marcher (flèches ou ZQSD).';
+            var direct = tavern.connectionError
+                ? chip('reconnexion…', 'warn')
+                : chip('en direct', 'ok');
             return '<div class="scene__bar scene__bar--tavern tavern-dock">' +
-                '<div class="tavern-dock__room"><span><strong>' + esc(room.name) + '</strong>' +
-                '<small>' + room.players.length + '/' + room.capacity + ' joueurs · ' + esc(place) + ' · clic/tap ou ZQSD pour marcher' +
-                (room.type === 'PRIVATE' ? ' · code ' + esc(room.code) : '') + '</small></span>' +
-                '<div class="tavern-emotes" aria-label="Réactions">' +
-                '<button type="button" data-action="tavern-emote" data-id="SKAL" title="Skål !">🍻</button>' +
-                '<button type="button" data-action="tavern-emote" data-id="SALUT" title="Saluer">👋</button>' +
-                '<button type="button" data-action="tavern-emote" data-id="RIRE" title="Rire">😄</button>' +
-                '<button type="button" data-action="tavern-emote" data-id="COEUR" title="Apprécier">♥</button>' +
-                '</div></div>' +
+                '<div class="tavern-dock__room">' +
+                '<p class="tavern-dock__salle"><strong>' + esc(room.name) + '</strong>' +
+                chip(room.players.length + '/' + room.capacity, 'gold') + direct +
+                (room.type === 'PRIVATE' ? chip('code ' + room.code, 'info') : '') + '</p>' +
+                '<p class="tavern-dock__aide">' + esc(aide) + '</p></div>' +
+                '<div class="tavern-emotes" role="group" aria-label="Réactions">' +
+                '<button type="button" data-action="tavern-emote" data-id="SKAL" title="Skål !" aria-label="Skål !">🍻</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="SALUT" title="Saluer" aria-label="Saluer">👋</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="RIRE" title="Rire" aria-label="Rire">😄</button>' +
+                '<button type="button" data-action="tavern-emote" data-id="COEUR" title="Apprécier" aria-label="Apprécier">♥</button>' +
+                '</div>' +
                 '<div class="tavern-dock__chat">' +
                 '<input id="chatInput" aria-label="Parler dans cette salle" type="text" maxlength="280" value="' +
                 esc(tavern.draft) + '" placeholder="Dire quelque chose à la table…" autocomplete="off">' +
                 '<button class="btn btn--gold" type="button" data-action="chat-send"' +
                 (tavern.sending ? ' disabled' : '') + '>' + (tavern.sending ? 'Envoi…' : 'Parler') + '</button>' +
-                '<button class="btn" type="button" data-action="show-list" data-id="taverne">Journal</button>' +
-                '<button class="btn" type="button" data-action="tavern-leave">Sortir</button>' +
+                '</div>' +
+                '<div class="tavern-dock__actions">' +
+                '<button class="btn btn--sm" type="button" data-action="show-list" data-id="taverne">Journal</button>' +
+                '<button class="btn btn--sm btn--rouge" type="button" data-action="tavern-leave">Sortir</button>' +
                 '</div></div>';
         }
 

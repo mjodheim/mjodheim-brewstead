@@ -1,5 +1,6 @@
 package be.mjodheim.brewstead.service;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -39,8 +40,35 @@ public final class TavernNavigation {
             "feu-droite", new Seat(570, 507, "LEFT")
     );
 
+    /** Les points d'arrivée, le long du comptoir, depuis la porte de droite. */
+    private static final int SPAWN_SLOTS = 6;
+    private static final double SPAWN_STEP = 64;
+
     public static Point spawn() {
-        return new Point(862, 405);
+        return spawnSlot(0);
+    }
+
+    /**
+     * Où se tient celui qui entre.
+     *
+     * <p>Tout le monde apparaissait au même point : deux joueurs entrés à la
+     * suite se tenaient l'un dans l'autre, noms superposés. L'arrivant prend
+     * la première place libre le long du comptoir ; si toutes sont prises,
+     * il se glisse à côté de la plus ancienne.
+     */
+    public static Point spawn(Collection<Point> taken) {
+        for (int slot = 0; slot < SPAWN_SLOTS; slot++) {
+            Point candidate = spawnSlot(slot);
+            boolean free = taken.stream().noneMatch(other ->
+                    Math.abs(other.x() - candidate.x()) < SPAWN_STEP / 2
+                            && Math.abs(other.y() - candidate.y()) < SPAWN_STEP / 2);
+            if (free) return candidate;
+        }
+        return spawnSlot(taken.size());
+    }
+
+    private static Point spawnSlot(int slot) {
+        return new Point(862 - Math.floorMod(slot, SPAWN_SLOTS) * SPAWN_STEP, 405);
     }
 
     public static Seat seat(String key) {

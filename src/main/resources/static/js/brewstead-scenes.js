@@ -16,6 +16,7 @@
 (function (global) {
     'use strict';
 
+    var Personnage = global.BrewsteadPersonnage;
     var STAGE_WIDTH = 960;
     var STAGE_HEIGHT = 540;
 
@@ -785,16 +786,6 @@
         return (carte && carte.getAttribute('data-taverne')) || '/images/lieux/taverne-salle.webp';
     }
 
-    function couleurPersonnage(palette) {
-        return {
-            ambre: ['#9a542d', '#d18843', '#f1ba68'],
-            fjord: ['#31576f', '#4f8296', '#9fc5c5'],
-            mousse: ['#48613b', '#71804b', '#b0ad62'],
-            prune: ['#5b3b55', '#86596f', '#c89492'],
-            cuivre: ['#75432f', '#a7663c', '#dc9b62'],
-            ardoise: ['#3f4b55', '#64727b', '#a6b0ad']
-        }[palette] || ['#5b4a37', '#806848', '#c19b69'];
-    }
 
     function dernierMessage(room, playerId) {
         var messages = room && room.messages || [];
@@ -813,22 +804,6 @@
      * longs, tresse) et ce qui la couvre. Du volume et une mèche claire,
      * comme les habitués peints ; un simple bandeau faisait casquette.
      */
-    function cheveux(style, color, devant) {
-        var c = ' class="sc-patron__hair" fill="' + color + '"';
-        if (!devant) {
-            if (style === 'long') return '<path' + c + ' d="M-27-52q-3 30 2 44l10 2 1-30M27-52q3 30-2 44l-10 2-1-30Z"/>';
-            if (style === 'tresse') return '<path' + c + ' d="M18-40q12 8 10 30-2 14-8 18l-5-3q5-8 4-17-2-14-7-22Z"/>' +
-                '<circle class="sc-patron__hair-noeud" cx="21" cy="7" r="3.2"/>';
-            return '';
-        }
-        if (style === 'rase') return '<path' + c + ' d="M-25-54q0-22 25-22t25 22q-10-8-25-9-15 1-25 9Z"/>';
-        if (style === 'boucles') return '<path' + c + ' d="M-28-50q-6-10 1-17-2-11 10-13 6-9 17-5 11-4 17 6 11 2 10 13 7 7 1 17-5-9-12-10-6 6-16 3-10 4-17-2-8 1-11 8Z"/>' +
-            '<path class="sc-patron__hair-reflet" d="M-12-70q8-5 16-3"/>';
-        if (style === 'long' || style === 'tresse') return '<path' + c + ' d="M-27-48q-2-30 27-30t27 30q-6-14-17-16-8 8-26 8-9 2-11 8Z"/>' +
-            '<path class="sc-patron__hair-reflet" d="M-14-70q10-5 20-3"/>';
-        return '<path' + c + ' d="M-26-50q-2-28 26-28t26 28q-4-12-12-15-8 6-24 5-12 1-16 10Z"/>' +
-            '<path class="sc-patron__hair-reflet" d="M-13-70q9-5 19-3"/>';
-    }
 
     function patronNode(person, room) {
         var seated = !!(person.seatKey && TAVERN_SEATS[person.seatKey]);
@@ -836,9 +811,6 @@
         var pos = seated
             ? { x: seat.x, y: seat.y }
             : normalizeTavernPoint(person.x == null ? TV_SPAWN.x : person.x, person.y == null ? TV_SPAWN.y : person.y);
-        var palette = couleurPersonnage(person.character && person.character.palette);
-        var hairColors = ['#352319', '#5b3a24', '#8a5d30', '#2e2b29', '#b89158'];
-        var hc = hairColors[(Number(person.playerId) || 0) % hairColors.length];
         var speech = dernierMessage(room, person.playerId);
         var speechUntil = speech ? new Date(speech.postedAt).getTime() + 12000 : 0;
         var emoteAge = person.emoteAt ? Date.now() - new Date(person.emoteAt).getTime() : Infinity;
@@ -855,12 +827,6 @@
         var scale = tavernScale(pos.y, bodyScale, person.seatKey);
         var facing = person.facing || (seat && seat.face === 'gauche' ? 'LEFT' : 'RIGHT');
         var pose = seated ? 'SEATED' : (person.pose || 'STANDING');
-        var outfit = person.character && person.character.outfit || 'brasseur';
-        var apron = outfit === 'brasseur'
-            ? '<path class="sc-patron__apron" d="M-15-12h30l3 40q-18 5-36 0Z"/>'
-            : outfit === 'marchand'
-                ? '<path class="sc-patron__vest" d="M-24-20l10-4 14 20 14-20 10 4 4 46h-56Z"/>'
-                : '';
 
         var bubble = '';
         if (speech) {
@@ -886,44 +852,10 @@
             // L'origine du personnage est à ses pieds, là où le serveur le
             // place ; le dessin, lui, est centré sur le buste.
             '<g transform="translate(0 -78)">' +
-            '<ellipse class="sc-patron__shadow" cx="0" cy="76" rx="32" ry="8"/>' +
-            '<g class="sc-patron__figure">' +
-            '<g class="sc-patron__body">' +
-            '<path class="sc-patron__legs" d="M-17 24h13l-1 44h-12ZM4 24h13l-1 44H5Z"/>' +
-            '<path class="sc-patron__boot" d="M-19 64h17v12q-14 3-21-1-1-7 4-11ZM2 64h17q6 4 4 11-8 3-21 1Z"/>' +
-            '<g class="sc-patron__arm sc-patron__arm--left"><path fill="' + palette[1] + '" d="M-22-16q-14 8-15 30l11 3q1-16 10-24Z"/>' +
-            '<circle class="sc-patron__hand" cx="-31" cy="18" r="6.5"/></g>' +
-            '<path class="sc-patron__torso" fill="' + palette[1] + '" d="M-24-22q24-10 48 0l6 50q-30 9-60 0Z"/>' +
-            '<path class="sc-patron__shade" fill="' + palette[0] + '" d="M-24-22q7 2 9 9l-4 43q-8 0-11-2Z"/>' +
-            '<path class="sc-patron__highlight" fill="' + palette[2] + '" d="M12-20q9 2 12 7l3 30q-6 3-11 3Z"/>' +
-            apron +
-            '<path class="sc-patron__belt" d="M-28 12q28 6 56 0v8q-28 6-56 0Z"/>' +
-            '<rect class="sc-patron__buckle" x="-5" y="12" width="10" height="10" rx="2"/>' +
-            '<path class="sc-patron__fur" d="M-27-20q-3-8 5-10 4-6 11-4 5-5 11-1 6-4 11 1 7-2 11 4 8 2 5 10-8 9-27 11-19-2-29-11Z"/>' +
-            '<g class="sc-patron__arm sc-patron__arm--right"><path fill="' + palette[1] + '" d="M22-16q14 8 16 27l-11 4q-2-13-9-20Z"/>' +
-            '<circle class="sc-patron__hand" cx="32" cy="15" r="6.5"/>' +
-            '<g class="sc-patron__mug" transform="translate(40 9)"><path d="M-7-11h14v21H-6Z"/><path d="M7-7q10 2 3 12" fill="none"/>' +
-            '<ellipse class="sc-patron__foam" cx="0" cy="-11" rx="7.5" ry="3.2"/></g></g>' +
-            '</g>' +
-            '<g class="sc-patron__head">' +
-            cheveux(person.character && person.character.hair, hc, false) +
-            '<path class="sc-patron__neck" d="M-7-30h14v10H-7Z"/>' +
-            '<circle class="sc-patron__ear" cx="-25" cy="-48" r="5"/><circle class="sc-patron__ear" cx="25" cy="-48" r="5"/>' +
-            '<ellipse class="sc-patron__face" cx="0" cy="-49" rx="25" ry="24"/>' +
-            '<ellipse class="sc-patron__joue" cx="-14" cy="-40" rx="5.5" ry="3.4"/>' +
-            '<ellipse class="sc-patron__joue" cx="14" cy="-40" rx="5.5" ry="3.4"/>' +
-            '<ellipse class="sc-patron__oeil" cx="-9" cy="-50" rx="3.4" ry="4.4"/>' +
-            '<ellipse class="sc-patron__oeil" cx="9" cy="-50" rx="3.4" ry="4.4"/>' +
-            '<circle class="sc-patron__reflet" cx="-8" cy="-52" r="1.3"/><circle class="sc-patron__reflet" cx="10" cy="-52" r="1.3"/>' +
-            '<path class="sc-patron__brows" d="M-14-58q5-3 9 0m10 0q4-3 9 0"/>' +
-            '<path class="sc-patron__nose" d="M0-46q3 3-1 5"/>' +
-            '<path class="sc-patron__mouth" d="M-6-37q6 5 12 0"/>' +
-            (((Number(person.playerId) || 0) % 3 === 0)
-                ? '<path class="sc-patron__beard" fill="' + hc + '" d="M-20-42q4 8 10 7 5-4 10-4t10 4q6 1 10-7-1 22-20 26-19-4-20-26Z"/>'
-                : '') +
-            cheveux(person.character && person.character.hair, hc, true) +
-            (person.character && person.character.accessory === 'broche' ? '<circle class="sc-patron__broche" cx="17" cy="-14" r="4"/>' : '') +
-            '</g></g>' +
+            '<ellipse class="sc-patron__shadow" cx="0" cy="76" rx="30" ry="7"/>' +
+            // Le même dessin que dans l'atelier du personnage, pieds à
+            // l'origine : on le repose au sol du repère de la salle.
+            '<g transform="translate(0 78)">' + Personnage.dessiner(person.character) + '</g>' +
             // Le nom au-dessus de la tête : sous les pieds, il sortait de la
             // scène avec eux et se perdait dans les tables du premier plan.
             texteEnLignes('sc-patron__name' + (person.self ? ' sc-patron__name--self' : ''), 0, -86, 14, name) +
@@ -1102,7 +1034,7 @@
 
         var patrons = room ? people.map(function (person) { return patronNode(person, room); }).join('') : '';
 
-        var avant = '<defs><clipPath id="tv-avant-decoupe">' +
+        var avant = '<defs>' + Personnage.defs() + '<clipPath id="tv-avant-decoupe">' +
             TV_AVANT.map(function (points) { return '<polygon points="' + points + '"/>'; }).join('') +
             '</clipPath></defs>' +
             '<image class="tv-avant" href="' + esc(peintureTaverne()) + '" x="0" y="0" width="' + TV_W +
@@ -1519,8 +1451,8 @@
                 people.map(function (p) {
                     return p.playerId + ':' + (p.seatKey || '-') + ':' + Number(p.x || 0).toFixed(1) + ':' +
                         Number(p.y || 0).toFixed(1) + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
-                        (p.emote || '-') + ':' + (p.emoteAt || '-');
-                }).join('|') + '::' +
+                        (p.emote || '-') + ':' + (p.emoteAt || '-') + ':' + JSON.stringify(p.character || {});
+                }).join('|') + '::' + (state.tavernLook || '') + '::' +
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
                 (state.tavernCounter || []).map(function (o) {
                     return o.id + ':' + o.servings + ':' + (o.mine ? 'm' : '');

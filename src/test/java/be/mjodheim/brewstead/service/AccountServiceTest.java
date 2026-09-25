@@ -1,5 +1,7 @@
 package be.mjodheim.brewstead.service;
 
+import be.mjodheim.brewstead.dto.account.ApparenceRequest;
+import be.mjodheim.brewstead.dto.account.ApparenceResponse;
 import be.mjodheim.brewstead.dto.account.ChangePasswordRequest;
 import be.mjodheim.brewstead.dto.account.UpdateAccountRequest;
 import be.mjodheim.brewstead.dto.player.PlayerProfileResponse;
@@ -158,5 +160,35 @@ class AccountServiceTest {
         when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
 
         assertThrows(IllegalStateException.class, () -> service.currentAccount("ghost"));
+    }
+
+    @Test
+    void anAccountWithoutAChosenLookGetsItsDefaultOne() {
+        User user = user(1);
+        PlayerProfile profile = player(10);
+        when(userRepository.findByUsername("eirik")).thenReturn(Optional.of(user));
+        when(playerProfileRepository.findByUserId(1L)).thenReturn(Optional.of(profile));
+
+        ApparenceResponse look = service.apparence("eirik");
+
+        assertFalse(look.choisie());
+        assertEquals(ApparenceCatalogue.parDefaut(10L).getCorps(), look.corps());
+    }
+
+    @Test
+    void aChosenLookIsSavedOnTheProfile() {
+        User user = user(1);
+        PlayerProfile profile = player(10);
+        when(userRepository.findByUsername("eirik")).thenReturn(Optional.of(user));
+        when(playerProfileRepository.findByUserId(1L)).thenReturn(Optional.of(profile));
+
+        ApparenceResponse look = service.changerApparence("eirik", new ApparenceRequest(
+                "fin", "ebene", "chignon", "gris", "aucune", "voyageur", "prune"));
+
+        assertTrue(look.choisie());
+        assertEquals("chignon", profile.getApparence().getCheveux());
+        assertTrue(service.apparence("eirik").choisie());
+        assertThrows(IllegalArgumentException.class, () -> service.changerApparence("eirik", new ApparenceRequest(
+                "fin", "ebene", "crete", "gris", "aucune", "voyageur", "prune")));
     }
 }

@@ -8,6 +8,9 @@ public record TavernCharacterResponse(
         String hair,
         String outfit,
         String palette,
-        String accessory
+        String accessory,
+        String skin,
+        String hairColor,
+        String beard
 ) {
 }

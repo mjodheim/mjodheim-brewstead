@@ -544,6 +544,23 @@ class BrewsteadUiIntegrationTest {
             screenshot(alice, "14-taverne-sociale-desktop.png");
             screenshot(bob, "16-taverne-libre-live-desktop.png");
 
+            // L'atelier : Alice change de carrure, et Bob la voit changer
+            // sans recharger quoi que ce soit.
+            String avant = alice.findElement(By.cssSelector(".sc-patron.is-self .sc-patron__figure")).getAttribute("data-corps");
+            String voulu = "fin".equals(avant) ? "grand" : "fin";
+            click(alice, a, By.cssSelector("[data-action='atelier-ouvrir']"));
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("#atelier .atelier__apercu")));
+            click(alice, a, By.cssSelector("#atelier [data-id='corps:" + voulu + "']"));
+            click(alice, a, By.cssSelector("#atelier [data-id='tenue:guerrier']"));
+            screenshot(alice, "18-atelier-personnage.png");
+            click(alice, a, By.cssSelector("#atelier [data-atelier='enregistrer']"));
+            a.until(ExpectedConditions.invisibilityOfElementLocated(By.id("atelier")));
+            a.until(d -> voulu.equals(d.findElement(By.cssSelector(".sc-patron.is-self .sc-patron__figure")).getAttribute("data-corps")));
+            b.until(d -> {
+                List<WebElement> nodes = d.findElements(By.cssSelector(".sc-patron[data-id='" + aliceId + "'] .sc-patron__figure"));
+                return !nodes.isEmpty() && voulu.equals(nodes.getFirst().getAttribute("data-corps"));
+            });
+
             alice.manage().window().setSize(new Dimension(390, 844));
             new Actions(alice).pause(Duration.ofMillis(400)).perform();
             assertTrue(alice.findElement(By.cssSelector(".tavern-dock")).isDisplayed());
@@ -1185,6 +1202,17 @@ class BrewsteadUiIntegrationTest {
         } catch (TimeoutException absente) {
             return;
         }
+        // La bulle glisse du coin de l'écran jusqu'à sa place : cliquer
+        // pendant le trajet, c'est viser un bouton qui n'est déjà plus là,
+        // et le clic tombe sur le voile. On attend qu'elle soit posée.
+        new WebDriverWait(driver, Duration.ofSeconds(5)).until(d -> (Boolean) ((JavascriptExecutor) d).executeScript("""
+                const racine = document.querySelector('.visite');
+                const bulle = document.querySelector('.visite__bulle');
+                return !!racine && racine.classList.contains('is-ouverte') && !!bulle
+                    && bulle.getAnimations({ subtree: true })
+                        .filter(a => a.effect.getTiming().iterations !== Infinity)
+                        .every(a => a.playState !== 'running');
+                """));
         driver.findElement(By.cssSelector(".visite .visite__passer")).click();
         new WebDriverWait(driver, Duration.ofSeconds(5))
                 .until(d -> d.findElements(By.cssSelector(".visite")).isEmpty());

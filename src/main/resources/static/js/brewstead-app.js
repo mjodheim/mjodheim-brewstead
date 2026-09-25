@@ -896,7 +896,17 @@
                         '</button>';
                 }).join('');
 
-                return '<p class="section-title">Emblème</p>' +
+                if (!atelier.apparence) chargerApparence().then(function () {
+                    if (activeView === 'compte') renderScreen();
+                }, function () {});
+                return '<p class="section-title">Ton personnage</p>' +
+                    '<div class="atelier-resume">' +
+                    (atelier.apparence ? apercu(atelier.apparence, 'atelier-resume__apercu') : '') +
+                    '<div><p class="hint">C’est ainsi qu’on te voit à la taverne : carrure, visage, coiffure, tenue.</p>' +
+                    '<button class="btn btn--gold" type="button" data-action="atelier-ouvrir">' +
+                    (atelier.choisie ? 'Changer d’allure' : 'Créer mon personnage') + '</button></div></div>' +
+
+                    '<p class="section-title">Emblème</p>' +
                     '<div class="avatars">' + picker + '</div>' +
 
                     '<p class="section-title">Nom affiché</p>' +
@@ -1247,6 +1257,9 @@
     function applyTavernSnapshot(snapshot) {
         tavern.room = snapshot || null;
         if (!snapshot) return;
+        if (!atelier.apparence) chargerApparence().then(function () {
+            if (activeView === 'taverne' && !listMode.taverne) renderSceneScreen(SECTIONS.taverne);
+        }, function () {});
         tavern.messages = snapshot.messages || [];
         tavern.counter = snapshot.offers || [];
         tavern.lobby.currentRoomId = snapshot.id;
@@ -1466,6 +1479,165 @@
         tavern.lobby.currentRoomId = null;
         tavern.pendingMove = null;
         tavern.moveSending = false;
+    }
+
+    /* ------------------------------------------------ Atelier du personnage */
+
+    /*
+     * Chacun compose son allure : carrure, peau, coiffure, barbe, tenue. Le
+     * dessin est celui de la taverne, en grand, et il change à chaque choix.
+     * Rien n'est enregistré avant « Enregistrer » ; « Au hasard » tire un
+     * personnage entier pour qui ne sait pas par où commencer.
+     */
+    var atelier = { apparence: null, choisie: false, requete: null, brouillon: null };
+    var GROUPES_ATELIER = [
+        ['corps', 'Carrure'], ['peau', 'Peau'], ['cheveux', 'Coiffure'], ['teinte', 'Couleur des cheveux'],
+        ['barbe', 'Barbe'], ['tenue', 'Tenue'], ['couleur', 'Couleur de la tenue']
+    ];
+
+    function chargerApparence(force) {
+        if (atelier.requete && !force) return atelier.requete;
+        atelier.requete = Data.get('/api/account/apparence').then(function (a) {
+            atelier.apparence = a;
+            atelier.choisie = !!(a && a.choisie);
+            return a;
+        }, function (error) {
+            atelier.requete = null;
+            throw error;
+        });
+        return atelier.requete;
+    }
+
+    function apercu(apparence, classe) {
+        var P = global.BrewsteadPersonnage;
+        return '<svg class="' + classe + '" viewBox="-60 -166 120 174" role="img" aria-label="Ton personnage">' +
+            '<defs>' + P.defs() + '</defs>' +
+            '<ellipse cx="0" cy="0" rx="32" ry="7" fill="rgba(40, 20, 5, .3)"/>' +
+            P.dessiner(apparence) + '</svg>';
+    }
+
+    function atelierOuvert() {
+        var el = $('atelier');
+        return !!el && !el.hidden;
+    }
+
+    function elementAtelier() {
+        var el = $('atelier');
+        if (el) return el;
+        el = document.createElement('div');
+        el.id = 'atelier';
+        el.className = 'atelier';
+        el.hidden = true;
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.setAttribute('aria-labelledby', 'atelierTitre');
+        el.addEventListener('click', function (event) {
+            if (event.target === el) { fermerAtelier(); return; }
+            var bouton = event.target.closest('[data-atelier]');
+            if (bouton && !bouton.disabled) actionAtelier(bouton.dataset.atelier, bouton.dataset.id);
+        });
+        dom.game.appendChild(el);
+        return el;
+    }
+
+    function ouvrirAtelier() {
+        chargerApparence().then(function (a) {
+            atelier.brouillon = global.BrewsteadPersonnage.allure(a);
+            dessinerAtelier();
+        }, function () { toast('L’atelier est fermé pour l’instant. Réessaie dans un moment.'); });
+    }
+
+    function fermerAtelier() {
+        var el = $('atelier');
+        if (el) { el.hidden = true; el.innerHTML = ''; }
+    }
+
+    function dessinerAtelier() {
+        var el = elementAtelier();
+        var P = global.BrewsteadPersonnage;
+        var b = atelier.brouillon;
+        var groupes = GROUPES_ATELIER.map(function (g) {
+            var options = P.CATALOGUE[g[0]].map(function (o) {
+                var teinte = P.nuance(g[0], o[0]);
+                var choisi = b[g[0]] === o[0];
+                return '<button type="button" class="atelier__choix' + (teinte ? ' atelier__choix--teinte' : '') +
+                    (choisi ? ' is-chosen' : '') + '" data-atelier="choisir" data-id="' + g[0] + ':' + o[0] + '"' +
+                    ' aria-pressed="' + choisi + '"' +
+                    (teinte ? ' style="--teinte:' + teinte + '" title="' + esc(o[1]) + '" aria-label="' + esc(g[1] + ' : ' + o[1]) + '">'
+                        : '>' + esc(o[1])) +
+                    '</button>';
+            }).join('');
+            return '<fieldset class="atelier__groupe" data-groupe="' + g[0] + '"><legend>' + esc(g[1]) + '</legend>' +
+                '<div class="atelier__options">' + options + '</div></fieldset>';
+        }).join('');
+        var premiere = !atelier.choisie;
+        el.innerHTML = '<div class="atelier__carte parchment">' +
+            '<button class="atelier__fermer" type="button" data-atelier="fermer" aria-label="Fermer">' + icon('i-close') + '</button>' +
+            '<h2 id="atelierTitre" class="atelier__titre">' + (premiere ? 'Crée ton personnage' : 'Ton personnage') + '</h2>' +
+            (premiere ? '<p class="atelier__intro">C’est ainsi que les autres brasseurs te verront à la taverne. ' +
+                'Tu pourras changer d’allure quand tu veux.</p>' : '') +
+            '<div class="atelier__corps">' +
+            '<div class="atelier__scene">' + apercu(b, 'atelier__apercu') +
+            '<button class="btn btn--sm" type="button" data-atelier="hasard">🎲 Au hasard</button></div>' +
+            '<div class="atelier__groupes">' + groupes + '</div>' +
+            '</div>' +
+            '<div class="atelier__actions">' +
+            '<button class="btn" type="button" data-atelier="fermer">' + (premiere ? 'Plus tard' : 'Annuler') + '</button>' +
+            '<button class="btn btn--gold" type="button" data-atelier="enregistrer">' + icon('i-check') + 'Enregistrer</button>' +
+            '</div></div>';
+        el.hidden = false;
+        var premier = el.querySelector('.atelier__choix.is-chosen');
+        if (premier) premier.focus({ preventScroll: true });
+    }
+
+    /** Un choix ne redessine que l'aperçu : la liste garde son défilement. */
+    function rafraichirAtelier() {
+        var el = $('atelier');
+        if (!el) return;
+        var b = atelier.brouillon;
+        var ancien = el.querySelector('.atelier__apercu');
+        if (ancien) ancien.outerHTML = apercu(b, 'atelier__apercu');
+        el.querySelectorAll('.atelier__choix').forEach(function (bouton) {
+            var parts = bouton.dataset.id.split(':');
+            var choisi = b[parts[0]] === parts[1];
+            bouton.classList.toggle('is-chosen', choisi);
+            bouton.setAttribute('aria-pressed', String(choisi));
+        });
+    }
+
+    function actionAtelier(action, id) {
+        if (action === 'fermer') { fermerAtelier(); return; }
+        if (action === 'choisir') {
+            var parts = String(id).split(':');
+            atelier.brouillon[parts[0]] = parts[1];
+            rafraichirAtelier();
+            return;
+        }
+        if (action === 'hasard') {
+            atelier.brouillon = global.BrewsteadPersonnage.auHasard();
+            rafraichirAtelier();
+            return;
+        }
+        if (action === 'enregistrer') {
+            var bouton = $('atelier').querySelector('[data-atelier="enregistrer"]');
+            if (bouton) bouton.disabled = true;
+            var headers = csrfHeaders();
+            headers['Content-Type'] = 'application/json';
+            Data.postJson('/api/account/apparence', atelier.brouillon, headers, 'PUT').then(function (a) {
+                atelier.apparence = a;
+                atelier.choisie = true;
+                atelier.requete = Promise.resolve(a);
+                fermerAtelier();
+                toast('Fière allure ! C’est ainsi qu’on te verra à la taverne.');
+                carillon();
+                if (tavern.room) loadTavern(true);
+                if (dom.screen.classList.contains('is-open')) renderScreen();
+            }).catch(function (error) {
+                if (bouton) bouton.disabled = false;
+                if (error.sessionExpired) showFault(error);
+                else toast(error.message || 'Allure refusée.');
+            });
+        }
     }
 
     /* ------------------------------------------------------ Jeux de taverne */
@@ -1899,6 +2071,7 @@
             return;
         }
         if (jeuxTaverne(action, id)) return;
+        if (action === 'atelier-ouvrir') { ouvrirAtelier(); return; }
 
         if (action === 'chat-send') {
             var field = $('chatInput');
@@ -2444,6 +2617,11 @@
                 '</div>' +
                 '<div class="tavern-dock__actions">' +
                 '<button class="btn btn--sm btn--gold" type="button" data-action="tavern-barman">Tournée</button>' +
+                // Tant que le joueur n'a pas composé son allure, l'atelier
+                // l'appelle ici, sans rien bloquer.
+                (atelier.apparence && !atelier.choisie
+                    ? '<button class="btn btn--sm btn--bleu" type="button" data-action="atelier-ouvrir">Crée ton personnage</button>'
+                    : '<button class="btn btn--sm" type="button" data-action="atelier-ouvrir">Allure</button>') +
                 '<button class="btn btn--sm" type="button" data-action="show-list" data-id="taverne">Journal</button>' +
                 '<button class="btn btn--sm btn--rouge" type="button" data-action="tavern-leave">Sortir</button>' +
                 '</div></div>';
@@ -2516,6 +2694,8 @@
             tavernCounter: tavern.counter,
             tavernRoom: tavern.room,
             tavernRegulars: tavern.regulars,
+            // Le bouton de l'atelier change quand l'allure est choisie.
+            tavernLook: atelier.apparence ? (atelier.choisie ? 'choisie' : 'a-creer') : '',
             labLines: lab ? lab.lines : []
         });
     }
@@ -3543,6 +3723,10 @@
         document.addEventListener('keydown', function (event) {
             var targetTag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
             var typing = targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || event.target.isContentEditable;
+            if (atelierOuvert()) {
+                if (event.key === 'Escape') fermerAtelier();
+                return;
+            }
             if (!typing && activeView === 'taverne' && tavern.room && !listMode.taverne) {
                 var key = String(event.key || '').toLowerCase();
                 var delta = {

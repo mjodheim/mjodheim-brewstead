@@ -12,6 +12,8 @@ import org.springframework.validation.BindingResult;
 import org.springframework.validation.ObjectError;
 
 import java.security.Principal;
+import be.mjodheim.brewstead.dto.account.ApparenceRequest;
+import be.mjodheim.brewstead.service.TavernRoomService;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -25,8 +27,10 @@ class SimpleControllersTest {
     void accountControllerDelegatesUsingPrincipalName() {
         AccountService account = mock(AccountService.class);
         EffectService effects = mock(EffectService.class);
-        AccountController controller = new AccountController(account, effects);
+        TavernRoomService rooms = mock(TavernRoomService.class);
+        AccountController controller = new AccountController(account, effects, rooms);
         UpdateAccountRequest update = new UpdateAccountRequest("Eirik", "LOUP");
+        ApparenceRequest look = new ApparenceRequest("fin", "brune", "long", "noir", "aucune", "voyageur", "prune");
         ChangePasswordRequest password = new ChangePasswordRequest("oldSecret", "newSecret1", "newSecret1");
         when(account.currentPlayerId("eirik")).thenReturn(7L);
 
@@ -34,11 +38,17 @@ class SimpleControllersTest {
         controller.update(principal, update);
         controller.changePassword(principal, password);
         controller.effects(principal);
+        controller.apparence(principal);
+        controller.changerApparence(principal, look);
 
         verify(account).currentAccount("eirik");
         verify(account).updateAccount("eirik", update);
         verify(account).changePassword("eirik", password);
         verify(effects).activeEffects(7L);
+        verify(account).apparence("eirik");
+        verify(account).changerApparence("eirik", look);
+        // Ceux qui partagent sa salle voient le changement tout de suite.
+        verify(rooms).annoncerAllure(7L);
         assertEquals(Avatar.values().length, controller.avatars().size());
     }
 

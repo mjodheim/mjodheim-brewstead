@@ -1,6 +1,7 @@
 package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.tavern.*;
+import be.mjodheim.brewstead.entity.Apparence;
 import be.mjodheim.brewstead.entity.PlayerProfile;
 import be.mjodheim.brewstead.entity.TavernPresence;
 import be.mjodheim.brewstead.entity.TavernRoom;
@@ -259,6 +260,18 @@ public class TavernRoomService {
                 Objects.equals(room.getId(), currentRoomId));
     }
 
+    /**
+     * Le joueur vient de changer d'allure : ceux qui partagent sa salle la
+     * voient changer tout de suite, sans attendre leur prochain chargement.
+     */
+    @Transactional
+    public void annoncerAllure(Long playerId) {
+        presenceRepository.findByPlayerId(playerId).ifPresent(presence -> {
+            Long roomId = presence.getRoom().getId();
+            liveService.publish(roomId, TavernLiveEventResponse.player("LOOK", roomId, toPresence(presence, playerId)));
+        });
+    }
+
     public TavernPresenceResponse toPresence(TavernPresence presence, Long viewerId) {
         PlayerProfile player = presence.getPlayer();
         TavernNavigation.Point position = positionOf(presence);
@@ -285,19 +298,11 @@ public class TavernRoomService {
     }
 
     private TavernCharacterResponse character(PlayerProfile player) {
-        long seed = player.getId() == null ? 0 : player.getId();
-        String[] bodies = {"robuste", "fin", "grand"};
-        String[] hairs = {"court", "tresse", "long", "rase", "boucles"};
-        String[] outfits = {"brasseur", "voyageur", "fermier", "marchand"};
-        String[] palettes = {"ambre", "fjord", "mousse", "prune", "cuivre", "ardoise"};
+        Apparence a = ApparenceCatalogue.effective(player);
         String accessory = player.getReputation() >= 120 ? "broche" : player.getLevel() >= 5 ? "ceinture" : "aucun";
         return new TavernCharacterResponse(
-                player.getAvatar(),
-                bodies[(int) (seed % bodies.length)],
-                hairs[(int) ((seed / 3) % hairs.length)],
-                outfits[(int) ((seed / 7) % outfits.length)],
-                palettes[(int) ((seed / 11) % palettes.length)],
-                accessory);
+                player.getAvatar(), a.getCorps(), a.getCheveux(), a.getTenue(), a.getCouleur(),
+                accessory, a.getPeau(), a.getTeinte(), a.getBarbe());
     }
 
     private void cleanup() {

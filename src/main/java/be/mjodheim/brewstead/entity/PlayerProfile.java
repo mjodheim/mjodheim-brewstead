@@ -51,6 +51,10 @@ public class PlayerProfile {
     @Column(length = 20)
     private Avatar avatar;
 
+    /** Nulle tant que le joueur n'est pas passé par l'atelier du personnage. */
+    @Embedded
+    private Apparence apparence;
+
     public String getDisplayName() {
         if (displayName != null && !displayName.isBlank()) {
             return displayName;

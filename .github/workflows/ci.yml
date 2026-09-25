@@ -73,6 +73,8 @@ jobs:
           node --check src/main/resources/static/js/brewstead-cadence.js
           node --check src/main/resources/static/js/brewstead-data.js
           node --check src/main/resources/static/js/brewstead-world.js
+          node --check src/main/resources/static/js/brewstead-personnage.js
+          node --check src/main/resources/static/js/brewstead-scenes.js
           node --check src/main/resources/static/js/brewstead-visite.js
           node --check src/main/resources/static/js/brewstead-app.js
 

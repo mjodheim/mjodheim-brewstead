@@ -446,25 +446,11 @@
 
 .sc-patron { cursor: pointer; }
 .sc-patron__shadow { fill: rgba(12, 7, 2, .32); }
-.sc-patron__legs { fill: #3c3128; }
-.sc-patron__boot { fill: #2b211b; }
-.sc-patron__shade { opacity: .72; }
-.sc-patron__highlight { opacity: .42; }
-.sc-patron__apron { fill: #d7c9a5; opacity: .88; }
-.sc-patron__vest { fill: rgba(34, 25, 20, .42); stroke: rgba(240, 210, 157, .2); stroke-width: 2; }
-.sc-patron__belt { fill: #44301e; }
-.sc-patron__arm path { fill: #c9936f; stroke: rgba(54, 31, 18, .28); stroke-width: 1.5; }
 .sc-patron__head { transform-box: fill-box; transform-origin: center bottom; }
-.sc-patron__neck, .sc-patron__face, .sc-patron__ear { fill: #c9936f; stroke: rgba(55, 31, 18, .25); stroke-width: 1.4; }
-.sc-patron__nose, .sc-patron__eyes { fill: none; stroke: #4b3125; stroke-width: 1.8; stroke-linecap: round; }
-.sc-patron__hair { stroke: rgba(27, 18, 13, .34); stroke-width: 1.4; }
-.sc-patron__broche { fill: #efc45d; stroke: #6f4b20; stroke-width: 1.5; }
-.sc-patron__mug path { fill: #b78b4d; stroke: #60401f; stroke-width: 2.2; stroke-linecap: round; }
 .sc-patron__name { fill: #fff; font: 700 13px var(--police-titre); text-anchor: middle; paint-order: stroke; stroke: var(--bois-bord); stroke-width: 4.5; pointer-events: none; }
 .sc-patron__name--self { fill: var(--jaune); }
 
 .sc-patron.is-speaking .sc-patron__arm--right { transform-box: fill-box; transform-origin: left bottom; animation: sc-talk-hand .72s ease-in-out infinite alternate; }
-.sc-patron.is-self .sc-patron__torso { stroke: rgba(255, 220, 120, .75); stroke-width: 2.4; }
 
 .sc-speech { pointer-events: none; animation: sc-speech-pop .3s cubic-bezier(.2,1.2,.35,1) both; transition: opacity .25s ease; }
 .sc-speech__box { fill: #fffdf6; stroke: var(--bois-bord); stroke-width: 3; }
@@ -516,6 +502,11 @@
     transform-origin: center bottom;
     animation: tavern-walk-body .34s ease-in-out infinite alternate;
 }
+.sc-patron.is-walking .sc-patron__head {
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    animation: tavern-walk-body .34s ease-in-out infinite alternate;
+}
 .sc-patron.is-walking .sc-patron__legs {
     transform-box: fill-box;
     transform-origin: center top;
@@ -528,10 +519,9 @@
 @keyframes tavern-walk-legs { from { transform: skewX(-5deg); } to { transform: skewX(5deg); } }
 @keyframes tavern-walk-shadow { from { transform: scaleX(1); opacity: .3; } to { transform: scaleX(.88); opacity: .22; } }
 
-.sc-patron__foam { fill: #fff4d1; opacity: .92; }
 .sc-patron.is-drinking .sc-patron__arm--right {
     transform-box: fill-box;
-    transform-origin: 24px -8px;
+    transform-origin: 70% 70%;
     animation: tavern-drink-arm 1.55s cubic-bezier(.2,.8,.25,1) both !important;
 }
 .sc-patron.is-drinking .sc-patron__head {
@@ -545,7 +535,7 @@
 }
 @keyframes tavern-drink-arm {
     0%,10%,88%,100% { transform: rotate(0deg); }
-    30%,70% { transform: rotate(-63deg) translate(-3px,-5px); }
+    30%,70% { transform: translate(-22px, -40px) rotate(-28deg); }
 }
 @keyframes tavern-drink-head {
     0%,18%,82%,100% { transform: rotate(0deg); }
@@ -558,6 +548,7 @@
 }
 
 :root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__body,
+:root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__head,
 :root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__legs,
 :root[data-mouvement="sobre"] .sc-patron.is-walking .sc-patron__shadow,
 :root[data-mouvement="sobre"] .sc-patron.is-drinking .sc-patron__arm--right,
@@ -691,48 +682,5 @@
 @media (prefers-reduced-motion: reduce) { .tv-lueurs i { animation: none; opacity: .8; } }
 :root[data-ambiance="non"] .tv-lueurs { display: none; }
 
-/* Le trait de la peinture : des contours bruns, francs, et des couleurs un
-   peu plus chaudes, pour que les joueurs ne fassent pas figure de papier
-   découpé posé sur le tableau. */
-.sc-stage--taverne .sc-patron__torso,
-.sc-stage--taverne .sc-patron__legs,
-.sc-stage--taverne .sc-patron__boot,
-.sc-stage--taverne .sc-patron__arm path,
-.sc-stage--taverne .sc-patron__neck,
-.sc-stage--taverne .sc-patron__face,
-.sc-stage--taverne .sc-patron__ear,
-.sc-stage--taverne .sc-patron__hair,
-.sc-stage--taverne .sc-patron__beard,
-.sc-stage--taverne .sc-patron__apron,
-.sc-stage--taverne .sc-patron__vest,
-.sc-stage--taverne .sc-patron__fur,
-.sc-stage--taverne .sc-patron__hand,
-.sc-stage--taverne .sc-patron__belt,
-.sc-stage--taverne .sc-patron__mug path {
-    stroke: #3b200c;
-    stroke-width: 2.6;
-    stroke-linejoin: round;
-}
-.sc-stage--taverne .sc-patron__face,
-.sc-stage--taverne .sc-patron__neck,
-.sc-stage--taverne .sc-patron__ear,
-.sc-stage--taverne .sc-patron__hand { fill: #f2bd93; }
-.sc-stage--taverne .sc-patron__apron { fill: #efe2c2; opacity: 1; }
-.sc-stage--taverne .sc-patron__legs { fill: #4a3526; }
-.sc-stage--taverne .sc-patron__boot { fill: #3a2616; }
-.sc-stage--taverne .sc-patron__oeil { fill: #2d1a0c; }
-.sc-stage--taverne .sc-patron__reflet { fill: #fff; }
-.sc-stage--taverne .sc-patron__joue { fill: #f4917a; opacity: .55; }
-.sc-stage--taverne .sc-patron__nose { fill: none; stroke: #b86a45; stroke-width: 2; stroke-linecap: round; }
-.sc-stage--taverne .sc-patron__fur { fill: #efe3c8; }
-.sc-stage--taverne .sc-patron__belt { fill: #5a3418; }
-.sc-stage--taverne .sc-patron__buckle { fill: #f2c14e; stroke: #7a4a10; stroke-width: 1.6; }
-.sc-stage--taverne .sc-patron__hair-reflet { fill: none; stroke: rgba(255, 236, 200, .45); stroke-width: 3; stroke-linecap: round; }
-.sc-stage--taverne .sc-patron__hair-noeud { fill: #c0392b; stroke: #3b200c; stroke-width: 1.6; }
-.sc-stage--taverne .sc-patron__shade { opacity: .55; }
-.sc-stage--taverne .sc-patron__highlight { opacity: .5; }
-.sc-stage--taverne .sc-patron.is-self .sc-patron__torso { stroke: #3b200c; stroke-width: 2.6; }
-.sc-stage--taverne .sc-patron__mouth { fill: none; stroke: #7a3a22; stroke-width: 2; stroke-linecap: round; }
-.sc-stage--taverne .sc-patron__brows { fill: none; stroke: #3b200c; stroke-width: 2; stroke-linecap: round; }
 /* Soi-même : un rond doré au sol, pour se retrouver d'un coup d'œil. */
 .sc-stage--taverne .sc-patron.is-self .sc-patron__shadow { fill: rgba(255, 207, 69, .6); stroke: #fff6d8; stroke-width: 2.5; }

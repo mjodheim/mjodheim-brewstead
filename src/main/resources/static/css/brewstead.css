@@ -2705,3 +2705,138 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
 .tv-skal { display: block; font: 700 2.2em var(--police-titre); color: var(--jaune-fonce); text-shadow: 0 2px 0 var(--jaune-levre); }
 :root[data-mouvement="sobre"] .tv-carte,
 :root[data-mouvement="sobre"] .tv-annonce.is-visible .tv-des b { animation: none; }
+
+/* --------------------------------------------------------------------------
+   L'atelier du personnage
+   -------------------------------------------------------------------------- */
+
+/* Un voile uni, sans flou : un flou d'arrière-plan se recalcule tant que le
+   décor bouge dessous. */
+.atelier {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 1em;
+    font-size: var(--ui);
+    background: rgba(34, 17, 4, .62);
+}
+.atelier[hidden] { display: none; }
+.atelier__carte {
+    width: min(58em, 100%);
+    max-height: calc(100dvh - 2em);
+    display: flex;
+    flex-direction: column;
+    gap: .7em;
+    padding: 1.1em 1.2em 1em;
+    animation: tv-carte-arrive .28s cubic-bezier(.2, 1.2, .35, 1) both;
+}
+.atelier__fermer {
+    position: absolute;
+    top: .5em;
+    right: .5em;
+    display: grid;
+    place-items: center;
+    width: 2.2em;
+    height: 2.2em;
+    color: #fff;
+    background: var(--rouge, #d9483a);
+    border: 2px solid #7a1c13;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.atelier__fermer svg { width: 1em; height: 1em; }
+.atelier__titre { margin: 0; font: 700 1.45em var(--police-titre); color: var(--encre); }
+.atelier__intro { margin: -.3em 0 0; color: var(--encre-douce); line-height: 1.4; }
+.atelier__corps {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(12em, 17em) 1fr;
+    gap: 1em;
+}
+.atelier__scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .6em;
+    padding: .6em;
+    background: radial-gradient(ellipse at 50% 38%, #8a5a2c, #4a2a10 78%);
+    border: 3px solid var(--bois-bord);
+    border-radius: 1em;
+    box-shadow: inset 0 0 1.4em rgba(0, 0, 0, .45);
+}
+.atelier__apercu { width: 100%; height: auto; aspect-ratio: 120 / 174; max-height: 52dvh; }
+.atelier__groupes {
+    min-height: 0;
+    overflow-y: auto;
+    display: grid;
+    gap: .55em;
+    padding-right: .3em;
+}
+.atelier__groupe { margin: 0; padding: 0; border: 0; min-width: 0; }
+.atelier__groupe legend {
+    padding: 0;
+    margin-bottom: .3em;
+    font: 700 .82em var(--police-titre);
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--encre-douce);
+}
+.atelier__options { display: flex; flex-wrap: wrap; gap: .35em; }
+.atelier__choix {
+    padding: .38em .8em;
+    font: 600 .9em var(--police-titre);
+    color: var(--encre);
+    background: var(--carte, #fffdf6);
+    border: 2px solid var(--creme-bord);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .12s ease, border-color .12s ease;
+}
+.atelier__choix:hover { transform: translateY(-1px); border-color: var(--jaune-fonce); }
+.atelier__choix.is-chosen {
+    color: #fff;
+    background: linear-gradient(180deg, var(--jaune), var(--jaune-fonce));
+    border-color: var(--jaune-levre);
+    text-shadow: 0 1px 0 var(--jaune-levre);
+}
+.atelier__choix--teinte {
+    width: 2.1em;
+    height: 2.1em;
+    padding: 0;
+    background: var(--teinte);
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px var(--creme-bord);
+}
+.atelier__choix--teinte.is-chosen {
+    background: var(--teinte);
+    border-color: #fff;
+    box-shadow: 0 0 0 3px var(--jaune-fonce), 0 0 0 5px var(--jaune-levre);
+}
+.atelier__choix:focus-visible { outline: 3px solid var(--bleu); outline-offset: 2px; }
+.atelier__actions { display: flex; justify-content: flex-end; gap: .6em; }
+
+/* Sur un téléphone : l'aperçu en haut, les choix dessous, qui défilent. */
+@media (max-width: 640px) {
+    .atelier { padding: .5em; align-items: end; }
+    .atelier__carte { padding: .9em .8em .8em; max-height: calc(100dvh - 1em); }
+    .atelier__corps { grid-template-columns: 1fr; }
+    .atelier__scene { flex-direction: row; justify-content: center; }
+    .atelier__apercu { width: auto; height: 26dvh; max-height: 220px; }
+    .atelier__actions .btn { flex: 1; }
+}
+
+.atelier-resume { display: flex; align-items: center; gap: 1em; }
+.atelier-resume__apercu {
+    flex: none;
+    width: 6.5em;
+    height: auto;
+    aspect-ratio: 120 / 174;
+    padding: .3em;
+    background: radial-gradient(ellipse at 50% 38%, #8a5a2c, #4a2a10 78%);
+    border: 3px solid var(--bois-bord);
+    border-radius: .9em;
+}
+.atelier-resume .hint { margin: 0 0 .6em; }
+:root[data-mouvement="sobre"] .atelier__carte { animation: none; }

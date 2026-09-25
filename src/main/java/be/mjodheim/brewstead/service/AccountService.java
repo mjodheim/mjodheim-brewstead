@@ -1,6 +1,8 @@
 package be.mjodheim.brewstead.service;
 
 import be.mjodheim.brewstead.dto.account.ChangePasswordRequest;
+import be.mjodheim.brewstead.dto.account.ApparenceRequest;
+import be.mjodheim.brewstead.dto.account.ApparenceResponse;
 import be.mjodheim.brewstead.dto.account.UpdateAccountRequest;
 import be.mjodheim.brewstead.dto.player.PlayerProfileResponse;
 import be.mjodheim.brewstead.entity.PlayerProfile;
@@ -59,6 +61,25 @@ public class AccountService {
         profile.setAvatar(Avatar.fromNullable(request.avatar()));
 
         return playerMapper.toResponse(profile);
+    }
+
+    @Transactional
+    public ApparenceResponse apparence(String username) {
+        PlayerProfile profile = requireProfile(username);
+        return ApparenceResponse.of(ApparenceCatalogue.choisie(profile), ApparenceCatalogue.effective(profile));
+    }
+
+    @Transactional
+    public ApparenceResponse changerApparence(String username, ApparenceRequest request) {
+        PlayerProfile profile = requireProfile(username);
+        profile.setApparence(ApparenceCatalogue.valider(request));
+        return ApparenceResponse.of(true, profile.getApparence());
+    }
+
+    private PlayerProfile requireProfile(String username) {
+        User user = requireUser(username);
+        return playerProfileRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalStateException("Aucun domaine pour ce compte."));
     }
 
     /**

@@ -79,6 +79,7 @@
         root.dataset.taille = settings.taille;
         root.dataset.mouvement = settings.mouvement;
         root.dataset.ambiance = settings.ambiance ? 'oui' : 'non';
+        if (global.BrewsteadCadence) global.BrewsteadCadence.regler(settings.mouvement);
     }
 
     /* ----------------------------------------------------------- Utilitaires */
@@ -794,9 +795,10 @@
                     choice('taille', [['compacte', 'Compacte'], ['normale', 'Normale'], ['large', 'Large']]) +
 
                     '<p class="section-title">Mouvement</p>' +
-                    choice('mouvement', [['complet', 'Complet'], ['sobre', 'Sobre']]) +
-                    '<p class="hint">En mode sobre, les panneaux apparaissent sans glisser et la caméra ne dérive plus ' +
-                    'après un déplacement. Utile sur une machine modeste, ou si le mouvement te gêne.</p>' +
+                    choice('mouvement', [['complet', 'Complet'], ['econome', 'Économe'], ['sobre', 'Sobre']]) +
+                    '<p class="hint">Le décor s’anime au rythme que ta machine peut tenir. En mode économe, il bouge ' +
+                    'plus lentement et laisse la main à l’interface ; en mode sobre, il se fige, les panneaux ' +
+                    'apparaissent sans glisser et la caméra ne dérive plus après un déplacement.</p>' +
 
                     '<p class="section-title">Confort</p>' +
                     toggle('ambiance', 'Décor vivant et lumière',

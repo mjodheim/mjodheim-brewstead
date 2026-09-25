@@ -272,30 +272,48 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
             radial-gradient(100% 100% at 50% 50%, transparent 55%, rgba(12, 8, 3, .55) 100%);
 }
 
-.weather { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
+/* La météo coûte à chaque image, sur toute la carte : chaque calque doit
+   rester une simple texture que la carte graphique déplace. Trois choses
+   faisaient ramer le navigateur, mesurées une à une :
+   - la brume portait un flou de 12 px sur un calque qui s'anime : le flou
+     était recalculé à chaque image sur 140 % de la largeur de l'écran ;
+   - la pluie débordait d'un quart de chaque côté : un calque de 150 % ×
+     150 % de l'écran, deux fois plus de pixels que nécessaire ;
+   - le voile du soir se mélangeait en « multiply » par-dessus des calques
+     animés, ce qui oblige à refaire le mélange à chaque image.
+   La brume est maintenant douce par ses dégradés, la pluie ne déborde que
+   de ce qu'elle parcourt, et le voile est un simple calque translucide.
+   Un temps qui n'est pas celui du jour ne s'anime pas du tout. */
+.weather { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity 1.8s ease, visibility 1.8s; }
 /* La pluie a été réduite : à pleine force elle masquait les lueurs et les
    cascades, qui sont ce qu'on veut voir du domaine. */
 .weather--rain {
-    inset: -25%;
+    /* Elle glisse de 25 px à gauche et 38 px vers le bas : il suffit
+       de déborder d'autant en haut et à droite. */
+    inset: -40px -28px -2px -2px;
     background-image: repeating-linear-gradient(112deg, transparent 0 13px, rgba(210, 229, 238, .16) 14px 15px, transparent 16px 28px);
     background-size: 38px 38px;
-    animation: rain-drift .7s linear infinite;
+    will-change: transform;
 }
 .weather--mist {
-    inset: auto -20% 0;
+    inset: auto -10% 0;
     height: 62%;
-    background: radial-gradient(ellipse at 25% 70%, rgba(220, 226, 216, .3), transparent 42%),
-                radial-gradient(ellipse at 70% 60%, rgba(210, 220, 214, .22), transparent 48%);
-    filter: blur(12px);
-    animation: mist-drift 18s ease-in-out infinite alternate;
+    background: radial-gradient(ellipse 48% 60% at 25% 70%, rgba(220, 226, 216, .26), rgba(220, 226, 216, .1) 55%, transparent 80%),
+                radial-gradient(ellipse 52% 64% at 70% 60%, rgba(210, 220, 214, .2), rgba(210, 220, 214, .08) 55%, transparent 82%);
+    will-change: transform;
 }
 .game[data-weather="pluie"] .weather--rain,
-.game[data-weather="brume"] .weather--mist { opacity: 1; }
+.game[data-weather="brume"] .weather--mist { opacity: 1; visibility: visible; }
+.game[data-weather="pluie"] .weather--rain { animation: rain-drift .7s linear infinite; }
+.game[data-weather="brume"] .weather--mist { animation: mist-drift 18s ease-in-out infinite alternate; }
+/* Un lieu ouvert recouvre la carte : la pluie qu'on ne voit pas n'a pas à
+   tomber. */
+.game:not([data-view="monde"]) .weather { animation-play-state: paused; }
 .game[data-light="nuit"] .world__fx::after,
 .game[data-light="crepuscule"] .world__fx::after {
-    content: ""; position: absolute; inset: 0; background: rgba(12, 23, 42, .42); mix-blend-mode: multiply;
+    content: ""; position: absolute; inset: 0; background: rgba(10, 18, 36, .34);
 }
-.game[data-light="crepuscule"] .world__fx::after { background: rgba(72, 38, 45, .22); }
+.game[data-light="crepuscule"] .world__fx::after { background: rgba(60, 30, 38, .14); }
 /* L'ambiance teinte le tableau ET ses découpes. Posée sur la seule peinture
    de fond, elle laissait le bâtiment allumé aux couleurs d'origine : une
    tache franche au milieu d'un domaine passé au bleu d'hiver, exactement à
@@ -310,7 +328,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .game[data-theme="hiver"] .world__fx { background-color: rgba(185, 219, 232, .12); }
 
 @keyframes rain-drift { to { transform: translate3d(-25px, 38px, 0); } }
-@keyframes mist-drift { to { transform: translate3d(8%, -2%, 0) scale(1.08); } }
+@keyframes mist-drift { to { transform: translate3d(6%, -2%, 0); } }
 
 /* Écriteaux des lieux ------------------------------------------------------ */
 
@@ -2196,11 +2214,14 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
 /* La flèche verte fait signe de temps en temps, sans insister. */
 .game[data-view="monde"] .world__guide-go { animation: guide-signe 5s ease-in-out 2s infinite; }
 
+/* En « transform » et pas en « translate » : sur ce SVG, la propriété
+   séparée n'est pas confiée à la carte graphique, et la flèche forçait un
+   recalcul des styles de toute la page à chaque image, en permanence. */
 @keyframes guide-signe {
-    0%, 78%, 100% { translate: 0 0; }
-    84% { translate: .3em 0; }
-    90% { translate: -.05em 0; }
-    95% { translate: .18em 0; }
+    0%, 78%, 100% { transform: translateX(0); }
+    84% { transform: translateX(.3em); }
+    90% { transform: translateX(-.05em); }
+    95% { transform: translateX(.18em); }
 }
 
 /* Les gains ------------------------------------------------------------------ */

@@ -1279,6 +1279,15 @@ svg.art { fill: none; stroke: none; overflow: visible; filter: drop-shadow(0 .08
 
 .screen--wide .scene__bar { flex: none; }
 
+/* En paysage, la feuille couvre toute la carte : on cesse de la composer.
+   Invisible, elle coûtait encore la moitié de chaque image — le navigateur
+   redessinait le domaine entier sous un lieu opaque. On attend la fin du
+   fondu d'ouverture pour ne pas laisser un trou pendant qu'il se fait. */
+@media (min-aspect-ratio: 1 / 1) {
+    .screen--wide { background: rgb(40, 22, 6); }
+    .game:has(.screen--wide.is-open) .world { visibility: hidden; transition: visibility 0s .35s; }
+}
+
 /* Sur un écran plus haut que large, une feuille pleine hauteur laisse un
    grand parchemin vide sous la scène : elle s'arrête alors à ce qu'elle
    contient. */

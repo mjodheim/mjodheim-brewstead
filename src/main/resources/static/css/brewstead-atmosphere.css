@@ -39,13 +39,18 @@
     -webkit-mask: url("../images/eau-masque.webp") 0 0 / 100% 100% no-repeat;
     mask: url("../images/eau-masque.webp") 0 0 / 100% 100% no-repeat;
 }
-.world__life .fall { position: absolute; inset: 0; mix-blend-mode: screen; opacity: .88; }
+/* Le groupe d'eau éclaircit déjà la peinture d'un seul mélange. Ses
+   enfants en portaient chacun un de plus (cascades, écume, reflets) : sur
+   un fond transparent, ces mélanges-là ne changeaient presque rien à
+   l'image, mais chacun coûtait une passe de rendu entière à chaque image —
+   un tiers du temps de dessin de la carte. */
+.world__life .fall { position: absolute; inset: 0; opacity: .88; }
 .world__life .fall--far { opacity: .7; }
 .world__life .fall__clip { position: absolute; overflow: hidden; }
 .world__life .fall__flow { animation: waterfall-flow 1.15s linear infinite; }
 .world__life .fall__flow--far { animation-duration: 2.4s; animation-delay: -.8s; }
-.world__life .fall-foam { animation: foam-breath 4.2s ease-in-out infinite alternate; mix-blend-mode: screen; }
-.world__life .water-shimmer { opacity: .5; animation: river-flow 4.2s linear infinite; mix-blend-mode: screen; }
+.world__life .fall-foam { animation: foam-breath 4.2s ease-in-out infinite alternate; }
+.world__life .water-shimmer { opacity: .5; animation: river-flow 4.2s linear infinite; }
 .world__life .water-spark { animation: water-glint 5.7s ease-in-out infinite; }
 .world__life .water-spark--late { animation-delay: -3.1s; animation-duration: 7s; }
 .world__life .tavern-glow, .world__life .window-lights, .world__life .lantern-lights {

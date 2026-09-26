@@ -234,4 +234,63 @@ class BrewServiceTest {
                 .status(BatchStatus.BREWING)
                 .build();
     }
+
+    @Test
+    void aReadyBatchGoesToTheCellarOnce() {
+        PlayerProfile player = player(1);
+        Batch batch = batch(5, player, recipe(2));
+        batch.setReadyAt(LocalDateTime.now().minusMinutes(1));
+        when(batchRepository.findById(5L)).thenReturn(Optional.of(batch));
+
+        service.cellar(1L, 5L);
+        LocalDateTime first = batch.getCellaredAt();
+        assertNotNull(first);
+        assertEquals(BatchStatus.READY, batch.getStatus());
+
+        service.cellar(1L, 5L);
+        assertEquals(first, batch.getCellaredAt(), "Ranger deux fois ne change rien.");
+    }
+
+    @Test
+    void aBatchStillFermentingCannotBeCellared() {
+        PlayerProfile player = player(1);
+        Batch batch = batch(5, player, recipe(2));
+        when(batchRepository.findById(5L)).thenReturn(Optional.of(batch));
+
+        assertThrows(IllegalStateException.class, () -> service.cellar(1L, 5L));
+        assertNull(batch.getCellaredAt());
+    }
+
+    @Test
+    void someoneElsesBatchCannotBeCellared() {
+        Batch batch = batch(5, player(2), recipe(2));
+        batch.setReadyAt(LocalDateTime.now().minusMinutes(1));
+        when(batchRepository.findById(5L)).thenReturn(Optional.of(batch));
+
+        assertThrows(AccessDeniedException.class, () -> service.cellar(1L, 5L));
+    }
+
+    @Test
+    void cellarAllStoresOnlyTheReadyBatchesStillInTheirVats() {
+        PlayerProfile player = player(1);
+        Batch ready = batch(5, player, recipe(2));
+        ready.setReadyAt(LocalDateTime.now().minusMinutes(1));
+        Batch alreadyStored = batch(6, player, recipe(2));
+        alreadyStored.setReadyAt(LocalDateTime.now().minusMinutes(5));
+        LocalDateTime earlier = LocalDateTime.now().minusMinutes(3);
+        alreadyStored.setCellaredAt(earlier);
+        Batch fermenting = batch(7, player, recipe(2));
+        when(playerRepository.findById(1L)).thenReturn(Optional.of(player));
+        when(batchRepository.findAllByPlayerIdOrderByStartedAtDesc(1L)).thenReturn(List.of(ready, alreadyStored, fermenting));
+
+        service.cellarAll(1L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Batch>> stored = ArgumentCaptor.forClass(List.class);
+        verify(mapper).toResponseList(stored.capture());
+        assertEquals(List.of(ready), stored.getValue());
+        assertNotNull(ready.getCellaredAt());
+        assertEquals(earlier, alreadyStored.getCellaredAt());
+        assertNull(fermenting.getCellaredAt());
+    }
 }

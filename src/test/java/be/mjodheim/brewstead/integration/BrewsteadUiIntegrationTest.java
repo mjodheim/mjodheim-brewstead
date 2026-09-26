@@ -656,8 +656,12 @@ class BrewsteadUiIntegrationTest {
             BigDecimal brewed = batch.getVolume();
             batch.setReadyAt(LocalDateTime.now().minusSeconds(1));
             batchRepository.save(batch);
+            // Le fût prêt se range en cave d'un geste : la cuve se libère.
             openSection(brewer, wait, "brasserie");
-            wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("[data-action='taste-batch'][data-id='" + batchId + "']")));
+            click(brewer, wait, By.cssSelector("[data-action='cellar-batch'][data-id='" + batchId + "'] .sc-node__hit, " +
+                    "[data-action='cellar-batch'][data-id='" + batchId + "']"));
+            wait.until(d -> batchRepository.findById(batchId).orElseThrow().getCellaredAt() != null);
+            waitForMutation(brewer, wait);
 
             int coinsBefore = profile("ui_full_brewer").getCoin();
             int reputationBefore = profile("ui_full_brewer").getReputation();
@@ -700,11 +704,12 @@ class BrewsteadUiIntegrationTest {
             assertFalse(horsPortee.findElement(By.cssSelector("button[disabled]")).isEnabled(), ligne);
             assertTrue(ligne.contains("35 L"), ligne);
 
-            openSection(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("[data-action='offer-batch'][data-id='" + batchId + "'] .sc-node__hit, " +
-                    "[data-action='offer-batch'][data-id='" + batchId + "']"));
+            // Rangé, le fût n'est plus sur le plancher : on le sert depuis la cave.
+            ouvrirVue(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("#placeBody [data-action='offer-batch'][data-id='" + batchId + "']"));
+            // Depuis le tiroir, l'écran du comptoir s'ouvre en fondu.
+            WebElement services = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("offerServings")));
             assertFalse(brewer.findElement(By.id("screenBody")).getText().contains("undefined"));
-            WebElement services = brewer.findElement(By.id("offerServings"));
             services.clear(); services.sendKeys("2");
             WebElement price = brewer.findElement(By.id("offerPrice"));
             price.clear(); price.sendKeys("7");
@@ -825,7 +830,14 @@ class BrewsteadUiIntegrationTest {
             batchRepository.save(batch);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
             openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='taste-batch'] .sc-node__hit, #screenBody [data-action='taste-batch']"));
+            // Toucher le fût prêt le range : il ne se boit plus par mégarde.
+            click(brewer, wait, By.cssSelector("#screenBody [data-action='cellar-batch'] .sc-node__hit, #screenBody [data-action='cellar-batch']"));
+            wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getCellaredAt() != null);
+            assertEquals(0, new BigDecimal("20").compareTo(batchRepository.findById(batch.getId()).orElseThrow().getVolume()),
+                    "Ranger un fût ne le goûte pas.");
+            wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
+            ouvrirVue(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("#placeBody [data-action='taste-batch']"));
             wait.until(d -> batchRepository.findById(batch.getId()).orElseThrow().getVolume().compareTo(new BigDecimal("19.50")) == 0);
             wait.until(d -> d.findElement(By.id("game")).getDomAttribute("aria-busy") == null);
 
@@ -845,10 +857,10 @@ class BrewsteadUiIntegrationTest {
             assertEquals(1, progressRepository.findByPlayerId(profile.getId()).orElseThrow().getSeasonRewardTier());
             screenshot(brewer, "09-merchant-delivered.png");
 
-            openPlaceScreen(brewer, wait, "brasserie");
-            click(brewer, wait, By.cssSelector("#screenBody [data-action='offer-batch'] .sc-node__hit, " +
-                    "#screenBody [data-action='offer-batch']"));
-            WebElement servings = brewer.findElement(By.id("offerServings"));
+            // Le fût est en cave : c'est de là qu'on le met au comptoir.
+            ouvrirVue(brewer, wait, "brasserie");
+            click(brewer, wait, By.cssSelector("#placeBody [data-action='offer-batch']"));
+            WebElement servings = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("offerServings")));
             assertTrue(Integer.parseInt(servings.getDomAttribute("max")) <= batchRepository.findById(batch.getId()).orElseThrow().getVolume().multiply(BigDecimal.valueOf(2)).intValue());
             servings.clear();
             servings.sendKeys("2");
@@ -1248,8 +1260,11 @@ class BrewsteadUiIntegrationTest {
     private void ouvrirEnListe(WebDriver driver, WebDriverWait wait, String view, String repere) {
         ouvrirVue(driver, wait, view);
         By versListe = By.cssSelector("[data-action='show-list'][data-id='" + view + "']");
+        // Un écran qui s'ouvre en fondu montre son bouton avant qu'on puisse
+        // le toucher : on réessaie, comme on le ferait à la main.
         wait.ignoring(StaleElementReferenceException.class)
                 .ignoring(ElementClickInterceptedException.class)
+                .ignoring(ElementNotInteractableException.class)
                 .until(d -> {
                     if (!d.findElements(By.cssSelector(repere)).isEmpty()) return true;
                     List<WebElement> bouton = d.findElements(versListe);
@@ -1297,6 +1312,12 @@ class BrewsteadUiIntegrationTest {
             case "inventaire" -> click(driver, wait, By.cssSelector("#places [data-place='entrepot']"));
             case "recettes" -> click(driver, wait, By.cssSelector("#places [data-place='laboratoire']"));
             case "commandes" -> click(driver, wait, By.cssSelector("#places [data-place='commandes']"));
+            // Le tiroir de la brasserie montre la cave, avec ses gestes.
+            case "brasserie" -> {
+                ouvrirVue(driver, wait, "monde");
+                click(driver, wait, By.cssSelector("#places [data-place='brasserie']"));
+                wait.until(ExpectedConditions.attributeToBe(By.id("place"), "aria-hidden", "false"));
+            }
             case "taverne" -> click(driver, wait, By.cssSelector("#places [data-place='taverne']"));
             default -> throw new IllegalArgumentException("Vue inconnue : " + view);
         }

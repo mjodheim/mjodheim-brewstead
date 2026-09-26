@@ -79,9 +79,30 @@
     }
 
     /** Litres de breuvage terminés, tous fûts confondus. */
+    /**
+     * Où en est un brassin, vu par le joueur.
+     *
+     * <p>Le serveur ne passe un fût à « prêt » qu'au chargement suivant :
+     * le compte à rebours arrivait à zéro et la cuve continuait de bouillir
+     * jusqu'à quinze secondes. On lit donc l'heure, comme pour les champs.
+     * Un fût prêt attend dans sa cuve (« a-soutirer ») jusqu'à ce qu'on le
+     * range : il est alors « en-cave », avec la réserve.
+     */
+    function etatBrassin(batch) {
+        if (batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED') return 'fini';
+        var pret = batch.status === 'READY' || (batch.readyAt && isDone(batch.readyAt));
+        if (!pret) return 'en-cours';
+        return batch.cellaredAt ? 'en-cave' : 'a-soutirer';
+    }
+
+    function aSoutirer(state) {
+        return (state.batches || []).filter(function (b) { return etatBrassin(b) === 'a-soutirer'; });
+    }
+
+    /** Ce qui est rangé en cave : le compteur monte au moment où l'on range. */
     function cellarVolume(batches) {
         return batches.reduce(function (total, batch) {
-            return batch.status === 'READY' ? total + Number(batch.volume || 0) : total;
+            return etatBrassin(batch) === 'en-cave' ? total + Number(batch.volume || 0) : total;
         }, 0);
     }
 
@@ -299,11 +320,12 @@
             };
         }
 
-        if (state.batches.some(function (b) { return b.status === 'READY'; })) {
+        var prets = aSoutirer(state).length;
+        if (prets > 0) {
             return {
-                texte: 'Ton brassin est prêt',
-                pourquoi: 'Va le chercher à la brasserie : il ira en cave, prêt à être vendu.',
-                lieu: 'brasserie'
+                texte: prets > 1 ? 'Mets tes ' + prets + ' brassins en cave' : 'Mets ton brassin en cave',
+                pourquoi: 'La cuve se libère, et le fût rejoint la réserve où puisent commandes et comptoir.',
+                action: 'cellar'
             };
         }
 
@@ -315,9 +337,7 @@
             };
         }
 
-        var enCours = state.batches.some(function (b) {
-            return b.status !== 'SOLD_OUT' && b.status !== 'CANCELLED' && b.status !== 'READY';
-        });
+        var enCours = state.batches.some(function (b) { return etatBrassin(b) === 'en-cours'; });
         if (!enCours && state.recipes.some(function (r) { return brewable(state, r); })) {
             return {
                 texte: 'Lance un brassin',
@@ -453,8 +473,10 @@
                 if (state.hives.some(function (h) { return h.status === 'READY'; })) return 'ready';
                 return state.hives.some(function (h) { return h.status === 'PRODUCING'; }) ? 'busy' : 'idle';
             case 'brasserie':
-                if (state.batches.some(function (b) { return b.status === 'READY'; })) return 'ready';
-                return state.batches.length ? 'busy' : 'idle';
+                // Un fût déjà rangé n'appelle plus personne, et un brassin
+                // épuisé depuis une semaine ne rend pas la brasserie « occupée ».
+                if (aSoutirer(state).length) return 'ready';
+                return state.batches.some(function (b) { return etatBrassin(b) === 'en-cours'; }) ? 'busy' : 'idle';
             case 'commandes':
                 return state.npcOrders.some(function (o) { return o.status === 'OPEN'; }) ? 'ready' : 'idle';
             case 'taverne':
@@ -482,7 +504,7 @@
             case 'rucher':
                 return state.hives.filter(function (h) { return h.status === 'READY'; }).length;
             case 'brasserie':
-                return state.batches.filter(function (b) { return b.status === 'READY'; }).length;
+                return aSoutirer(state).length;
             case 'commandes':
                 return state.npcOrders.filter(function (o) { return o.status === 'OPEN'; }).length
                     + state.market.filter(function (o) { return o.creatorId !== state.playerId; }).length;
@@ -512,6 +534,8 @@
         placeState: placeState,
         placeCount: placeCount,
         harvestableCount: harvestableCount,
+        etatBrassin: etatBrassin,
+        aSoutirer: aSoutirer,
         format: { number: number, quantity: quantity, countdown: countdown, duration: duration, ratio: ratio, isDone: isDone }
     };
 })(window);

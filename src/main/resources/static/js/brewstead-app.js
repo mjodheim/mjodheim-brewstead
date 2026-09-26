@@ -25,7 +25,7 @@
         lobby: { rooms: [], currentRoomId: null }, room: null,
         privateName: '', inviteCode: '',
         source: null, liveRoomId: null,
-        moveSending: false, pendingMove: null, lastKeyMove: 0,
+        moveSending: false, pendingMove: null, dernierPas: {},
         regulars: [], regularsAt: 0, carte: null
     };
     var refreshJob = null;
@@ -242,6 +242,13 @@
     }
 
     /* ------------------------------------------------------- Sections de jeu */
+
+    /** Les fûts rangés, avec encore de quoi servir. */
+    function enCave(s) {
+        return (s.batches || []).filter(function (b) {
+            return Data.etatBrassin(b) === 'en-cave' && Number(b.volume) > 0;
+        });
+    }
 
     var BATCH_LABELS = {
         PLANNED: 'planifié', BREWING: 'en cuve', FERMENTING: 'fermentation',
@@ -590,22 +597,35 @@
                 var head = '<div class="account-actions" style="margin:0 0 .8em">' +
                     '<button class="btn btn--gold" type="button" data-action="open-brew">' +
                     icon('i-plus') + 'Lancer un brassin</button></div>';
-                if (!s.batches.length) return head + empty('Aucun brassin en cours.');
-                return head + s.batches.map(function (batch) {
-                    var ready = batch.status === 'READY';
-                    var finished = batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED';
+                // En cuve d'abord (ce qui fermente, ce qui attend d'être rangé),
+                // puis la cave. Les fûts épuisés ne s'affichent plus : ils
+                // s'empilaient en « écoulé » au-dessus de ce qui compte.
+                var cuves = s.batches.filter(function (b) {
+                    var etat = Data.etatBrassin(b);
+                    return etat === 'en-cours' || etat === 'a-soutirer';
+                });
+                var cave = enCave(s);
+                if (!cuves.length && !cave.length) return head + empty('Aucun brassin en cours, et la cave est vide.');
+                var ligne = function (batch) {
+                    var etat = Data.etatBrassin(batch);
                     var recetteDuFut = s.recipes.find(function (r) { return r.id === batch.recipeId; });
                     return row({
                         art: recetteDuFut ? artBoisson(recetteDuFut.drinkType) : 'art-barrel',
                         title: batch.recipeName,
                         meta: fmt.number(batch.volume) + ' L' + (batch.quality ? ' · qualité ' + batch.quality : ''),
-                        progress: !ready && !finished && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
-                        side: ready
-                            ? actionButton('taste-batch', 'Goûter', batch.id) +
-                              actionButton('offer-batch', 'Au comptoir', batch.id)
-                            : chip(batch.status === 'SOLD_OUT' ? 'Fût épuisé' : (BATCH_LABELS[batch.status] || batch.status), batch.status === 'SOLD_OUT' ? 'info' : 'warn')
+                        progress: etat === 'en-cours' && batch.readyAt ? progress(batch.startedAt, batch.readyAt) : '',
+                        side: etat === 'a-soutirer'
+                            ? actionButton('cellar-batch', 'Mettre en cave', batch.id)
+                            : etat === 'en-cave'
+                                ? actionButton('taste-batch', 'Goûter', batch.id) +
+                                  actionButton('offer-batch', 'Au comptoir', batch.id)
+                                : chip(BATCH_LABELS[batch.status] || batch.status, 'warn')
                     });
-                }).join('');
+                };
+                return head +
+                    (cuves.length ? '<p class="section-title">En cuve</p>' + cuves.map(ligne).join('') : '') +
+                    '<p class="section-title">La cave</p>' +
+                    (cave.length ? cave.map(ligne).join('') : empty('Rien en cave pour l’instant. Un fût prêt s’y range d’un geste.'));
             }
         },
 
@@ -1255,6 +1275,14 @@
     }
 
     function applyTavernSnapshot(snapshot) {
+        // Un instantané part du serveur avec un pas de retard sur celui qui
+        // marche : on garde sa propre position tant qu'on bouge.
+        var moi = selfInTavern();
+        if (snapshot && moi && (marcheRecente() || tavern.moveSending || tavern.pendingMove)) {
+            (snapshot.players || []).forEach(function (p) {
+                if (p.self && !p.seatKey) { p.x = moi.x; p.y = moi.y; p.facing = moi.facing; }
+            });
+        }
         tavern.room = snapshot || null;
         if (!snapshot) return;
         if (!atelier.apparence) chargerApparence().then(function () {
@@ -1315,6 +1343,15 @@
             self: current.self,
             character: incoming.character || current.character
         });
+        // Pendant qu'on marche, l'écho du serveur a toujours un pas de retard :
+        // le reprendre ferait reculer le personnage.
+        if (current.self && marcheRecente()) {
+            merged.x = current.x;
+            merged.y = current.y;
+            merged.facing = current.facing;
+            merged.seatKey = current.seatKey;
+            merged.pose = current.pose;
+        }
         tavern.room.players[index] = merged;
         return merged;
     }
@@ -1344,7 +1381,12 @@
             if (payload.type === 'MOVE') {
                 // Nos propres mouvements sont prédits immédiatement. On ne
                 // les relance pas à chaque écho réseau pendant une redirection.
-                if (!person.self || (!tavern.moveSending && !tavern.pendingMove)) {
+                if (!person.self) {
+                    var vu = Date.now();
+                    var ecart = vu - (tavern.dernierPas[person.playerId] || 0);
+                    tavern.dernierPas[person.playerId] = vu;
+                    Scenes.movePatron(dom.screenBody, person, ecart < 600 ? Math.max(150, Math.min(450, ecart)) : 0);
+                } else if (!tavern.moveSending && !tavern.pendingMove && !marcheRecente()) {
                     Scenes.movePatron(dom.screenBody, person);
                 }
                 return;
@@ -1422,7 +1464,7 @@
             .then(function (serverPlayer) {
                 if (!tavern.room || tavern.room.id !== roomId) return;
                 var person = mergeLivePlayer(serverPlayer);
-                if (person && !tavern.pendingMove) Scenes.movePatron(dom.screenBody, person);
+                if (person && !tavern.pendingMove && !marcheRecente()) Scenes.movePatron(dom.screenBody, person);
             })
             .catch(function (error) {
                 if (error.sessionExpired) showFault(error);
@@ -1437,8 +1479,111 @@
             });
     }
 
+    /* ------------------------------------------------------ Marcher au clavier */
+
+    /*
+     * Tenir une flèche fait marcher, comme dans un jeu. Avant, chaque appui
+     * faisait un pas de soixante, freiné à l'arrivée ; en tenant la touche,
+     * le navigateur attendait une demi-seconde avant de répéter, puis on
+     * avançait par saccades. Ici, les touches tenues donnent une direction, et
+     * le personnage avance image par image à vitesse constante — en diagonale
+     * si on en tient deux. Le serveur reçoit la position quatre fois par
+     * seconde, et la dernière quand on lâche.
+     */
+    var DIRECTIONS_MARCHE = {
+        arrowleft: [-1, 0], a: [-1, 0], q: [-1, 0],
+        arrowright: [1, 0], d: [1, 0],
+        arrowup: [0, -1], w: [0, -1], z: [0, -1],
+        arrowdown: [0, 1], s: [0, 1]
+    };
+    var VITESSE_MARCHE = [340, 120];     // unités du tableau par seconde, en largeur et en profondeur
+    var PAS_MINIMUM = 180;               // ms : un appui bref fait quand même un petit pas
+    var marche = { touches: {}, image: null, avant: 0, envoi: 0, x: 0, y: 0, facing: 'LEFT', fin: 0, debut: 0, cap: [0, 0] };
+
+    function marcheRecente() {
+        return !!marche.image || Date.now() - marche.fin < 900;
+    }
+
+    function marcher(cle, tenue) {
+        if (tenue) {
+            marche.touches[cle] = true;
+            marche.cap = DIRECTIONS_MARCHE[cle];
+        } else {
+            delete marche.touches[cle];
+        }
+        if (Object.keys(marche.touches).length) {
+            if (!marche.image) demarrerMarche();
+        } else if (!marche.image || performance.now() - marche.debut >= PAS_MINIMUM) {
+            arreterMarche();
+        }
+        // Sinon, la boucle finit elle-même le petit pas commencé.
+    }
+
+    function demarrerMarche() {
+        var me = selfInTavern();
+        if (!me || !tavern.room) { marche.touches = {}; return; }
+        marche.x = Number(me.x) || 1135;
+        marche.y = Number(me.y) || 520;
+        marche.facing = me.facing || 'LEFT';
+        marche.avant = marche.debut = performance.now();
+        marche.envoi = 0;
+        marche.image = requestAnimationFrame(pasDeMarche);
+    }
+
+    function pasDeMarche(now) {
+        var me = selfInTavern();
+        if (!me || !tavern.room || activeView !== 'taverne' || listMode.taverne) { arreterMarche(); return; }
+        var dt = Math.min(0.05, (now - marche.avant) / 1000);
+        marche.avant = now;
+        var dx = 0, dy = 0;
+        var tenues = Object.keys(marche.touches);
+        tenues.forEach(function (cle) {
+            var d = DIRECTIONS_MARCHE[cle];
+            if (d) { dx += d[0]; dy += d[1]; }
+        });
+        if (!tenues.length) {
+            // Touche déjà relâchée : on termine le petit pas, puis on s'arrête.
+            if (now - marche.debut >= PAS_MINIMUM) { arreterMarche(); return; }
+            dx = marche.cap[0]; dy = marche.cap[1];
+        }
+        var norme = Math.hypot(dx, dy) || 1;
+        var cible = Scenes.normalizeTavernPoint(
+            marche.x + dx / norme * VITESSE_MARCHE[0] * dt,
+            marche.y + dy / norme * VITESSE_MARCHE[1] * dt);
+        marche.x = cible.x;
+        marche.y = cible.y;
+        if (dx) marche.facing = dx < 0 ? 'LEFT' : 'RIGHT';
+
+        var moi = Object.assign({}, me, { x: marche.x, y: marche.y, seatKey: null, pose: 'STANDING', facing: marche.facing });
+        var index = tavern.room.players.findIndex(function (p) { return p.self; });
+        tavern.room.players[index] = moi;
+        Scenes.placerPatron(dom.screenBody, moi, true);
+        Scenes.recentrer(dom.screenBody, marche.x, false);
+
+        if (now - marche.envoi > 250) {
+            marche.envoi = now;
+            sendQueuedTavernMove({ x: marche.x, y: marche.y });
+        }
+        marche.image = requestAnimationFrame(pasDeMarche);
+    }
+
+    function arreterMarche() {
+        marche.touches = {};
+        if (!marche.image) return;
+        cancelAnimationFrame(marche.image);
+        marche.image = null;
+        marche.fin = Date.now();
+        var me = selfInTavern();
+        if (me) {
+            Scenes.placerPatron(dom.screenBody, me, false);
+            sendQueuedTavernMove({ x: me.x, y: me.y });
+        }
+    }
+
     function tavernMoveTo(x, y) {
         if (!tavern.room || activeView !== 'taverne' || listMode.taverne) return 0;
+        // Un clic reprend la main sur les flèches.
+        if (marche.image) { marche.touches = {}; cancelAnimationFrame(marche.image); marche.image = null; marche.fin = Date.now(); }
         var me = selfInTavern();
         if (!me) return 0;
 
@@ -1453,7 +1598,7 @@
         });
         var index = tavern.room.players.findIndex(function (p) { return p.self; });
         tavern.room.players[index] = predicted;
-        var duration = Scenes.movePatron(dom.screenBody, predicted, true);
+        var duration = Scenes.movePatron(dom.screenBody, predicted);
         Scenes.showTavernDestination(dom.screenBody, target.x, target.y);
         Scenes.recentrer(dom.screenBody, target.x, true);
         sendQueuedTavernMove(target);
@@ -2223,6 +2368,19 @@
             return;
         }
 
+        if (action === 'cellar-batch') {
+            var fut = state.batches.find(function (b) { return b.id === Number(id); });
+            send('/api/brewery/batches/' + Number(id) + '/cellar', undefined, function (range) {
+                celebrerLaCave([range || fut]);
+            });
+            return;
+        }
+        if (action === 'cellar-all') {
+            if (!Data.aSoutirer(state).length) { toast('Aucun fût n’attend dans sa cuve.'); return; }
+            send('/api/brewery/cellar-all', undefined, function (ranges) { celebrerLaCave(ranges || []); });
+            return;
+        }
+
         if (action === 'taste-batch') {
             send('/api/brewery/batches/' + Number(id) + '/taste', undefined, function (result) {
                 if (!result) return;
@@ -2463,10 +2621,10 @@
                 due.push('Le miel de la ruche n°' + hive.id + ' est prêt');
             }
         });
-        state.batches.forEach(function (batch) {
-            if (batch.status === 'READY' && !readySeen['b' + batch.id]) {
+        Data.aSoutirer(state).forEach(function (batch) {
+            if (!readySeen['b' + batch.id]) {
                 readySeen['b' + batch.id] = true;
-                due.push(batch.recipeName + ' sort de garde');
+                due.push(batch.recipeName + ' est prêt : mets-le en cave');
             }
         });
 
@@ -2630,7 +2788,7 @@
         var hint = {
             champs: 'Touche une parcelle libre pour semer, une parcelle mûre pour récolter.',
             rucher: 'Les abeilles travaillent seules. Touche une ruche pleine pour la vider.',
-            brasserie: 'Touche un fût prêt pour le goûter, la chope à côté pour l’envoyer au comptoir.',
+            brasserie: 'Touche un fût prêt pour le mettre en cave ; la chope à côté l’envoie droit au comptoir.',
             entrepot: 'Tout ce que le domaine produit finit sur ces planches. Rien à faire ici : c’est un état des lieux.',
             commandes: 'Touche une feuille pour prendre le contrat, ou pour livrer quand ta cave suit. « Voir la liste » ouvre le marché entre domaines.'
         }[view] || '';
@@ -2643,11 +2801,20 @@
                     icon('i-basket') + 'Tout récolter (' + waiting + ')</button>';
             }
         }
+        var liste = 'Voir la liste';
         if (view === 'brasserie') {
-            actions += '<button class="btn btn--gold" type="button" data-action="open-brew">' +
+            var prets = Data.aSoutirer(state).length;
+            if (prets >= 2) {
+                actions += '<button class="btn btn--gold" type="button" data-action="cellar-all">' +
+                    icon('i-barrel') + 'Tout mettre en cave (' + prets + ')</button>';
+            }
+            actions += '<button class="btn' + (prets >= 2 ? '' : ' btn--gold') + '" type="button" data-action="open-brew">' +
                 icon('i-plus') + 'Lancer un brassin</button>';
+            // La cave n'a pas de décor à elle : c'est la liste qui la montre.
+            var cave = enCave(state);
+            liste = cave.length ? 'La cave · ' + fmt.number(cave.reduce(function (t, b) { return t + Number(b.volume); }, 0)) + ' L' : 'La cave';
         }
-        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">Voir la liste</button>';
+        actions += '<button class="btn" type="button" data-action="show-list" data-id="' + vue + '">' + esc(liste) + '</button>';
 
         return '<div class="scene__bar"><p class="scene__hint">' + esc(hint) + '</p>' + actions + '</div>';
     }
@@ -3167,6 +3334,22 @@
      * <p>L'animation web plutôt qu'une classe : chaque vol a son propre
      * point de départ et d'arrivée, qu'aucune feuille de style ne connaît.
      */
+    /**
+     * Le fût rejoint la cave. Le compteur « En cave » monte de lui-même (les
+     * tonneaux volent jusqu'à lui, comme toute récolte) ; ici, le mot qui dit
+     * ce qu'on en fait ensuite.
+     */
+    function celebrerLaCave(ranges) {
+        ranges = (ranges || []).filter(Boolean);
+        if (!ranges.length) { toast('Rien à ranger : la cave est à jour.'); return; }
+        var litres = ranges.reduce(function (t, b) { return t + Number(b.volume || 0); }, 0);
+        cliquetis();
+        var suite = state && state.npcOrders.some(function (o) { return o.status === 'OPEN'; })
+            ? ' Une commande t’attend.' : ' À vendre au comptoir de la taverne.';
+        toast((ranges.length > 1 ? ranges.length + ' fûts' : ranges[0].recipeName) + ' en cave : ' +
+            fmt.number(litres) + ' L.' + suite);
+    }
+
     function envol(depart, cible, artId, rang) {
         if (!dom.envols || !cible.getBoundingClientRect) return;
         var arrivee = cible.getBoundingClientRect();
@@ -3298,6 +3481,7 @@
     function suivreLeFil() {
         if (!fil) return;
         if (fil.action === 'reap') { runAction('harvest-all'); return; }
+        if (fil.action === 'cellar') { runAction('cellar-all'); return; }
         if (fil.lieu) { selectView('monde'); openPlace(fil.lieu); return; }
         if (fil.vue) selectView(fil.vue);
     }
@@ -3720,6 +3904,14 @@
             quitterTaverneSilencieusement();
         });
 
+        document.addEventListener('keyup', function (event) {
+            var cle = String(event.key || '').toLowerCase();
+            if (DIRECTIONS_MARCHE[cle]) marcher(cle, false);
+        });
+        // Une touche relâchée hors de la page ne revient jamais : on s'arrête.
+        global.addEventListener('blur', arreterMarche);
+        document.addEventListener('visibilitychange', function () { if (document.hidden) arreterMarche(); });
+
         document.addEventListener('keydown', function (event) {
             var targetTag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
             var typing = targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || event.target.isContentEditable;
@@ -3728,21 +3920,10 @@
                 return;
             }
             if (!typing && activeView === 'taverne' && tavern.room && !listMode.taverne) {
-                var key = String(event.key || '').toLowerCase();
-                var delta = {
-                    arrowleft: [-60, 0], a: [-60, 0], q: [-60, 0],
-                    arrowright: [60, 0], d: [60, 0],
-                    arrowup: [0, -18], w: [0, -18], z: [0, -18],
-                    arrowdown: [0, 18], s: [0, 18]
-                }[key];
-                if (delta) {
+                var direction = DIRECTIONS_MARCHE[String(event.key || '').toLowerCase()];
+                if (direction) {
                     event.preventDefault();
-                    var now = performance.now();
-                    if (now - tavern.lastKeyMove >= 110) {
-                        tavern.lastKeyMove = now;
-                        var me = selfInTavern();
-                        if (me) tavernMoveTo(Number(me.x || 1135) + delta[0], Number(me.y || 520) + delta[1]);
-                    }
+                    marcher(String(event.key).toLowerCase(), true);
                     return;
                 }
             }
@@ -3760,6 +3941,33 @@
     }
 
     /* ------------------------------------------------------------ Démarrage */
+
+    /**
+     * Un brassin ou une ruche vient d'arriver à terme : on demande l'état
+     * tout de suite. Le rafraîchissement régulier passe toutes les quinze
+     * secondes, et c'était autant d'attente devant un compte à rebours à
+     * zéro. Une seule demande par échéance, même si l'horloge du navigateur
+     * avance un peu sur celle du serveur.
+     */
+    var echeancesVues = {};
+    function echeanceFranchie() {
+        var franchie = false;
+        (state.batches || []).forEach(function (b) {
+            if (b.status === 'READY' || b.status === 'SOLD_OUT' || b.status === 'CANCELLED') return;
+            if (b.readyAt && fmt.isDone(b.readyAt) && !echeancesVues['b' + b.id]) {
+                echeancesVues['b' + b.id] = true;
+                franchie = true;
+            }
+        });
+        (state.hives || []).forEach(function (h) {
+            if (h.status !== 'PRODUCING') return;
+            if (h.readyAt && fmt.isDone(h.readyAt) && !echeancesVues['h' + h.id + h.readyAt]) {
+                echeancesVues['h' + h.id + h.readyAt] = true;
+                franchie = true;
+            }
+        });
+        return franchie;
+    }
 
     function refresh() {
         if (refreshJob) return refreshJob;
@@ -3818,6 +4026,7 @@
             proposerLaVisite();
             setInterval(function () {
                 if (!state || document.hidden) return;
+                if (echeanceFranchie() && !mutationPending) refresh().catch(function () {});
                 renderMarkers();
                 renderPlace();
                 // On ne réécrit que les écrans à minuterie : ailleurs cela

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const ici = dirname(fileURLToPath(import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript' };
 
-// nom, largeur, hauteur, exposition, ombre portée, suffixe du fichier
+// nom, largeur, hauteur, exposition, ombre portée, suffixe du fichier, angle de vue
 const PARCELLES = ['parcelle', ...['cereales', 'houblon', 'baies', 'herbes'].flatMap(f => [1, 2, 3].map(s => `${f}-${s}`))];
 const TRAVAUX = [
   ...['fut-en-cours', 'fut-pret', 'ruche', 'ruche-pleine'].map(n => [n, 640, 640, 1.05, 1, '']),
@@ -18,6 +18,10 @@ const TRAVAUX = [
   ...['icone-gerbe', 'icone-levure', 'icone-corne', 'fut-en-cours', 'fut-pret', 'ruche'].map(n => [n, 640, 640, 1.05, 0, '-i']),
   ['icone-houblon', 640, 640, 0.6, 0, '-i'],
   ['cereales-3', 800, 600, 1.05, 0, '-i'],
+  // les récipients du comptoir, vus presque de face, à hauteur de comptoir
+  ['chope-biere', 512, 512, 1.05, 0, '', 12],
+  ['chope-hydromel', 512, 512, 1.05, 0, '', 24],
+  ['chope-cidre', 512, 512, 1.05, 0, '', 12],
 ];
 
 const serveur = createServer(async (req, res) => {
@@ -37,9 +41,9 @@ const erreurs = [];
 page.on('pageerror', e => erreurs.push(e.message));
 
 const choisis = process.argv.slice(2);
-for (const [nom, l, h, expo, ombre, suffixe] of TRAVAUX) {
+for (const [nom, l, h, expo, ombre, suffixe, elev = 26] of TRAVAUX) {
   if (choisis.length && !choisis.includes(nom)) continue;
-  await page.goto(`http://127.0.0.1:${port}/rendu.html?modele=${nom}&taille=${l}&haut=${h}&expo=${expo}&ombre=${ombre}`);
+  await page.goto(`http://127.0.0.1:${port}/rendu.html?modele=${nom}&taille=${l}&haut=${h}&expo=${expo}&ombre=${ombre}&elev=${elev}`);
   await page.waitForFunction(() => document.title === 'pret', null, { timeout: 120000 });
   await page.locator('canvas').screenshot({ path: join(ici, 'sortie', `${nom}${suffixe}.png`), omitBackground: true });
   console.log('rendu', nom + suffixe);

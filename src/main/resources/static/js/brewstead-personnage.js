@@ -282,6 +282,22 @@
             forme('M5-16H18L23-6Q27 0 22 1H9Q3 1 4-5Z', BOTTE[1]) +
             forme('M-19-18Q-12-21-4-18Q-3-12-11-12Q-19-12-19-18Z', FOURRURE[1], { 'stroke-width': 1.5 }) +
             forme('M4-18Q12-21 19-18Q19-12 11-12Q3-12 4-18Z', FOURRURE[1], { 'stroke-width': 1.5 }) +
+            '</g>' +
+            // Assis sur un tabouret, vu de face : les cuisses viennent vers
+            // nous (on n'en voit que les genoux, sous la tunique), les jambes
+            // pendent. Les deux poses sont dans le dessin ; la salle montre
+            // l'une ou l'autre, sans rien redessiner, quand on s'assoit.
+            '<g class="sc-patron__legs-assis">' +
+            forme('M-19-38H-5L-6-20H-17Z', PANTALON) +
+            forme('M5-38H19L17-20H6Z', PANTALON) +
+            forme('M-17-23H-4L-3-13Q-3-8-10-8Q-18-8-18-13Z', BOTTE[1]) +
+            forme('M4-23H17L18-13Q18-8 10-8Q3-8 3-13Z', BOTTE[1]) +
+            forme('M-18-25Q-11-28-3-25Q-3-19-10-19Q-18-19-18-25Z', FOURRURE[1], { 'stroke-width': 1.5 }) +
+            forme('M3-25Q11-28 18-25Q18-19 10-19Q3-19 3-25Z', FOURRURE[1], { 'stroke-width': 1.5 }) +
+            forme('M-23-50Q-12-54-1-50L-1-42Q-2-32-12-32Q-23-32-24-42Z', PANTALON) +
+            forme('M1-50Q12-54 23-50L24-42Q23-32 12-32Q2-32 1-42Z', PANTALON) +
+            ligne('M-18-37q6 3 12 0M6-37q6 3 12 0', '#fff', 1.3, .22) +
+            ligne('M-20-33q8 3 16 0M4-33q8 3 16 0', '#000', 1.4, .3) +
             '</g>';
 
         var main = function (cx, cy) {

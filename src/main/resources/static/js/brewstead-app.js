@@ -31,7 +31,38 @@
     var refreshJob = null;
     var mutationPending = false;
     var navigationVersion = 0;
-    var offerDraft = null;      // { batchId, recipeName, maxServings }
+    var offerDraft = null;      // { batchId, recipeName, drinkType, volume, maxServings, servings, price, note }
+
+    /** Les prix qu'on propose d'un geste ; le champ libre reste pour les autres. */
+    var PRIX_OFFRE = [0, 2, 4, 8, 15];
+
+    function litresOffre(d) {
+        return 'verre' + (d.servings > 1 ? 's' : '') + ' · ' + fmt.number(d.servings / 2) + ' L';
+    }
+
+    function effetOffre(d) {
+        if (!d.price) return 'Offert : pas de pièces, mais chaque verre bu te vaut de la réputation.';
+        return 'Si tout part : ' + fmt.number(d.servings * d.price) + ' pièces pour toi.';
+    }
+
+    /**
+     * Reporte le brouillon dans la fenêtre sans la redessiner : on garde le
+     * curseur dans le champ où l'on tape.
+     */
+    function majOffre() {
+        if (!offerDraft || activeView !== 'comptoir') return;
+        var d = offerDraft;
+        var verres = $('offerServings'), prix = $('offerPrice');
+        if (verres && document.activeElement !== verres) verres.value = d.servings;
+        if (prix && document.activeElement !== prix) prix.value = d.price;
+        if ($('offerLitres')) $('offerLitres').textContent = litresOffre(d);
+        if ($('offerEffet')) $('offerEffet').textContent = effetOffre(d);
+        dom.screenBody.querySelectorAll('[data-action="offre-prix"]').forEach(function (bouton) {
+            var choisi = Number(bouton.dataset.id) === d.price;
+            bouton.classList.toggle('is-chosen', choisi);
+            bouton.setAttribute('aria-pressed', String(choisi));
+        });
+    }
     var orders = { tab: 'marche', query: '', ingredient: null };
     var renom = { tab: 'faits' };
     var lab = null;             // brouillon de recette au laboratoire
@@ -881,20 +912,50 @@
             title: 'Mettre un fût au comptoir',
             render: function () {
                 if (!offerDraft) return empty('Choisis un fût prêt depuis la brasserie.');
-                return '<p class="section-title">' + esc(offerDraft.recipeName) + '</p>' +
-                    '<p class="hint">Un service = 0,5 L. Ce fût permet encore ' + offerDraft.maxServings + ' services.</p>' +
-                    '<label class="account-field"><input id="offerServings" type="number" min="1" max="' + offerDraft.maxServings + '" value="' + Math.min(6, offerDraft.maxServings) + '">' +
-                    '<small>Nombre de services proposés. Un service, c’est un demi-litre.</small></label>' +
-                    '<label class="account-field" style="margin-top:.7em">' +
-                    '<input id="offerPrice" type="number" min="0" max="5000" value="0">' +
-                    '<small>Prix du verre, en pièces. <strong>Zéro</strong> pour faire goûter : ça ne rapporte rien, ' +
-                    'sauf de la réputation, ce qui finit par rapporter davantage.</small></label>' +
-                    '<label class="account-field" style="margin-top:.7em">' +
-                    '<input id="offerNote" type="text" maxlength="140" placeholder="Un mot pour vanter ta production…">' +
-                    '</label>' +
-                    '<div class="account-actions">' +
-                    '<button class="btn btn--gold" type="button" data-action="offer-confirm">Ouvrir le fût</button>' +
-                    '</div>';
+                var d = offerDraft;
+                return '<div class="comptoir">' +
+                    '<div class="comptoir__tete">' +
+                    '<div class="comptoir__vitrine"><img class="comptoir__chope" src="' + esc(Scenes.recipient(d.drinkType)) +
+                    '" alt="" decoding="async"></div>' +
+                    '<div><p class="comptoir__nom">' + esc(d.recipeName) + '</p>' +
+                    '<p class="comptoir__meta">' + esc(DRINK_LABELS[d.drinkType] || 'Boisson') + ' · ' +
+                    fmt.number(d.volume) + ' L en cave · de quoi servir ' + d.maxServings + ' verre' +
+                    (d.maxServings > 1 ? 's' : '') + '</p></div>' +
+                    '</div>' +
+
+                    '<div class="comptoir__bloc">' +
+                    '<p class="comptoir__question">Combien de verres ?</p>' +
+                    '<div class="comptoir__pas">' +
+                    '<button class="comptoir__bouton" type="button" data-action="offre-verres" data-id="-1" aria-label="Un verre de moins">' +
+                    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg></button>' +
+                    '<input id="offerServings" class="comptoir__nombre" type="number" inputmode="numeric" min="1" max="' + d.maxServings +
+                    '" value="' + d.servings + '" aria-label="Nombre de verres">' +
+                    '<button class="comptoir__bouton" type="button" data-action="offre-verres" data-id="1" aria-label="Un verre de plus">' +
+                    '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></button>' +
+                    '<span class="comptoir__unite" id="offerLitres">' + esc(litresOffre(d)) + '</span>' +
+                    '</div></div>' +
+
+                    '<div class="comptoir__bloc">' +
+                    '<p class="comptoir__question">Le prix du verre</p>' +
+                    '<div class="comptoir__prix" role="group" aria-label="Prix du verre">' +
+                    PRIX_OFFRE.map(function (prix) {
+                        return '<button class="comptoir__choix' + (prix === d.price ? ' is-chosen' : '') + '" type="button"' +
+                            ' data-action="offre-prix" data-id="' + prix + '" aria-pressed="' + (prix === d.price) + '">' +
+                            (prix ? art('art-coin', 'comptoir__piece') + prix : 'Offert') + '</button>';
+                    }).join('') +
+                    '<label class="comptoir__libre">ou <input id="offerPrice" type="number" inputmode="numeric" min="0" max="5000" value="' +
+                    d.price + '" aria-label="Prix libre, en pièces"> pièces</label>' +
+                    '</div>' +
+                    '<p class="comptoir__effet" id="offerEffet">' + esc(effetOffre(d)) + '</p>' +
+                    '</div>' +
+
+                    '<label class="comptoir__mot"><span>Un mot sur l’ardoise <small>facultatif</small></span>' +
+                    '<input id="offerNote" type="text" maxlength="140" value="' + esc(d.note) + '"' +
+                    ' placeholder="Récolte d’automne, douce et ambrée…"></label>' +
+
+                    '<div class="comptoir__actions">' +
+                    '<button class="btn btn--gold" type="button" data-action="offer-confirm">' + icon('i-check') + 'Ouvrir le fût</button>' +
+                    '</div></div>';
             }
         },
 
@@ -1123,7 +1184,7 @@
         return tavern.counter.map(function (offer) {
             var free = offer.price === 0;
             return row({
-                art: 'art-BEER',
+                art: artBoisson(offer.drinkType),
                 title: offer.recipeName,
                 meta: 'servi par ' + offer.seller +
                     ' · ' + offer.servings + ' service' + (offer.servings > 1 ? 's' : '') +
@@ -1557,6 +1618,7 @@
         var moi = Object.assign({}, me, { x: marche.x, y: marche.y, seatKey: null, pose: 'STANDING', facing: marche.facing });
         var index = tavern.room.players.findIndex(function (p) { return p.self; });
         tavern.room.players[index] = moi;
+        if (me.seatKey) renderSceneScreen(SECTIONS.taverne);
         Scenes.placerPatron(dom.screenBody, moi, true);
         Scenes.recentrer(dom.screenBody, marche.x, false);
 
@@ -1601,8 +1663,61 @@
         var duration = Scenes.movePatron(dom.screenBody, predicted);
         Scenes.showTavernDestination(dom.screenBody, target.x, target.y);
         Scenes.recentrer(dom.screenBody, target.x, true);
+        // On quitte son tabouret : il se rallume, et l'aide le dit.
+        if (me.seatKey) renderSceneScreen(SECTIONS.taverne);
         sendQueuedTavernMove(target);
         return duration || 0;
+    }
+
+    /**
+     * Prendre un tabouret : on y va à pied, on s'y hisse, et le serveur
+     * confirme en chemin. S'il refuse (quelqu'un a été plus rapide), on
+     * redescend là où il nous place.
+     */
+    function sAsseoir(cle) {
+        var me = selfInTavern();
+        var tabouret = Scenes.tabouret(cle);
+        if (!me || !tabouret || me.seatKey === cle) return;
+        if (marche.image) { marche.touches = {}; cancelAnimationFrame(marche.image); marche.image = null; marche.fin = Date.now(); }
+        var predit = Object.assign({}, me, {
+            seatKey: cle,
+            pose: 'SEATED',
+            x: tabouret.x,
+            y: tabouret.y,
+            facing: Math.abs(tabouret.x - me.x) < 2 ? (me.facing || 'LEFT') : (tabouret.x < me.x ? 'LEFT' : 'RIGHT')
+        });
+        var index = tavern.room.players.findIndex(function (p) { return p.self; });
+        tavern.room.players[index] = predit;
+        Scenes.movePatron(dom.screenBody, predit);
+        Scenes.recentrer(dom.screenBody, tabouret.x, true);
+        renderSceneScreen(SECTIONS.taverne);
+
+        var roomId = tavern.room.id;
+        Data.postJson('/api/tavern/rooms/' + roomId + '/seats/' + encodeURIComponent(cle), undefined, csrfHeaders(), 'POST')
+            .then(function (snapshot) {
+                if (!tavern.room || tavern.room.id !== roomId) return;
+                if (snapshot) applyTavernSnapshot(snapshot);
+                if (activeView === 'taverne') renderScreen();
+            })
+            .catch(function (error) {
+                if (error.sessionExpired) { showFault(error); return; }
+                toast(error.message);
+                // Quelqu'un a été plus rapide : on reste debout au pied du
+                // tabouret, plutôt que de retourner d'où l'on venait.
+                if (tavern.room && tavern.room.id === roomId) tavernMoveTo(tabouret.x, tabouret.y + 10);
+            });
+    }
+
+    /** La ligne d'aide du bas de la salle suit la place qu'on occupe. */
+    function majAideTaverne() {
+        var aide = dom.screenBody.querySelector('.tavern-dock__aide');
+        if (aide) aide.textContent = aideTaverne(selfInTavern());
+    }
+
+    function aideTaverne(me) {
+        return me && me.seatKey
+            ? 'Ta place : ' + (PLACES_TAVERNE[me.seatKey] || 'au comptoir') + '. Touche le plancher pour te lever.'
+            : 'Touche un tabouret libre pour t’asseoir, ou le plancher pour marcher (flèches ou ZQSD).';
     }
 
     function quitterTaverneSilencieusement() {
@@ -2197,7 +2312,7 @@
 
         if (action === 'tavern-seat') {
             if (!tavern.room) return;
-            tavernMutation('/api/tavern/rooms/' + tavern.room.id + '/seats/' + encodeURIComponent(id), undefined, 'POST');
+            sAsseoir(id);
             return;
         }
 
@@ -2267,9 +2382,27 @@
         if (action === 'offer-batch') {
             var batch = state.batches.find(function (b) { return b.id === Number(id); });
             if (!batch) return;
-            offerDraft = { batchId: batch.id, recipeName: batch.recipeName, maxServings: Math.min(40, Math.floor(Number(batch.volume) * 2)) };
+            var possibles = Math.min(40, Math.floor(Number(batch.volume) * 2));
+            offerDraft = {
+                batchId: batch.id, recipeName: batch.recipeName, drinkType: batch.drinkType, volume: Number(batch.volume),
+                maxServings: possibles, servings: Math.min(6, possibles), price: 0, note: ''
+            };
             if (!offerDraft.maxServings) { toast('Il faut au moins un demi-litre pour ouvrir un fût au comptoir.'); return; }
             openScreen('comptoir');
+            return;
+        }
+
+        if (action === 'offre-verres') {
+            if (!offerDraft) return;
+            offerDraft.servings = Math.max(1, Math.min(offerDraft.maxServings, offerDraft.servings + Number(id)));
+            majOffre();
+            return;
+        }
+
+        if (action === 'offre-prix') {
+            if (!offerDraft) return;
+            offerDraft.price = Number(id);
+            majOffre();
             return;
         }
 
@@ -2724,16 +2857,11 @@
         });
     }
 
-    /** Les huit places de la salle, dites comme on les dirait à voix haute. */
+    /** Les tabourets de la salle, dits comme on les dirait à voix haute. */
     var PLACES_TAVERNE = {
-        'bar-gauche': 'au comptoir, à gauche',
-        'bar-droite': 'au comptoir, à droite',
-        'table-gauche-a': 'à la table de gauche',
-        'table-gauche-b': 'à la table de gauche',
-        'table-droite-a': 'à la table de droite',
-        'table-droite-b': 'à la table de droite',
-        'feu-gauche': 'près du feu',
-        'feu-droite': 'près du feu'
+        'tabouret-gauche': 'au comptoir, côté cheminée',
+        'tabouret-centre': 'au comptoir, près de Gunnar',
+        'tabouret-droit': 'au comptoir, au pied de l’escalier'
     };
 
     function sceneBar(view, vue) {
@@ -2749,9 +2877,7 @@
 
             var room = tavern.room;
             var me = room.players.find(function (p) { return p.self; });
-            var aide = me && me.seatKey
-                ? 'Ta place : ' + (PLACES_TAVERNE[me.seatKey] || 'une chaise') + '. Touche le plancher pour te lever.'
-                : 'Touche une chaise jaune pour t’asseoir, ou le plancher pour marcher (flèches ou ZQSD).';
+            var aide = aideTaverne(me);
             var direct = tavern.connectionError
                 ? chip('reconnexion…', 'warn')
                 : chip('en direct', 'ok');
@@ -2834,6 +2960,7 @@
 
         if (drawn && sceneSignature[place] === fresh) {
             Scenes.tick(dom.screenBody, place, vu);
+            if (place === 'taverne') majAideTaverne();
             return;
         }
 
@@ -3067,6 +3194,17 @@
             chip.classList.remove('is-active');
         });
         renderGuide();
+    }
+
+    /**
+     * Refermer le tiroir d'un lieu, c'est revenir au domaine : la carte
+     * reprend la vue d'ensemble. Elle restait sur le lieu, grossie, et il
+     * fallait dézoomer à la main à chaque visite.
+     */
+    function fermerLieu() {
+        var ouvert = !!activePlace;
+        closePlace();
+        if (ouvert && camera) camera.reset();
     }
 
     function openScreen(view) {
@@ -3812,7 +3950,7 @@
             if (chip) { selectView('monde'); openPlace(chip.dataset.place); }
         });
 
-        dom.placeClose.addEventListener('click', closePlace);
+        dom.placeClose.addEventListener('click', fermerLieu);
 
         dom.placeAction.addEventListener('click', function () {
             if (activePlace) openScreen(activePlace.screen);
@@ -3840,6 +3978,15 @@
 
         dom.screenBody.addEventListener('input', function (event) {
             if (event.target.id === 'chatInput') { tavern.draft = event.target.value; return; }
+            if (offerDraft && /^offer(Servings|Price|Note)$/.test(event.target.id)) {
+                var valeur = event.target.value;
+                if (event.target.id === 'offerNote') offerDraft.note = valeur;
+                else if (valeur !== '' && Number.isFinite(Number(valeur))) {
+                    offerDraft[event.target.id === 'offerServings' ? 'servings' : 'price'] = Math.max(0, Math.round(Number(valeur)));
+                }
+                majOffre();
+                return;
+            }
             if (event.target.id === 'tavernPrivateName') { tavern.privateName = event.target.value; return; }
             if (event.target.id === 'tavernInviteCode') { tavern.inviteCode = event.target.value.toUpperCase(); return; }
             if (event.target.id !== 'pickerSearch') return;
@@ -3930,7 +4077,7 @@
             if (event.key === 'Escape') {
                 if (!dom.feat.hidden) fermerLaFanfare();
                 else if (dom.screen.classList.contains('is-open')) selectView('monde');
-                else if (activePlace) closePlace();
+                else if (activePlace) fermerLieu();
             }
         });
 

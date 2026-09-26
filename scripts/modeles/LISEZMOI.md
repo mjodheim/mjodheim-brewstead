@@ -20,7 +20,8 @@ que la terre tombe au même endroit d'une image à l'autre) et écrit :
 
 - `images/modeles/` : parcelle nue, quatre familles de cultures à trois stades
   (céréales, houblon, baies, herbes), ruche, ruche pleine, fût qui fermente,
-  fût prêt, et l'abeille ;
+  fût prêt, les récipients du comptoir (chope de bois, coupe de laiton,
+  chope de verre) et l'abeille ;
 - `images/objets/` : les icônes du jeu, 160 × 160.
 
 Les icônes qui ne sont pas modelées ici viennent de

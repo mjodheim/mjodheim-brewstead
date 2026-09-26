@@ -1,5 +1,6 @@
 package be.mjodheim.brewstead.dto.tavern;
 
+import be.mjodheim.brewstead.enums.DrinkType;
 import be.mjodheim.brewstead.enums.EffectKind;
 import be.mjodheim.brewstead.enums.Rarity;
 
@@ -10,6 +11,7 @@ public record TastingOfferResponse(
         Long sellerId,
         String seller,
         String recipeName,
+        DrinkType drinkType,
         Rarity rarity,
         Integer quality,
         EffectKind effectKind,

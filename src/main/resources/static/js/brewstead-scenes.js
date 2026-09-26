@@ -695,17 +695,21 @@
     var TV_ALLEE = { x0: 520, x1: 1240, y0: 478, y1: 545 };
     var TV_SPAWN = { x: 1135, y: 520 };
 
-    /** Les tabourets libres du comptoir et quelques places debout. */
+    /**
+     * Les tabourets libres de la peinture, devant le comptoir.
+     *
+     * <p>`y` est le pied du tabouret, sur le plancher : c'est sa profondeur
+     * dans la salle. `assise` est le dessus du siège, où se posent les
+     * hanches. On y arrive en marchant jusqu'au pied (`y` + 10), puis on se
+     * hisse. Le serveur connaît les mêmes points (TavernNavigation).
+     */
     var TAVERN_SEATS = {
-        'bar-gauche': { x: 552, y: 502, k: 1.46, face: 'droite' },
-        'bar-droite': { x: 642, y: 502, k: 1.46, face: 'droite' },
-        'table-gauche-a': { x: 868, y: 500, k: 1.45, face: 'gauche' },
-        'table-gauche-b': { x: 1060, y: 500, k: 1.45, face: 'gauche' },
-        'table-droite-a': { x: 1188, y: 504, k: 1.46, face: 'gauche' },
-        'table-droite-b': { x: 760, y: 538, k: 1.54, face: 'droite' },
-        'feu-gauche': { x: 528, y: 530, k: 1.52, face: 'droite' },
-        'feu-droite': { x: 1226, y: 540, k: 1.54, face: 'gauche' }
+        'tabouret-gauche': { x: 555, y: 530, assise: 430, face: 'droite' },
+        'tabouret-centre': { x: 643, y: 530, assise: 428, face: 'droite' },
+        'tabouret-droit': { x: 1195, y: 530, assise: 434, face: 'gauche' }
     };
+    var HANCHES = 52;         // la hauteur des hanches dans le dessin du personnage
+    var AU_PIED = 10;         // on s'arrête juste devant le tabouret
 
     /**
      * Ce qui se tient devant l'allée, découpé dans la peinture. Les contours
@@ -740,8 +744,12 @@
         { x: 83.8, y: 10, t: 6, d: 4.3 }    // lustre de droite
     ];
 
-    /** Les chopes du comptoir, de la plus proche du barman à la plus loin. */
-    var CHOPE_PLACES = [700, 1000, 610, 1090, 520, 1180];
+    /**
+     * Les chopes du comptoir, de la plus proche du barman à la plus loin.
+     * Elles évitent l'aplomb d'Ylva (800) et de Leif (985) : leurs pastilles
+     * tombaient sur les ardoises des prix.
+     */
+    var CHOPE_PLACES = [700, 1060, 610, 1150, 520, 1240];
     var CHOPE_Y = 352;
 
     function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -763,7 +771,7 @@
 
     /** La taille d'un personnage : un peu plus grand qui s'approche. */
     function tavernScale(y, bodyScale, seatKey) {
-        if (seatKey && TAVERN_SEATS[seatKey]) return TAVERN_SEATS[seatKey].k * bodyScale;
+        if (seatKey && TAVERN_SEATS[seatKey]) y = TAVERN_SEATS[seatKey].y;
         var depth = 1.42 + ((clamp(y, TV_ALLEE.y0, TV_ALLEE.y1) - TV_ALLEE.y0) / (TV_ALLEE.y1 - TV_ALLEE.y0)) * .14;
         return depth * bodyScale;
     }
@@ -815,6 +823,9 @@
         var bodyScale = person.character && person.character.body === 'grand' ? 1.06 :
             (person.character && person.character.body === 'fin' ? .94 : 1);
         var scale = tavernScale(pos.y, bodyScale, person.seatKey);
+        // Assis, le dessin est hissé sur le tabouret : ses hanches sur
+        // l'assise. La profondeur (data-y), elle, reste celle du tabouret.
+        var origineY = seated ? seat.assise + HANCHES * scale : pos.y;
         var facing = person.facing || (seat && seat.face === 'gauche' ? 'LEFT' : 'RIGHT');
         var pose = seated ? 'SEATED' : (person.pose || 'STANDING');
 
@@ -837,8 +848,9 @@
         return '<g class="sc-node sc-patron' + speakClass + selfClass + drinkClass + '" data-id="' + person.playerId +
             '" data-action="tavern-player" data-x="' + pos.x + '" data-y="' + pos.y + '" data-k="' + scale.toFixed(3) +
             '" data-body-scale="' + bodyScale + '" data-facing="' + facing + '" data-pose="' + pose +
+            '" data-seat="' + (seated ? esc(person.seatKey) : '') +
             '" tabindex="0" role="button" aria-label="' + esc(person.name) + '"' +
-            ' transform="translate(' + pos.x + ' ' + pos.y + ') scale(' + scale.toFixed(3) + ')">' +
+            ' transform="translate(' + pos.x + ' ' + origineY.toFixed(2) + ') scale(' + scale.toFixed(3) + ')">' +
             // L'origine du personnage est à ses pieds, là où le serveur le
             // place ; le dessin, lui, est centré sur le buste.
             '<g transform="translate(0 -78)">' +
@@ -856,26 +868,22 @@
     }
 
     /**
-     * Une place libre, en deux calques : l'anneau au sol passe sous les
-     * joueurs, le bouton au-dessus de tout. D'une pièce, la place
-     * disparaissait sous quiconque se tenait dessus — à commencer par le
-     * nouveau venu, qui apparaît dans l'allée entre les chaises — et plus
-     * personne ne pouvait s'y asseoir.
+     * Un tabouret de la peinture, qu'on peut prendre.
+     *
+     * <p>Huit pastilles « + » jaunes flottaient dans l'allée, sans rapport
+     * avec le décor. C'est maintenant le tabouret peint qui se touche : un
+     * halo chaud sur son assise dit qu'il est libre, plus vif au survol. Un
+     * tabouret pris s'éteint (voir tick).
      */
-    function placeSol(key, occupied) {
+    function tabouretNode(key, occupied) {
         var seat = TAVERN_SEATS[key];
-        if (!seat || occupied) return '';
-        return '<ellipse class="sc-seat__ring" cx="' + seat.x + '" cy="' + seat.y + '" rx="34" ry="11"/>';
-    }
-
-    function placeNode(key, occupied) {
-        var seat = TAVERN_SEATS[key];
-        if (!seat || occupied) return '';
-        return '<g class="sc-node sc-seat" data-action="tavern-seat" data-id="' + key +
-            '" tabindex="0" role="button" aria-label="S’installer : ' + esc(key.replace(/-/g, ' ')) +
-            '" transform="translate(' + seat.x + ' ' + seat.y + ')">' +
-            '<circle class="sc-seat__pastille" cx="0" cy="-26" r="15"/>' +
-            '<text class="sc-seat__plus" x="0" y="-19">+</text>' + hit(0, -48, 76, 62) + '</g>';
+        if (!seat) return '';
+        return '<g class="sc-node sc-seat' + (occupied ? ' is-prise' : '') + '" data-action="tavern-seat" data-id="' + key +
+            '" tabindex="0" role="button" aria-label="S’asseoir sur ce tabouret">' +
+            '<ellipse class="sc-seat__halo" cx="' + seat.x + '" cy="' + (seat.assise - 10) + '" rx="46" ry="20" fill="url(#tv-assise)"/>' +
+            '<g class="sc-seat__invite" transform="translate(' + seat.x + ' ' + (seat.assise - 34) + ')">' +
+            '<rect x="-46" y="-13" width="92" height="26" rx="13"/><text y="5">S’asseoir</text></g>' +
+            hit(seat.x, seat.assise - 16, 84, seat.y - seat.assise + 22) + '</g>';
     }
 
     /**
@@ -952,52 +960,68 @@
     }
 
     /**
+     * Ce qu'on sert, et dans quoi : la bière dans une chope de bois cerclée,
+     * l'hydromel dans une coupe de laiton, le cidre dans une chope de verre.
+     * Rendus en volume comme les objets des lieux (scripts/modeles) ; `axe`
+     * est le centre du récipient, anse non comprise, en part de la largeur.
+     */
+    var RECIPIENTS = {
+        BEER: { nom: 'chope-biere', ratio: 172 / 200, axe: .42 },
+        MEAD: { nom: 'chope-hydromel', ratio: 146 / 200, axe: .5 },
+        CIDER: { nom: 'chope-cidre', ratio: 197 / 200, axe: .4 }
+    };
+    var CHOPE_HAUTEUR = 58;
+
+    /**
      * Une chope posée sur le comptoir.
      *
-     * <p>Elle ne porte que son prix sur une étiquette ; le nom se lit au
-     * survol et en entier dans l'intitulé, et le journal donne le détail.
+     * <p>C'étaient des tracés plats sous des pastilles « 4 » et « à toi ».
+     * Ce sont maintenant de vrais récipients, et le prix est écrit à la
+     * craie sur une ardoise pendue au bord du comptoir, comme dans une
+     * taverne. Sa propre chope n'a pas d'étiquette à part : son ardoise est
+     * cerclée d'or. Le nom, le brasseur et le prix se lisent au survol.
      */
     function chopeNode(offre, x, y) {
         var mienne = !!offre.mine;
-        var k = .95;
-        var h = 64 * k;
-        var w = 42 * k;
-        var top = y - h;
-        // Une pièce dessinée et un chiffre : « 4 pièces » en toutes lettres
-        // prenait la largeur de la chope et les étiquettes se touchaient.
-        var payante = !mienne && !!offre.price;
-        var prix = mienne ? 'à toi' : (payante ? String(offre.price) : 'offert');
-        var largeurPrix = Math.max(40, prix.length * 7.6 + (payante ? 34 : 20));
-        var nom = lignes(offre.recipeName, 170, 13, 1)[0] || '';
-        var largeurNom = Math.max(60, nom.length * 7 + 24);
+        var recipient = RECIPIENTS[offre.drinkType] || RECIPIENTS.BEER;
+        var h = CHOPE_HAUTEUR;
+        var w = h * recipient.ratio;
+        var payante = !!offre.price;
+        var prix = payante ? String(offre.price) : 'offert';
+        var nom = lignes(offre.recipeName, 190, 14, 2);
+        var detail = mienne ? 'Ton fût · ' + offre.servings + ' verre' + (offre.servings > 1 ? 's' : '') + ' à servir'
+            : 'Servi par ' + (offre.seller || 'un voisin') + ' · ' + (payante ? prix + ' pièce' + (offre.price > 1 ? 's' : '') : 'offert');
+        var largeurCarte = Math.max(150, Math.max.apply(null, nom.concat([detail]).map(function (l) { return l.length; })) * 7.4 + 28);
+        var hauteurCarte = 24 + nom.length * 17 + 18;
+        var largeurArdoise = payante ? 22 + prix.length * 9 + 12 : 58;
 
         return '<g class="sc-node sc-chope" data-state="' + (mienne ? 'mine' : 'ready') + '"' +
             ' data-id="' + offre.id + '"' +
             (mienne ? '' : ' data-action="serve-offer" tabindex="0" role="button"') +
-            ' aria-label="' + esc(offre.recipeName || 'Une chope') +
-            (mienne ? ' — ton fût' : ', servi par ' + esc(offre.seller || '') + ', ' +
-                (payante ? prix + ' pièces' : prix)) + '">' +
-            '<path class="sc-chope__body" d="M' + (x - w / 2).toFixed(1) + ' ' + top.toFixed(1) +
-            'h' + w.toFixed(1) + 'l' + (-w * 0.08).toFixed(1) + ' ' + h.toFixed(1) +
-            'h' + (-w * 0.84).toFixed(1) + 'Z"/>' +
-            '<path class="sc-chope__biere" d="M' + (x - w * 0.42).toFixed(1) + ' ' + (top + h * 0.26).toFixed(1) +
-            'h' + (w * 0.84).toFixed(1) + 'l' + (-w * 0.06).toFixed(1) + ' ' + (h * 0.7).toFixed(1) +
-            'h' + (-w * 0.72).toFixed(1) + 'Z"/>' +
-            '<ellipse class="sc-chope__mousse" cx="' + x + '" cy="' + (top + h * 0.2).toFixed(1) +
-            '" rx="' + (w * 0.46).toFixed(1) + '" ry="' + (h * 0.13).toFixed(1) + '"/>' +
-            '<path class="sc-chope__anse" d="M' + (x + w * 0.46).toFixed(1) + ' ' + (top + h * 0.3).toFixed(1) +
-            'q' + (w * 0.5).toFixed(1) + ' ' + (h * 0.2).toFixed(1) + ' 0 ' + (h * 0.42).toFixed(1) + '"/>' +
-            '<g class="sc-chope__prix" transform="translate(' + x + ' ' + (top - 16).toFixed(1) + ')">' +
-            '<rect x="' + (-largeurPrix / 2).toFixed(1) + '" y="-11" width="' + largeurPrix.toFixed(1) + '" height="22" rx="11"/>' +
+            ' aria-label="' + esc(offre.recipeName || 'Une chope') + ', ' + esc(detail) + '">' +
+            '<ellipse class="sc-chope__ombre" cx="' + x + '" cy="' + (y - 1) + '" rx="' + (w * 0.42).toFixed(1) + '" ry="4"/>' +
+            '<g class="sc-chope__verre">' +
+            '<image href="' + esc(modele(recipient.nom)) + '" x="' + (x - w * recipient.axe).toFixed(1) + '" y="' + (y - h).toFixed(1) +
+            '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" preserveAspectRatio="none"/></g>' +
+
+            // L'ardoise, pendue au rebord du comptoir sous la chope.
+            '<g class="sc-chope__ardoise" transform="translate(' + x + ' ' + (y + 17) + ')">' +
+            '<path class="sc-chope__ficelle" d="M-8-17L0-11L8-17"/>' +
+            '<rect x="' + (-largeurArdoise / 2).toFixed(1) + '" y="-11" width="' + largeurArdoise.toFixed(1) + '" height="22" rx="4"/>' +
             (payante
-                ? '<circle class="sc-chope__piece" cx="' + (-largeurPrix / 2 + 12).toFixed(1) + '" r="7"/>' +
-                  '<text x="7" y="5">' + esc(prix) + '</text>'
-                : '<text y="5">' + esc(prix) + '</text>') +
+                ? '<use href="#art-coin" x="' + (-largeurArdoise / 2 + 4).toFixed(1) + '" y="-8" width="16" height="16"/>' +
+                  '<text x="' + (-largeurArdoise / 2 + 23).toFixed(1) + '" y="5">' + esc(prix) + '</text>'
+                : '<text class="sc-chope__offert" y="5">offert</text>') +
             '</g>' +
-            '<g class="sc-chope__etiquette" transform="translate(' + x + ' ' + (top - 44).toFixed(1) + ')">' +
-            '<rect x="' + (-largeurNom / 2).toFixed(1) + '" y="-12" width="' + largeurNom.toFixed(1) + '" height="24" rx="8"/>' +
-            '<text y="5">' + esc(nom) + '</text></g>' +
-            hit(x, top - 30, w * 2.2, h + 34) +
+
+            // Le cartouche du survol.
+            '<g class="sc-chope__carte" transform="translate(' + x + ' ' + (y - h - 12 - hauteurCarte) + ')">' +
+            '<rect x="' + (-largeurCarte / 2).toFixed(1) + '" y="0" width="' + largeurCarte.toFixed(1) + '" height="' + hauteurCarte + '" rx="10"/>' +
+            '<path d="M-7 ' + hauteurCarte + 'l7 8 7-8Z"/>' +
+            texteEnLignes('sc-chope__nom', 0, 20, 17, nom) +
+            '<text class="sc-chope__detail" y="' + (20 + nom.length * 17 + 2) + '">' + esc(detail) + '</text>' +
+            '</g>' +
+            hit(x, y - h - 6, Math.max(w, largeurArdoise) + 18, h + 40) +
             '</g>';
     }
 
@@ -1015,16 +1039,16 @@
             return chopeNode(offre, CHOPE_PLACES[i], CHOPE_Y);
         }).join('');
 
-        var sols = room ? Object.keys(TAVERN_SEATS).map(function (key) {
-            return placeSol(key, occupied[key]);
-        }).join('') : '';
-        var places = room ? Object.keys(TAVERN_SEATS).map(function (key) {
-            return placeNode(key, occupied[key]);
+        var tabourets = room ? Object.keys(TAVERN_SEATS).map(function (key) {
+            return tabouretNode(key, occupied[key]);
         }).join('') : '';
 
         var patrons = room ? people.map(function (person) { return patronNode(person, room); }).join('') : '';
 
-        var avant = '<defs>' + Personnage.defs() + '<clipPath id="tv-avant-decoupe">' +
+        var avant = '<defs>' + Personnage.defs() +
+            '<radialGradient id="tv-assise"><stop offset="0" stop-color="#fff3c4" stop-opacity=".95"/>' +
+            '<stop offset=".5" stop-color="#ffc85a" stop-opacity=".45"/><stop offset="1" stop-color="#ffb030" stop-opacity="0"/></radialGradient>' +
+            '<clipPath id="tv-avant-decoupe">' +
             TV_AVANT.map(function (points) { return '<polygon points="' + points + '"/>'; }).join('') +
             '</clipPath></defs>' +
             '<image class="tv-avant" href="' + esc(peintureTaverne()) + '" x="0" y="0" width="' + TV_W +
@@ -1042,10 +1066,9 @@
             '<rect class="sc-tavern__walk" x="440" y="420" width="880" height="190" rx="24"/>' +
             '<g class="sc-tavern__cursor"><circle r="16"/><circle class="sc-tavern__cursor-core" r="4"/></g>' +
             TV_HABITUES.map(function (spot) { return habitueCorps(spot, regulars[spot.key]); }).join('') +
-            '<g class="sc-tavern__sols">' + sols + '</g>' +
+            '<g class="sc-tavern__tabourets">' + tabourets + '</g>' +
             '<g class="sc-tavern__patrons">' + patrons + '</g>' +
             avant +
-            places +
             TV_HABITUES.map(function (spot) { return habitueNode(spot, regulars[spot.key]); }).join('');
     }
 
@@ -1441,7 +1464,9 @@
                     // Pas la position : un pas n'est pas une raison de redessiner
                     // la salle entière (ce qui coupait net toutes les marches
                     // en cours). Les pas se jouent sur place, voir tick().
-                    return p.playerId + ':' + (p.seatKey || '-') + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
+                    // Ni la place ni la pose non plus : s'asseoir se joue en
+                    // marchant jusqu'au tabouret, pas en redessinant tout.
+                    return p.playerId + ':' + (p.action || '-') + ':' +
                         (p.emote || '-') + ':' + (p.emoteAt || '-') + ':' + JSON.stringify(p.character || {});
                 }).join('|') + '::' + (state.tavernLook || '') + '::' +
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
@@ -1495,6 +1520,16 @@
         return root && root.querySelector('.sc-patron[data-id="' + playerId + '"]');
     }
 
+    /** Où le personnage est peint en ce moment : origine du dessin et échelle. */
+    function positionPeinte(node) {
+        if (node._brewX != null) return { x: node._brewX, y: node._brewY, k: node._brewK };
+        var k = Number(node.dataset.k || 1);
+        var seat = node.dataset.pose === 'SEATED' && TAVERN_SEATS[node.dataset.seat];
+        return seat
+            ? { x: seat.x, y: seat.assise + HANCHES * k, k: k }
+            : { x: Number(node.dataset.x), y: Number(node.dataset.y), k: k };
+    }
+
     /**
      * Un personnage va quelque part.
      *
@@ -1503,62 +1538,95 @@
      * clavier, une suite de petits bonds. Il avance maintenant à vitesse de
      * croisière, repart de là où il est quand on change d'avis, et ne ralentit
      * qu'en arrivant — sauf s'il enchaîne, auquel cas il file droit.
+     *
+     * <p>Le trajet se fait par étapes. Pour s'asseoir, on marche jusqu'au
+     * pied du tabouret, puis on s'y hisse d'un petit bond. Pour repartir, on
+     * en descend d'abord. Avant, on apparaissait d'un coup sur la place,
+     * debout, et on en disparaissait de même.
      */
     function movePatron(root, person, suivi) {
         if (!root || !person) return 0;
         var node = noeudPatron(root, person.playerId);
         if (!node) return 0;
 
-        var target = normalizeTavernPoint(person.x, person.y);
         var bodyScale = Number(node.dataset.bodyScale || 1);
-        var targetScale = tavernScale(target.y, bodyScale, person.seatKey);
-        var fromX = Number(node._brewX == null ? node.dataset.x : node._brewX);
-        var fromY = Number(node._brewY == null ? node.dataset.y : node._brewY);
-        var fromK = Number(node._brewK == null ? node.dataset.k : node._brewK);
-        var distance = Math.hypot(target.x - fromX, (target.y - fromY) * 1.35);
+        var seat = person.seatKey ? TAVERN_SEATS[person.seatKey] : null;
+        var assisSur = node.dataset.pose === 'SEATED' ? TAVERN_SEATS[node.dataset.seat] : null;
         var enchaine = !!node._brewFrame || !!suivi;
-        var duration = document.documentElement.dataset.mouvement === 'sobre' || distance < 1
-            ? 0 : clamp(distance / PAS_PAR_SECONDE * 1000, 120, 2400);
-        // Un voisin qui marche au clavier envoie sa position par petits
-        // bouts réguliers : chaque bout dure l'intervalle observé, et ils se
-        // suivent sans pause, au lieu de courir puis d'attendre le suivant.
-        if (suivi && duration) duration = suivi;
-
         if (node._brewFrame) cancelAnimationFrame(node._brewFrame);
         node._brewFrame = null;
-        node.dataset.x = target.x;
-        node.dataset.y = target.y;
-        node.dataset.k = targetScale.toFixed(3);
-        node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
-        node.dataset.pose = person.pose || 'STANDING';
-        node.classList.toggle('is-walking', duration > 0 && person.pose !== 'SEATED');
 
-        if (!duration) {
-            peindrePatron(node, target.x, target.y, targetScale);
+        var etapes = [];
+        if (assisSur && assisSur !== seat) {
+            var pied = { x: assisSur.x, y: assisSur.y + AU_PIED };
+            etapes.push({ x: pied.x, y: pied.y, k: tavernScale(pied.y, bodyScale, null), ms: 240, pose: 'STANDING', ease: 'bond' });
+        }
+        if (!(assisSur && assisSur === seat)) {
+            var cible = seat ? { x: seat.x, y: seat.y + AU_PIED } : normalizeTavernPoint(person.x, person.y);
+            var depart = etapes.length ? etapes[0] : positionPeinte(node);
+            var distance = Math.hypot(cible.x - depart.x, (cible.y - depart.y) * 1.35);
+            var duree = distance < 1 ? 0 : clamp(distance / PAS_PAR_SECONDE * 1000, 120, 2400);
+            // Un voisin qui marche au clavier envoie sa position par petits
+            // bouts réguliers : chaque bout dure l'intervalle observé, et ils se
+            // suivent sans pause, au lieu de courir puis d'attendre le suivant.
+            if (suivi && duree) duree = suivi;
+            if (duree) {
+                etapes.push({ x: cible.x, y: cible.y, k: tavernScale(cible.y, bodyScale, null), ms: duree,
+                    pose: 'STANDING', marche: true, ease: enchaine && !seat ? 'droit' : 'freine' });
+            }
+            if (seat) {
+                var ks = tavernScale(seat.y, bodyScale, person.seatKey);
+                etapes.push({ x: seat.x, y: seat.assise + HANCHES * ks, k: ks, ms: 320, pose: 'SEATED', ease: 'bond' });
+            }
+        }
+
+        // La profondeur finale décide de l'ordre de dessin, dès le départ.
+        node.dataset.x = seat ? seat.x : (etapes.length ? etapes[etapes.length - 1].x : node.dataset.x);
+        node.dataset.y = seat ? seat.y : (etapes.length ? etapes[etapes.length - 1].y : node.dataset.y);
+        node.dataset.k = tavernScale(Number(node.dataset.y), bodyScale, person.seatKey).toFixed(3);
+        node.dataset.seat = person.seatKey || '';
+        node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
+
+        var total = etapes.reduce(function (somme, e) { return somme + e.ms; }, 0);
+        if (!total || document.documentElement.dataset.mouvement === 'sobre') {
+            var fin = etapes[etapes.length - 1];
+            if (fin) peindrePatron(node, fin.x, fin.y, fin.k);
+            node.dataset.pose = seat ? 'SEATED' : 'STANDING';
             node.classList.remove('is-walking');
             sortTavernPatrons(root);
             return 0;
         }
 
-        var started = performance.now();
+        var i = -1, t0 = 0, a = null;
+        function suivante(now) {
+            i++;
+            if (i >= etapes.length) return false;
+            a = positionPeinte(node);
+            t0 = now;
+            node.dataset.pose = etapes[i].pose;
+            node.classList.toggle('is-walking', !!etapes[i].marche);
+            return true;
+        }
+        suivante(performance.now());
+
         function frame(now) {
-            var t = Math.min(1, (now - started) / duration);
-            // À pleine allure dès le départ ; un léger freinage à l'arrivée
-            // seulement quand on ne vient pas d'une autre marche.
-            var ease = enchaine ? t : 1 - Math.pow(1 - t, 1.6);
-            peindrePatron(node,
-                fromX + (target.x - fromX) * ease,
-                fromY + (target.y - fromY) * ease,
-                fromK + (targetScale - fromK) * ease);
-            if (t < 1) node._brewFrame = requestAnimationFrame(frame);
-            else {
+            var e = etapes[i];
+            var t = Math.min(1, (now - t0) / e.ms);
+            // À pleine allure quand on enchaîne ; un léger freinage à
+            // l'arrivée sinon ; un petit saut pour monter ou descendre.
+            var f = e.ease === 'droit' ? t : e.ease === 'freine' ? 1 - Math.pow(1 - t, 1.6) : 1 - Math.pow(1 - t, 3);
+            var saut = e.ease === 'bond' ? Math.sin(Math.PI * t) * 9 : 0;
+            peindrePatron(node, a.x + (e.x - a.x) * f, a.y + (e.y - a.y) * f - saut, a.k + (e.k - a.k) * f);
+            if (t >= 1 && !suivante(now)) {
                 node._brewFrame = null;
                 node.classList.remove('is-walking');
                 sortTavernPatrons(root);
+                return;
             }
+            node._brewFrame = requestAnimationFrame(frame);
         }
         node._brewFrame = requestAnimationFrame(frame);
-        return duration;
+        return total;
     }
 
     /**
@@ -1577,6 +1645,7 @@
         node.dataset.k = k.toFixed(3);
         node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
         node.dataset.pose = 'STANDING';
+        node.dataset.seat = '';
         peindrePatron(node, target.x, target.y, k);
         node.classList.toggle('is-walking', !!enMarche);
         // L'ordre de dessin suit la profondeur : on ne le refait que si le
@@ -1666,16 +1735,25 @@
         if (place === 'taverne') {
             var now = Date.now();
             var salle = state.tavernRoom;
+            var pris = {};
             (salle && salle.players || []).forEach(function (p) {
-                if (p.seatKey) return;
+                if (p.seatKey) pris[p.seatKey] = true;
                 var node = noeudPatron(root, p.playerId);
                 // Un personnage qui vient de bouger est plus à jour que
                 // l'instantané, toujours en retard d'un pas sur la marche.
                 if (!node || node._brewFrame || node.classList.contains('is-walking') ||
                     performance.now() - (node._bouge || 0) < 2500) return;
+                var assis = node.dataset.pose === 'SEATED' ? node.dataset.seat : '';
+                // Quelqu'un s'est assis ou levé : il y va à pied.
+                if ((p.seatKey || '') !== (assis || '')) { movePatron(root, p); return; }
+                if (p.seatKey) return;
                 if (Math.abs(Number(node.dataset.x) - Number(p.x)) > 1 || Math.abs(Number(node.dataset.y) - Number(p.y)) > 1) {
                     movePatron(root, p);
                 }
+            });
+            // Un tabouret pris s'éteint ; il se rallume quand on s'en va.
+            root.querySelectorAll('.sc-seat').forEach(function (tabouret) {
+                tabouret.classList.toggle('is-prise', !!pris[tabouret.dataset.id]);
             });
             root.querySelectorAll('.sc-speech[data-until], .sc-patron__emote[data-until]').forEach(function (node) {
                 if (Number(node.dataset.until) < now) node.style.opacity = '0';
@@ -1705,6 +1783,11 @@
         tick: tick,
         tavernPoint: tavernPoint,
         normalizeTavernPoint: normalizeTavernPoint,
+        tabouret: function (cle) {
+            var seat = TAVERN_SEATS[cle];
+            return seat ? { x: seat.x, y: seat.y } : null;
+        },
+        recipient: function (drinkType) { return modele((RECIPIENTS[drinkType] || RECIPIENTS.BEER).nom); },
         movePatron: movePatron,
         placerPatron: placerPatron,
         animateDrink: animateDrink,

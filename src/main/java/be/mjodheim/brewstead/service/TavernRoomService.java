@@ -23,12 +23,6 @@ public class TavernRoomService {
 
     public static final int CAPACITY = 6;
     private static final int PRESENCE_SECONDS = 75;
-    private static final List<String> SEATS = List.of(
-            "bar-gauche", "bar-droite",
-            "table-gauche-a", "table-gauche-b",
-            "table-droite-a", "table-droite-b",
-            "feu-gauche", "feu-droite"
-    );
     private static final Set<String> EMOTES = Set.of("SKAL", "SALUT", "RIRE", "COEUR", "MUSIQUE");
     private static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -105,7 +99,7 @@ public class TavernRoomService {
     @Transactional
     public TavernRoomSnapshot takeSeat(Long playerId, Long roomId, String seatKey) {
         cleanup();
-        if (!SEATS.contains(seatKey)) throw new IllegalArgumentException("Cette place n'existe pas.");
+        if (!TavernNavigation.seatKeys().contains(seatKey)) throw new IllegalArgumentException("Cette place n'existe pas.");
         TavernRoom room = roomRepository.findForUpdateById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Salle introuvable."));
         TavernPresence mine = requirePresence(playerId, room.getId());
@@ -188,7 +182,7 @@ public class TavernRoomService {
 
         return new TavernRoomSnapshot(
                 room.getId(), room.getCode(), room.getName(), room.getType().name(),
-                room.getCapacity(), SEATS,
+                room.getCapacity(), TavernNavigation.seatKeys(),
                 presenceRepository.findAllByRoomIdOrderByJoinedAtAsc(roomId)
                         .stream().map(p -> toPresence(p, playerId)).toList(),
                 chatService.recentInRoom(roomId, null),

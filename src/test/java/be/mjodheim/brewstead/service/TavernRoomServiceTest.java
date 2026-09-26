@@ -66,29 +66,29 @@ class TavernRoomServiceTest {
     }
 
     @Test
-    void seatCannotBeStolenAndEightSeatsLeaveChoiceForSixPlayers() {
+    void seatCannotBeStolenAndEveryPaintedStoolIsOffered() {
         PlayerProfile me = player(7);
         PlayerProfile other = player(8);
         TavernRoom room = room(4, TavernRoomType.COMMON);
         TavernPresence mine = presence(room, me);
         TavernPresence taken = presence(room, other);
-        taken.setSeatKey("bar-gauche");
+        taken.setSeatKey("tabouret-gauche");
 
         when(rooms.findForUpdateById(4L)).thenReturn(Optional.of(room));
         when(presences.findByPlayerId(7L)).thenReturn(Optional.of(mine));
-        when(presences.findByRoomIdAndSeatKey(4L, "bar-gauche")).thenReturn(Optional.of(taken));
+        when(presences.findByRoomIdAndSeatKey(4L, "tabouret-gauche")).thenReturn(Optional.of(taken));
 
         assertThrows(IllegalStateException.class,
-                () -> service.takeSeat(7L, 4L, "bar-gauche"));
+                () -> service.takeSeat(7L, 4L, "tabouret-gauche"));
 
-        when(presences.findByRoomIdAndSeatKey(4L, "feu-gauche")).thenReturn(Optional.empty());
+        when(presences.findByRoomIdAndSeatKey(4L, "tabouret-droit")).thenReturn(Optional.empty());
         when(presences.findAllByRoomIdOrderByJoinedAtAsc(4L)).thenReturn(List.of(mine, taken));
         when(chat.recentInRoom(4L, null)).thenReturn(List.of());
         when(counter.counter(7L)).thenReturn(List.of());
 
-        TavernRoomSnapshot seated = service.takeSeat(7L, 4L, "feu-gauche");
-        assertEquals(8, seated.seats().size());
-        assertEquals("feu-gauche", mine.getSeatKey());
+        TavernRoomSnapshot seated = service.takeSeat(7L, 4L, "tabouret-droit");
+        assertEquals(TavernNavigation.seatKeys(), seated.seats());
+        assertEquals("tabouret-droit", mine.getSeatKey());
     }
 
     @Test
@@ -96,9 +96,9 @@ class TavernRoomServiceTest {
         PlayerProfile me = player(7);
         TavernRoom room = room(4, TavernRoomType.COMMON);
         TavernPresence mine = presence(room, me);
-        mine.setSeatKey("bar-gauche");
-        mine.setPositionX(552.0);
-        mine.setPositionY(502.0);
+        mine.setSeatKey("tabouret-gauche");
+        mine.setPositionX(555.0);
+        mine.setPositionY(530.0);
 
         when(presences.findByPlayerId(7L)).thenReturn(Optional.of(mine));
 

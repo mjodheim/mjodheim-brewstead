@@ -182,40 +182,31 @@
 
 /* Taverne ------------------------------------------------------------------ */
 
-/* Les chopes. Celles des voisins appellent ; la tienne est simplement là. */
-.sc-chope__body { fill: #8a6a42; stroke: rgba(28, 17, 6, .5); stroke-width: 2; }
-.sc-chope__biere { fill: #cf9633; }
-.sc-chope[data-state="mine"] .sc-chope__biere { fill: #9c7433; }
-.sc-chope__mousse { fill: rgba(255, 248, 224, .92); }
-.sc-chope__anse { fill: none; stroke: #8a6a42; stroke-width: 5; stroke-linecap: round; }
-
+/* Les chopes du comptoir : un récipient en volume, une ardoise à la craie. */
 .sc-chope { cursor: pointer; }
-
-/* L'étiquette de prix : verte comme tout ce qui se prend, bleue pour la
-   sienne, qui ne se boit pas. */
-.sc-chope__prix rect { fill: var(--vert); stroke: #fff; stroke-width: 2.5; }
-.sc-chope__prix text {
-    fill: #fff;
-    font: 700 13px var(--police-titre);
-    text-anchor: middle;
-    paint-order: stroke;
-    stroke: var(--vert-levre);
-    stroke-width: 3;
+.sc-chope[data-state="mine"] { cursor: default; }
+.sc-chope__ombre { fill: rgba(20, 10, 2, .45); filter: blur(2px); }
+.sc-chope__verre { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .18s cubic-bezier(.2, .8, .3, 1); }
+.sc-chope[data-action]:hover .sc-chope__verre,
+.sc-chope[data-action]:focus-visible .sc-chope__verre { transform: translateY(-4px) rotate(-3deg); }
+.sc-chope__ficelle { fill: none; stroke: #c9a46a; stroke-width: 1.4; }
+.sc-chope__ardoise rect { fill: #2f2b27; stroke: #6b4a2a; stroke-width: 2.5; }
+.sc-chope__ardoise text {
+    fill: #f6f1e4;
+    font: 700 14px var(--police-titre);
+    text-anchor: start;
+    letter-spacing: .02em;
 }
-.sc-chope__piece { fill: #f5b82e; stroke: #7d4c0c; stroke-width: 1.6; }
-.sc-chope[data-state="mine"] .sc-chope__prix rect { fill: var(--bleu); }
-.sc-chope[data-state="mine"] .sc-chope__prix text { stroke: var(--bleu-levre); }
-
-/* Le nom de la boisson n'apparaît qu'à la demande : au survol, au doigt,
-   au clavier. */
-.sc-chope__etiquette { opacity: 0; transform-box: fill-box; transition: opacity .15s ease; pointer-events: none; }
-.sc-chope__etiquette rect { fill: #fffdf6; stroke: var(--bois-bord); stroke-width: 2.5; }
-.sc-chope__etiquette text { fill: var(--encre); font: 700 13px var(--police-titre); text-anchor: middle; }
-.sc-chope:hover .sc-chope__etiquette,
-.sc-chope:focus-visible .sc-chope__etiquette { opacity: 1; }
-.sc-chope:hover .sc-chope__prix rect { fill: #8fdc57; }
+.sc-chope__ardoise .sc-chope__offert { fill: #bfe8a0; text-anchor: middle; font-size: 12.5px; }
+.sc-chope[data-state="mine"] .sc-chope__ardoise rect { stroke: var(--jaune); stroke-width: 3; }
+.sc-chope__carte { opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.sc-chope__carte rect, .sc-chope__carte path { fill: #fffdf6; stroke: var(--bois-bord); stroke-width: 2.5; }
+.sc-chope__nom { fill: var(--encre); font: 700 14px var(--police-titre); text-anchor: middle; }
+.sc-chope__detail { fill: var(--encre-douce); font: 600 11.5px var(--police-texte); text-anchor: middle; }
+.sc-chope:hover .sc-chope__carte,
+.sc-chope:focus-visible .sc-chope__carte { opacity: 1; }
 .sc-chope:focus-visible { outline: none; }
-.sc-chope:focus-visible .sc-chope__prix rect { stroke: var(--bleu); stroke-width: 3.5; }
+.sc-chope:focus-visible .sc-chope__ardoise rect { stroke: var(--bleu); stroke-width: 3.5; }
 
 /* Entrepôt ----------------------------------------------------------------- */
 
@@ -224,12 +215,6 @@
 .sc-bati__latte { fill: none; stroke: rgba(40, 20, 6, .35); stroke-width: 2; }
 .sc-rayon { fill: #c0823f; stroke: var(--bois-bord); stroke-width: 2.5; }
 .sc-rayon__nez { fill: none; stroke: #f0b774; stroke-width: 3; }
-
-
-
-
-
-
 
 .sc-stock__art { filter: drop-shadow(0 3px 0 rgba(40, 20, 5, .35)); }
 
@@ -400,12 +385,24 @@
 
 
 /* Taverne sociale --------------------------------------------------------- */
-.sc-seat { cursor: pointer; transform-box: fill-box; transform-origin: center; }
-.sc-seat__ring { fill: rgba(255, 207, 69, .22); stroke: var(--jaune); stroke-width: 3; stroke-dasharray: 8 6; }
-.sc-seat__pastille { fill: var(--jaune); stroke: #fff; stroke-width: 3; }
-.sc-seat__plus { fill: #fff; font: 700 20px var(--police-titre); text-anchor: middle; paint-order: stroke; stroke: var(--jaune-levre); stroke-width: 4; }
-.sc-tavern__sols { pointer-events: none; }
-.sc-seat:hover .sc-seat__pastille, .sc-seat:focus-visible .sc-seat__pastille { fill: #ffd95a; stroke: #fff1b8; }
+/* Les tabourets libres : un halo chaud sur l'assise peinte, plus vif au
+   survol, avec l'invitation. Un tabouret pris s'efface. */
+.sc-seat { cursor: pointer; }
+.sc-seat.is-prise { display: none; }
+.sc-seat__halo { opacity: .85; transition: opacity .15s ease; }
+.sc-seat__invite { opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.sc-seat__invite rect { fill: #fffdf6; stroke: var(--bois-bord); stroke-width: 2.5; }
+.sc-seat__invite text { fill: var(--encre); font: 700 14px var(--police-titre); text-anchor: middle; }
+.sc-seat:hover .sc-seat__halo, .sc-seat:focus-visible .sc-seat__halo { opacity: 1; }
+.sc-seat:hover .sc-seat__invite, .sc-seat:focus-visible .sc-seat__invite { opacity: 1; }
+.sc-seat:focus-visible { outline: none; }
+
+/* Debout ou assis : les deux poses sont dans le dessin, la salle montre la
+   bonne. Assis, l'ombre au sol n'a plus de sens : les pieds pendent. */
+.sc-patron__legs-assis { display: none; }
+.sc-patron[data-pose="SEATED"] .sc-patron__legs { display: none; }
+.sc-patron[data-pose="SEATED"] .sc-patron__legs-assis { display: inline; }
+.sc-patron[data-pose="SEATED"] .sc-patron__shadow { opacity: 0; }
 
 
 .sc-patron { cursor: pointer; }
@@ -425,7 +422,6 @@
 @keyframes sc-speech-pop { from { opacity: 0; transform: translateY(8px) scale(.94); } to { opacity: 1; transform: none; } }
 @keyframes sc-emote { 0% { opacity: 0; transform: translateY(8px) scale(.65); } 25% { opacity: 1; transform: translateY(-2px) scale(1.08); } 100% { opacity: 1; transform: translateY(-16px) scale(1); } }
 
-:root[data-mouvement="sobre"] .sc-seat__ring,
 :root[data-mouvement="sobre"] .sc-patron__arm--right,
 :root[data-mouvement="sobre"] .sc-patron__emote { animation: none !important; }
 
@@ -540,8 +536,11 @@
     scrollbar-width: none;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+    /* Centrée par ses marges, pas par justify-content : centrée ainsi, une
+       salle plus large que l'écran débordait des deux côtés, et sa moitié
+       gauche (la cheminée, Sigrid, deux tabourets) ne se laissait jamais
+       atteindre en défilant. */
     display: flex;
-    justify-content: center;
 }
 .tv-cadre::-webkit-scrollbar { display: none; }
 

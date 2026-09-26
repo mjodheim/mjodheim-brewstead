@@ -461,14 +461,14 @@ class BrewsteadUiIntegrationTest {
             waitForScreen(a, "Taverne");
             click(alice, a, By.cssSelector("[data-action='tavern-join-auto']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
-            click(alice, a, By.cssSelector(".sc-seat[data-id='table-gauche-a']"));
+            click(alice, a, By.cssSelector(".sc-seat[data-id='tabouret-gauche']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
             ouvrirVue(bob, b, "taverne");
             waitForScreen(b, "Taverne");
             click(bob, b, By.cssSelector("[data-action='tavern-join-auto']"));
             b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
-            click(bob, b, By.cssSelector(".sc-seat[data-id='table-gauche-b']"));
+            click(bob, b, By.cssSelector(".sc-seat[data-id='tabouret-centre']"));
             b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
             // Le remplissage dense doit les mettre dans la même petite salle.
@@ -491,7 +491,7 @@ class BrewsteadUiIntegrationTest {
             click(bob, b, By.cssSelector("[data-action='tavern-emote'][data-id='SKAL']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron__emote")));
 
-            // Alice quitte sa chaise en cliquant réellement sur le plancher.
+            // Alice descend de son tabouret en cliquant réellement sur le plancher.
             // Le client la déplace tout de suite ; Bob doit recevoir le même
             // mouvement par SSE, bien avant le polling de secours (12 s).
             long movementStarted = System.nanoTime();

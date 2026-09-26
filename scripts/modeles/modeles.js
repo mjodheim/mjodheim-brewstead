@@ -577,10 +577,69 @@ function corne() {
   return g;
 }
 
+
+/* -------------------------------------------------------------- comptoir */
+// Les récipients posés sur le comptoir de la taverne : une chope de bois
+// cerclée pour la bière, une coupe de laiton pour l'hydromel, une chope de
+// verre pour le cidre.
+function anse(courbe, rayon, m) {
+  const t = new THREE.Mesh(new THREE.TubeGeometry(courbe, 40, rayon, 12, false), m);
+  t.castShadow = true; return t;
+}
+function chopeBois() {
+  const g = new THREE.Group();
+  const H = .82, RB = .34, RH = .31;
+  const profil = [new THREE.Vector2(0, 0), new THREE.Vector2(RB, 0)];
+  for (let i = 0; i <= 12; i++) { const t = i / 12; profil.push(new THREE.Vector2(RB + (RH - RB) * t + Math.sin(t * Math.PI) * .015, t * H)); }
+  profil.push(new THREE.Vector2(RH - .03, H), new THREE.Vector2(RH - .03, H - .05));
+  const bois = mat({ map: boisDouelles(14, 30), roughness: .7 });
+  const corps = new THREE.Mesh(new THREE.LatheGeometry(profil, 64), bois); corps.castShadow = true; g.add(corps);
+  const fer = mat({ map: metal([70, 62, 56]), roughness: .45, metalness: .6, color: 0x9a9088 });
+  for (const y of [.1, .7]) {
+    const r = RB + (RH - RB) * (y / H) + .012;
+    const c = new THREE.Mesh(new THREE.TorusGeometry(r, .022, 10, 64), fer); c.rotation.x = Math.PI / 2; c.position.y = y; c.scale.z = 1.8; g.add(c);
+  }
+  const courbe = new THREE.CatmullRomCurve3([new THREE.Vector3(RH - .02, .66, 0), new THREE.Vector3(RH + .2, .64, 0), new THREE.Vector3(RH + .24, .4, 0), new THREE.Vector3(RH + .18, .2, 0), new THREE.Vector3(RB - .02, .16, 0)]);
+  g.add(anse(courbe, .04, bois));
+  const m = mat({ color: 0xfff4dc, roughness: .6, emissive: 0x2a1c08, emissiveIntensity: .1 });
+  const mo = mousse(RH + .02, m); mo.position.y = H - .03; g.add(mo);
+  for (const [a, l] of [[2.2, .12], [.9, .07]]) { const c = new THREE.Mesh(new THREE.CapsuleGeometry(.032, l, 6, 12), m); c.position.set(Math.cos(a) * (RH + .02), H - .02 - l / 2, Math.sin(a) * (RH + .02)); g.add(c); }
+  g.rotation.y = -.35;
+  return g;
+}
+function coupeLaiton() {
+  const g = new THREE.Group();
+  const laiton = mat({ color: 0xd4a84a, roughness: .28, metalness: .92 });
+  const pts = [[0, 0], [.26, 0], [.27, .03], [.2, .06], [.07, .12], [.05, .2], [.05, .34], [.09, .4], [.22, .46], [.3, .56], [.33, .7], [.33, .82], [.31, .82], [.3, .7], [.27, .58], [.2, .5], [0, .48]];
+  const coupe = new THREE.Mesh(new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), 64), laiton); coupe.castShadow = true; g.add(coupe);
+  // un jonc torsadé autour de la panse
+  const jonc = new THREE.Mesh(new THREE.TorusGeometry(.305, .018, 8, 64), laiton); jonc.rotation.x = Math.PI / 2; jonc.position.y = .6; g.add(jonc);
+  const noeud = new THREE.Mesh(new THREE.SphereGeometry(.075, 20, 14), laiton); noeud.position.y = .27; noeud.scale.y = .8; g.add(noeud);
+  const hydromel = new THREE.Mesh(new THREE.CircleGeometry(.315, 48), mat({ color: 0xf2a01c, roughness: .12, emissive: 0x7a3e00, emissiveIntensity: .45 }));
+  hydromel.rotation.x = -Math.PI / 2; hydromel.position.y = .77; g.add(hydromel);
+  return g;
+}
+function chopeVerre() {
+  const g = new THREE.Group();
+  const H = .8, R = .3;
+  const verre = new THREE.MeshPhysicalMaterial({ color: 0xf4fbff, roughness: .04, metalness: 0, clearcoat: 1, transparent: true, opacity: .2, side: THREE.DoubleSide, depthWrite: false });
+  const pts = [new THREE.Vector2(0, 0), new THREE.Vector2(R, 0), new THREE.Vector2(R + .01, .06), new THREE.Vector2(R + .02, H), new THREE.Vector2(R - .015, H), new THREE.Vector2(R - .025, .09), new THREE.Vector2(0, .09)];
+  const corps = new THREE.Mesh(new THREE.LatheGeometry(pts, 64), verre); g.add(corps);
+  const cidre = new THREE.Mesh(new THREE.CylinderGeometry(R - .03, R - .035, .6, 48), mat({ color: 0xe8921a, roughness: .15, emissive: 0x7a3a00, emissiveIntensity: .55 }));
+  cidre.position.y = .1 + .3; g.add(cidre);
+  const m = mat({ color: 0xfff6e2, roughness: .6 });
+  const mo = mousse(R - .02, m); mo.scale.y = .45; mo.position.y = .7; g.add(mo);
+  for (let i = 0; i < 16; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(.008 + alea() * .01, 8, 6), mat({ color: 0xfff0c8, roughness: .2 })); const a = alea() * 6.28, r = alea() * (R - .06); b.position.set(Math.cos(a) * r, .15 + alea() * .5, Math.sin(a) * r); g.add(b); }
+  const courbe = new THREE.CatmullRomCurve3([new THREE.Vector3(R, .66, 0), new THREE.Vector3(R + .2, .62, 0), new THREE.Vector3(R + .22, .38, 0), new THREE.Vector3(R + .16, .2, 0), new THREE.Vector3(R, .18, 0)]);
+  g.add(anse(courbe, .035, verre));
+  g.rotation.y = -.35;
+  return g;
+}
+
 /* ---------------------------------------------------------------- scène */
 const MODELES = { 'fut-en-cours': () => fut(), 'fut-pret': () => fut({ ouvert: true, mousse: true }), 'ruche': () => ruche(), 'ruche-pleine': () => ruche({ miel: true }),
   'parcelle': () => champ(null) };
-Object.assign(MODELES, { 'icone-houblon': coneHoublon, 'icone-levure': levure, 'icone-gerbe': gerbe, 'icone-corne': corne });
+Object.assign(MODELES, { 'chope-biere': chopeBois, 'chope-hydromel': coupeLaiton, 'chope-cidre': chopeVerre, 'icone-houblon': coneHoublon, 'icone-levure': levure, 'icone-gerbe': gerbe, 'icone-corne': corne });
 for (const [nom, f] of Object.entries({ cereales, houblon, baies, herbes })) for (const s of [1, 2, 3]) MODELES[`${nom}-${s}`] = () => champ(f, s);
 // Les parcelles partagent un même cadre, cultures hautes comprises : la terre
 // tombe au même endroit dans chaque image.
@@ -607,7 +666,7 @@ function rendre(nom) {
   const boite = plat ? CADRE_PARCELLE : new THREE.Box3().setFromObject(objet); const centre = boite.getCenter(new THREE.Vector3()); const taille = boite.getSize(new THREE.Vector3());
   if (plat) { soleil.shadow.camera.left = soleil.shadow.camera.bottom = -2.2; soleil.shadow.camera.right = soleil.shadow.camera.top = 2.2; }
   const camera = new THREE.PerspectiveCamera(22, TAILLE / HAUT, .1, 100);
-  const dist = (plat ? taille.x * 2.35 : Math.max(taille.x, taille.y, taille.z) * (nom.startsWith('icone') ? 3.1 : 3.6));
+  const dist = (plat ? taille.x * 2.35 : Math.max(taille.x, taille.y, taille.z) * (nom.startsWith('icone') || nom.startsWith('chope') ? 3.1 : 3.6));
   const el = THREE.MathUtils.degToRad(Number(params.get('elev') || 26));
   camera.position.set(centre.x, centre.y + Math.sin(el) * dist, centre.z + Math.cos(el) * dist);
   camera.lookAt(centre);

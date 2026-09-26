@@ -168,6 +168,7 @@ public class TastingCounterService {
                 offer.getSeller().getId(),
                 offer.getSeller().getDisplayName(),
                 recipe.getName(),
+                recipe.getDrinkType(),
                 recipe.getRarity(),
                 offer.getBatch().getQuality(),
                 recipe.getEffectKind(),

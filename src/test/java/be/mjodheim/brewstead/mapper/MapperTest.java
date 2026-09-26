@@ -51,6 +51,7 @@ class MapperTest {
         assertEquals(4L, response.id());
         assertEquals(9L, response.recipeId());
         assertEquals(recipe.getName(), response.recipeName());
+        assertEquals(recipe.getDrinkType(), response.drinkType());
         assertEquals(88, response.quality());
     }
 

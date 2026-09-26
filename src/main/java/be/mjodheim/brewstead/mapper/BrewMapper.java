@@ -12,6 +12,7 @@ public interface BrewMapper {
 
     @Mapping(source = "recipe.id", target = "recipeId")
     @Mapping(source = "recipe.name", target = "recipeName")
+    @Mapping(source = "recipe.drinkType", target = "drinkType")
     BatchResponse toResponse(Batch batch);
 
     List<BatchResponse> toResponseList(List<Batch> batches);

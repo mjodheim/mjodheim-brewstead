@@ -72,6 +72,13 @@ def main():
         image.thumbnail((360, 360), Image.LANCZOS)
         image.save(os.path.join(MODELES, nom + '.webp'), 'WEBP', quality=84, method=6)
 
+    # les récipients du comptoir : recadrés, 200 px de haut au plus
+    for nom in ('chope-biere', 'chope-hydromel', 'chope-cidre'):
+        image = Image.open(os.path.join(SORTIE, nom + '.png')).convert('RGBA')
+        image = image.crop(contour(image))
+        image.thumbnail((200, 200), Image.LANCZOS)
+        image.save(os.path.join(MODELES, nom + '.webp'), 'WEBP', quality=86, method=6)
+
     abeille = fluent('Honeybee')
     abeille = abeille.crop(contour(abeille))
     abeille.thumbnail((48, 48), Image.LANCZOS)

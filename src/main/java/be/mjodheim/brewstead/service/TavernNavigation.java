@@ -1,6 +1,8 @@
 package be.mjodheim.brewstead.service;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -27,17 +29,26 @@ public final class TavernNavigation {
     private static final double MIN_Y = 478;
     private static final double MAX_Y = 545;
 
-    /** Les tabourets libres du comptoir, et quelques places debout. */
-    private static final Map<String, Seat> SEATS = Map.of(
-            "bar-gauche", new Seat(552, 502, "RIGHT"),
-            "bar-droite", new Seat(642, 502, "RIGHT"),
-            "table-gauche-a", new Seat(868, 500, "LEFT"),
-            "table-gauche-b", new Seat(1060, 500, "LEFT"),
-            "table-droite-a", new Seat(1188, 504, "LEFT"),
-            "table-droite-b", new Seat(760, 538, "RIGHT"),
-            "feu-gauche", new Seat(528, 530, "RIGHT"),
-            "feu-droite", new Seat(1226, 540, "LEFT")
-    );
+    /**
+     * Les tabourets peints devant le comptoir, qu'on peut prendre.
+     *
+     * <p>Il y avait huit « places » posées dans l'allée, entre les tables :
+     * s'y asseoir revenait à se tenir debout ailleurs, et un joueur « assis
+     * à la table de gauche » flottait, coupé en deux par le premier plan. Ce
+     * sont maintenant les trois tabourets libres de la peinture ; le
+     * quatrième, derrière Leif, est caché par lui. Le point est celui où le
+     * tabouret touche le plancher ; le client hisse le personnage sur
+     * l'assise.
+     */
+    private static final Map<String, Seat> SEATS = new LinkedHashMap<>();
+
+    static {
+        SEATS.put("tabouret-gauche", new Seat(555, 530, "RIGHT"));
+        SEATS.put("tabouret-centre", new Seat(643, 530, "RIGHT"));
+        SEATS.put("tabouret-droit", new Seat(1195, 530, "LEFT"));
+    }
+
+    private static final List<String> SEAT_KEYS = List.copyOf(SEATS.keySet());
 
     /**
      * Les points d'arrivée, le long de l'allée, depuis l'escalier de droite.
@@ -77,6 +88,11 @@ public final class TavernNavigation {
 
     static Collection<Seat> seats() {
         return SEATS.values();
+    }
+
+    /** Les clés des places, dans l'ordre de la salle, de gauche à droite. */
+    public static List<String> seatKeys() {
+        return SEAT_KEYS;
     }
 
     public static Seat seat(String key) {

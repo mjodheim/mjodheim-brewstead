@@ -107,17 +107,6 @@
         return slots.sort(function (a, b) { return a.y - b.y; });
     }
 
-    /** Le quadrilatère d'un emplacement, plus étroit au fond. */
-    function slotShape(slot, taper) {
-        var halfFront = slot.width / 2;
-        var halfBack = halfFront * (taper === undefined ? 0.8 : taper);
-        var top = slot.y - slot.height;
-        return 'M' + (slot.x - halfFront) + ' ' + slot.y +
-            'L' + (slot.x + halfFront) + ' ' + slot.y +
-            'L' + (slot.x + halfBack) + ' ' + top +
-            'L' + (slot.x - halfBack) + ' ' + top + 'Z';
-    }
-
     /* ------------------------------------------------------------- Décors */
 
     /**
@@ -227,10 +216,6 @@
     /** Les défs partagées : dégradés, filtres, motifs. */
     function defs() {
         return '<defs>' +
-            '<linearGradient id="sc-earth" x2="0" y2="1">' +
-            '<stop offset="0" stop-color="#8a6a3c"/><stop offset=".45" stop-color="#6d4f2a"/>' +
-            '<stop offset="1" stop-color="#4a331a"/></linearGradient>' +
-
             '<linearGradient id="sc-boards" x2="0" y2="1">' +
             '<stop offset="0" stop-color="#5a4327" stop-opacity=".5"/>' +
             '<stop offset=".3" stop-color="#4d391f" stop-opacity=".88"/>' +
@@ -241,13 +226,6 @@
             '<stop offset=".26" stop-color="#6b7d40" stop-opacity=".62"/>' +
             '<stop offset=".7" stop-color="#55682f" stop-opacity=".92"/>' +
             '<stop offset="1" stop-color="#3a4a22"/></linearGradient>' +
-
-            '<linearGradient id="sc-crop" x2="0" y2="1">' +
-            '<stop offset="0" stop-color="#ffe89c"/><stop offset=".55" stop-color="#e0b55a"/>' +
-            '<stop offset="1" stop-color="#9c6f22"/></linearGradient>' +
-
-            '<linearGradient id="sc-sprout" x2="0" y2="1">' +
-            '<stop offset="0" stop-color="#b6dc72"/><stop offset="1" stop-color="#4f7a2c"/></linearGradient>' +
 
             '<radialGradient id="sc-halo">' +
             '<stop offset="0" stop-color="#fff2c2" stop-opacity=".9"/>' +
@@ -276,9 +254,6 @@
             '<stop offset=".58" stop-color="#dcd3bb" stop-opacity=".3"/>' +
             '<stop offset="1" stop-color="#cdc6ad" stop-opacity=".04"/></linearGradient>' +
 
-            '<filter id="sc-blur"><feGaussianBlur stdDeviation="5.5"/></filter>' +
-            '<filter id="sc-drop" x="-.4" y="-.4" width="1.8" height="1.8">' +
-            '<feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#160d04" flood-opacity=".5"/></filter>' +
             '</defs>';
     }
 
@@ -306,30 +281,12 @@
         return 'growing';
     }
 
-    /** Les sillons d'une parcelle : une bande creuse et sa crête éclairée. */
-    function furrows(slot) {
-        var hollow = '';
-        var crest = '';
-        var lines = 5;
-        for (var i = 1; i <= lines; i++) {
-            var t = i / (lines + 1);
-            var y = slot.y - slot.height * t;
-            var half = (slot.width / 2) * (1 - t * 0.2);
-            var bow = -5 * slot.scale;
-            hollow += '<path d="M' + (slot.x - half) + ' ' + y + 'q' + half + ' ' + bow + ' ' + (half * 2) + ' 0"/>';
-            crest += '<path d="M' + (slot.x - half) + ' ' + (y - 2.2 * slot.scale) +
-                'q' + half + ' ' + bow + ' ' + (half * 2) + ' 0"/>';
-        }
-        return '<g class="sc-furrows">' + hollow + '</g><g class="sc-furrows sc-furrows--lit">' + crest + '</g>';
-    }
-
     /**
      * La pousse par paliers.
      *
      * <p>Faire grandir la culture en étirant le dessin donnait une rampe
-     * jaune : une culture ne s'étire pas, elle se remplit. On redessine donc
-     * la parcelle à cinq moments de sa croissance, et entre deux paliers rien
-     * ne bouge — ce qui évite aussi de relancer les animations chaque seconde.
+     * jaune : une culture ne s'étire pas, elle se remplit. La parcelle passe
+     * donc par des paliers, et entre deux paliers rien ne bouge.
      */
     var GROWTH_STAGES = 5;
 
@@ -341,86 +298,99 @@
     }
 
     /**
-     * La culture d'une parcelle, rangée par rangée.
+     * Les images des objets, rendues en volume.
      *
-     * <p>Une masse pleine faisait une dalle, des brins isolés faisaient des
-     * allumettes. Ce sont les rangées qui disent « champ » : on plante donc le
-     * long des sillons, en suivant leur courbure et leur fuite.
+     * <p>Les parcelles, les ruches et les fûts étaient des tracés : un
+     * trapèze brun et des traits pour un champ, un demi-disque pour une
+     * ruche. Ce sont maintenant des rendus 3D (scripts/modeles), posés en
+     * images. Une image fixe ne coûte rien de plus à afficher qu'un tracé,
+     * et bien moins qu'un tracé animé.
+     *
+     * <p>L'adresse vient de la page, avec l'empreinte du contenu.
      */
-    function crop(slot, seed, stage, ripe) {
-        if (stage <= 0) return '';
-        var grown = stage / GROWTH_STAGES;
-        var rows = '';
-        var lines = 5;
-
-        for (var r = 1; r <= lines; r++) {
-            var t = r / (lines + 1);
-            var y = slot.y - slot.height * t;
-            var half = (slot.width / 2) * (1 - t * 0.2);
-            // Les rangées du fond sont plus petites et plus serrées.
-            var near = 1 - t * 0.28;
-            var tall = (9 + 15 * grown) * slot.scale * near;
-            var step = (13 - 4 * grown) * slot.scale * near;
-            var tufts = '';
-            var ears = '';
-
-            for (var x = -half + step * 0.5; x < half; x += step) {
-                var i = Math.round((x + half) / step);
-                var px = slot.x + x + (jitter(seed + r * 31, i) - 0.5) * step * 0.5;
-                var py = y - (jitter(seed + r * 17, i) - 0.5) * 5 * slot.scale;
-                var h = tall * (0.7 + jitter(seed + r * 7, i) * 0.62);
-                var w = step * 0.3;
-
-                // Une touffe : deux flancs et une pointe, fermée pour que la
-                // rangée lise comme une masse et non comme des traits.
-                tufts += '<path d="M' + (px - w).toFixed(1) + ' ' + py.toFixed(1) +
-                    'q' + (w * 0.35).toFixed(1) + ' ' + (-h * 0.75).toFixed(1) + ' ' + (w * 0.9).toFixed(1) + ' ' + (-h).toFixed(1) +
-                    'q' + (w * 0.6).toFixed(1) + ' ' + (h * 0.28).toFixed(1) + ' ' + (w * 1.1).toFixed(1) + ' ' + h.toFixed(1) + 'Z"/>';
-
-                if (ripe && jitter(seed + r * 3, i) > 0.42) {
-                    ears += '<ellipse cx="' + (px - w * 0.1).toFixed(1) + '" cy="' + (py - h).toFixed(1) +
-                        '" rx="' + (1.7 * slot.scale * near).toFixed(1) +
-                        '" ry="' + (3.6 * slot.scale * near).toFixed(1) + '"/>';
-                }
-            }
-
-            rows += '<g class="sc-row" style="--row:' + r + '">' +
-                '<g class="sc-row__tufts">' + tufts + '</g>' +
-                (ears ? '<g class="sc-ears">' + ears + '</g>' : '') + '</g>';
-        }
-        return rows;
+    function modele(nom) {
+        var liste = global.document && global.document.getElementById('modeles');
+        return (liste && liste.getAttribute('data-m-' + nom)) || '/images/modeles/' + nom + '.webp';
     }
+
+    /** Ce qui pousse, par famille : des épis, des perches, des arbustes, des touffes. */
+    var FAMILLES = { CEREAL: 'cereales', HOP: 'houblon', FRUIT: 'baies', HERB: 'herbes', SPICE: 'herbes' };
+
+    function famille(field) {
+        if (FAMILLES[field.cropType]) return FAMILLES[field.cropType];
+        // Un état reçu d'avant le déploiement n'a pas la famille : le nom suffit.
+        var nom = String(field.cropName || '').toLowerCase();
+        if (/houblon|cônes/.test(nom)) return 'houblon';
+        if (/pomme|poire|baie|airelle|camarine|argouse|prunelle|cerise|mûre|rhubarbe|groseille/.test(nom)) return 'baies';
+        if (/orge|seigle|avoine|froment|épeautre|riz|sarrasin/.test(nom)) return 'cereales';
+        return nom ? 'herbes' : 'cereales';
+    }
+
+    /**
+     * La parcelle vue par la caméra : le sol nu, puis trois stades. Les cinq
+     * paliers de pousse se replient sur deux images de croissance.
+     */
+    function modeleParcelle(field) {
+        var state = fieldState(field);
+        if (state === 'empty') return 'parcelle';
+        return famille(field) + '-' + (state === 'ready' ? 3 : growthStage(field) <= 2 ? 1 : 2);
+    }
+
+    // Les images de parcelle partagent un même cadre (708 × 417) : la terre
+    // tombe toujours au même endroit, seule la hauteur de la culture change.
+    // Voici où commence ce qui dépasse, en part de la hauteur de l'image.
+    var PARCELLE_RATIO = 417 / 708;
+    var SOMMETS = {
+        parcelle: .44, 'cereales-1': .37, 'cereales-2': .28, 'cereales-3': .17,
+        'houblon-1': .39, 'houblon-2': .02, 'houblon-3': .02,
+        'baies-1': .44, 'baies-2': .39, 'baies-3': .37,
+        'herbes-1': .44, 'herbes-2': .43, 'herbes-3': .38
+    };
 
     function fieldNode(field, slot) {
         var state = fieldState(field);
-        var stage = growthStage(field);
         var label = state === 'empty' ? 'Parcelle libre' : (field.cropName || 'Parcelle');
         var action = state === 'ready' ? 'harvest-field' : (state === 'empty' ? 'sow-field' : '');
-        var seed = field.id * 17 + 3;
+        var nom = modeleParcelle(field);
+        var s = slot.scale;
+        var iw = slot.width * 1.04;
+        var ih = iw * PARCELLE_RATIO;
+        var ix = slot.x - iw / 2;
+        var iy = slot.y + 12 * s - ih;
+        var sommet = iy + ih * (SOMMETS[nom] === undefined ? .44 : SOMMETS[nom]);
+        // La pastille se pose au fond de la terre, par-dessus la culture :
+        // flottant au-dessus des perches de houblon, elle tombait sur la
+        // parcelle de la rangée de derrière.
+        var badgeY = iy + ih * .44;
+        var px = function (fx) { return (ix + iw * fx).toFixed(1); };
+        var py = function (fy) { return (iy + ih * fy).toFixed(1); };
 
         return '<g class="sc-node sc-plot" data-state="' + state + '" data-id="' + field.id + '"' +
+            ' data-modele="' + nom + '"' +
             (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
             ' aria-label="' + esc(label) + '">' +
 
             (state === 'ready'
-                ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - slot.height * 0.4) +
-                  '" rx="' + (slot.width * 0.62) + '" ry="' + (slot.height * 0.72) + '" fill="url(#sc-ready)"/>'
+                ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + py(.66) +
+                  '" rx="' + (iw * 0.6).toFixed(1) + '" ry="' + (ih * 0.46).toFixed(1) + '" fill="url(#sc-ready)"/>'
                 : '') +
 
-            '<ellipse class="sc-contact" cx="' + slot.x + '" cy="' + (slot.y + 3 * slot.scale) +
-            '" rx="' + (slot.width * 0.56) + '" ry="' + (11 * slot.scale) + '"/>' +
-            '<path class="sc-plot__soil" d="' + slotShape(slot) + '"/>' +
-            furrows(slot) +
-            '<g class="sc-plot__crop">' + crop(slot, seed, stage, state === 'ready') + '</g>' +
-            '<path class="sc-plot__lip" d="M' + (slot.x - slot.width / 2) + ' ' + slot.y +
-            'h' + slot.width + 'v' + (7 * slot.scale) + 'h' + (-slot.width) + 'Z"/>' +
-            '<path class="sc-plot__edge" d="' + slotShape(slot) + '"/>' +
+            '<image class="sc-modele" href="' + esc(modele(nom)) + '" x="' + ix.toFixed(1) + '" y="' + iy.toFixed(1) +
+            '" width="' + iw.toFixed(1) + '" height="' + ih.toFixed(1) + '" preserveAspectRatio="none"/>' +
 
-            badge(slot.x, slot.y - slot.height - 30 * slot.scale, slot.scale, state) +
+            // Une parcelle libre appelle la main : un liseré pointillé sur la terre.
+            (state === 'empty'
+                ? '<path class="sc-plot__edge" d="M' + px(.13) + ' ' + py(.5) + 'L' + px(.87) + ' ' + py(.5) +
+                  'L' + px(.955) + ' ' + py(.9) + 'L' + px(.045) + ' ' + py(.9) + 'Z"/>'
+                : '') +
 
-            '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 22 * slot.scale) + '">' +
+            badge(slot.x, badgeY, s, state) +
+
+            // Le temps qui reste, sur le rondin de devant : en dessous, il
+            // mordait sur la parcelle de la rangée suivante.
+            '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 9 * s).toFixed(1) + '">' +
             (state === 'growing' ? esc(countdown(field.readyAt)) : '') + '</text>' +
-            hit(slot.x, slot.y - slot.height - 48 * slot.scale, slot.width * 1.06, slot.height + 62 * slot.scale) +
+            hit(slot.x, Math.min(badgeY - 20 * s, sommet), iw, slot.y + 16 * s - Math.min(badgeY - 20 * s, sommet)) +
             '</g>';
     }
 
@@ -483,49 +453,57 @@
         return 'empty';
     }
 
-    function bees(slot, seed) {
+    /** Les abeilles tournent autour de la ruche, chacune sur son rayon. */
+    function bees(x, y, scale, seed) {
         var out = '';
+        var abeille = modele('abeille');
+        var t = 13 * scale;
         for (var i = 0; i < 5; i++) {
-            var radius = (26 + jitter(seed, i) * 22) * slot.scale;
+            var radius = (40 + jitter(seed, i) * 34) * scale;
             out += '<g class="sc-bee" style="--bee-r:' + radius.toFixed(1) +
                 'px;--bee-delay:' + (-i * 1.3).toFixed(1) + 's">' +
-                '<circle r="' + (2.6 * slot.scale) + '"/></g>';
+                '<image href="' + esc(abeille) + '" x="' + (-t / 2).toFixed(1) + '" y="' + (-t / 2).toFixed(1) +
+                '" width="' + t.toFixed(1) + '" height="' + t.toFixed(1) + '"/></g>';
         }
-        return '<g class="sc-bees" transform="translate(' + slot.x + ' ' + (slot.y - slot.height * 0.75) + ')">' + out + '</g>';
+        return '<g class="sc-bees" transform="translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')">' + out + '</g>';
     }
+
+    // La ruche de paille : 318 × 360, le pied de la ruche à 95 % de la
+    // hauteur, son axe à 48,5 % de la largeur (l'ombre déborde à droite).
+    var RUCHE = { w: 318, h: 360, axe: .485, pied: .95 };
 
     function hiveNode(hive, slot) {
         var state = hiveState(hive);
         // Une ruche ne se lance plus : elle tourne seule. Le seul geste est
         // de la vider quand le miel est prêt.
         var action = state === 'ready' ? 'harvest-hive' : '';
-        // La hauteur du dessin, pas celle de la case du terrain. Les deux
-        // avaient été confondues : la pastille d'état flottait cent vingt
-        // pixels au-dessus de sa ruche, sans rien pour la relier.
-        var h = 46 * slot.scale;
+        var s = slot.scale;
+        var iw = slot.width * 0.66;
+        var ih = iw * RUCHE.h / RUCHE.w;
+        var ix = slot.x - iw * RUCHE.axe;
+        var iy = slot.y + 4 * s - ih * RUCHE.pied;
+        // La hauteur du dessin, pas celle de la case du terrain : la pastille
+        // se pose juste au-dessus de la ruche.
+        var h = ih * RUCHE.pied;
 
         return '<g class="sc-node sc-hive" data-state="' + state + '" data-id="' + hive.id + '"' +
             (action ? ' data-action="' + action + '" tabindex="0" role="button"' : '') +
             ' aria-label="Ruche n°' + hive.id + '">' +
 
             (state === 'ready'
-                ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5) +
-                  '" rx="' + (slot.width * 0.42) + '" ry="' + (h * 1.25) + '" fill="url(#sc-halo)"/>'
+                ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5).toFixed(1) +
+                  '" rx="' + (iw * 0.72).toFixed(1) + '" ry="' + (h * 0.66).toFixed(1) + '" fill="url(#sc-halo)"/>'
                 : '') +
 
-            '<ellipse class="sc-shadow" cx="' + slot.x + '" cy="' + slot.y + '" rx="' + (slot.width * 0.3) + '" ry="' + (9 * slot.scale) + '"/>' +
-            '<g class="sc-hive__body" transform="translate(' + slot.x + ' ' + slot.y + ') scale(' + slot.scale + ')">' +
-            '<path class="sc-hive__stand" d="M-44 0h88l-6 8H-38Z"/>' +
-            '<path class="sc-hive__dome" d="M-38 0a38 46 0 0 1 76 0Z"/>' +
-            '<path class="sc-hive__rings" d="M-35-14h70M-30-28h60M-22-40h44"/>' +
-            '<ellipse class="sc-hive__door" cy="-9" rx="7" ry="5"/>' +
-            '</g>' +
-            (state === 'growing' || state === 'ready' ? bees(slot, hive.id * 13) : '') +
+            '<image class="sc-modele" href="' + esc(modele(state === 'ready' ? 'ruche-pleine' : 'ruche')) +
+            '" x="' + ix.toFixed(1) + '" y="' + iy.toFixed(1) + '" width="' + iw.toFixed(1) + '" height="' + ih.toFixed(1) +
+            '" preserveAspectRatio="none"/>' +
+            (state === 'growing' || state === 'ready' ? bees(slot.x, slot.y - h * 0.5, s, hive.id * 13) : '') +
 
-            badge(slot.x, slot.y - h - 30 * slot.scale, slot.scale, state) +
-            '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 22 * slot.scale) + '">' +
+            badge(slot.x, slot.y - h - 26 * s, s, state) +
+            '<text class="sc-plot__time" x="' + slot.x + '" y="' + (slot.y + 24 * s).toFixed(1) + '">' +
             (state === 'growing' ? esc(countdown(hive.readyAt)) : '') + '</text>' +
-            hit(slot.x, slot.y - h - 48 * slot.scale, slot.width * 1.1, h + 66 * slot.scale) +
+            hit(slot.x, slot.y - h - 46 * s, iw * 1.3, h + 64 * s) +
             '</g>';
     }
 
@@ -560,45 +538,37 @@
         return etat === 'a-soutirer' ? 'ready' : etat === 'fini' ? 'done' : etat === 'en-cave' ? 'cellar' : 'growing';
     }
 
+    // Les fûts : 290 × 360 et 279 × 360, le tréteau au ras du bas de
+    // l'image, l'axe du tonneau un peu à gauche (l'ombre déborde à droite).
+    var FUTS = {
+        'fut-en-cours': { w: 290, h: 360, axe: .42 },
+        'fut-pret': { w: 279, h: 360, axe: .41 }
+    };
+
     function vatNode(batch, slot) {
         var state = batchState(batch);
-        var fill = state === 'ready' ? 1 : (state === 'done' ? 0.08 : 0.16 + ratio(batch.startedAt, batch.readyAt) * 0.78);
-        var w = slot.width * 1.05;
-        var h = slot.height * 1.75;
-        var top = slot.y - h;
-        var bulge = w * 0.16;
-        var liquidTop = top + 10 * slot.scale + (h - 18 * slot.scale) * (1 - fill);
-        var clip = 'sc-vat-' + batch.id;
+        var nom = state === 'ready' ? 'fut-pret' : 'fut-en-cours';
+        var fut = FUTS[nom];
+        var s = slot.scale;
+        var h = slot.height * 1.9;
+        var iw = h * fut.w / fut.h;
+        var ix = slot.x - iw * fut.axe;
+        var iy = slot.y + 6 * s - h;
+        // w : la largeur du tonneau lui-même, sans son ombre.
+        var w = iw * 0.84;
+        var top = iy + 4 * s;
+        var avance = state === 'growing' ? ratio(batch.startedAt, batch.readyAt) : 1;
 
-        // La silhouette d'un tonneau : des flancs qui s'arrondissent. Dessiné
-        // en traits, on obtenait une cage à oiseaux.
-        var body = 'M' + (slot.x - w / 2).toFixed(1) + ' ' + slot.y.toFixed(1) +
-            'C' + (slot.x - w / 2 - bulge).toFixed(1) + ' ' + (slot.y - h * 0.32).toFixed(1) +
-            ' ' + (slot.x - w / 2 - bulge).toFixed(1) + ' ' + (slot.y - h * 0.68).toFixed(1) +
-            ' ' + (slot.x - w / 2).toFixed(1) + ' ' + top.toFixed(1) +
-            'L' + (slot.x + w / 2).toFixed(1) + ' ' + top.toFixed(1) +
-            'C' + (slot.x + w / 2 + bulge).toFixed(1) + ' ' + (slot.y - h * 0.68).toFixed(1) +
-            ' ' + (slot.x + w / 2 + bulge).toFixed(1) + ' ' + (slot.y - h * 0.32).toFixed(1) +
-            ' ' + (slot.x + w / 2).toFixed(1) + ' ' + slot.y.toFixed(1) + 'Z';
-
+        // Un brassin qui travaille fait des bulles par la bonde.
         var bubbles = '';
         if (state === 'growing') {
-            for (var i = 0; i < 7; i++) {
+            for (var i = 0; i < 4; i++) {
                 bubbles += '<circle class="sc-bubble" cx="' +
-                    (slot.x - w * 0.32 + jitter(batch.id * 5, i) * w * 0.64).toFixed(1) +
-                    '" r="' + ((2 + jitter(batch.id * 5, i + 9) * 3.4) * slot.scale).toFixed(1) +
-                    '" style="--bub-delay:' + (-i * 0.62).toFixed(1) + 's;--bub-from:' + slot.y.toFixed(0) +
-                    'px;--bub-to:' + liquidTop.toFixed(0) + 'px"/>';
+                    (slot.x + (6 + (jitter(batch.id * 5, i) - 0.5) * 16) * s).toFixed(1) +
+                    '" r="' + ((2 + jitter(batch.id * 5, i + 9) * 2.6) * s).toFixed(1) +
+                    '" style="--bub-delay:' + (-i * 0.8).toFixed(1) + 's;--bub-from:' + (top + 12 * s).toFixed(0) +
+                    'px;--bub-to:' + (top - 40 * s).toFixed(0) + 'px"/>';
             }
-        }
-
-        var staves = '';
-        for (var k = -2; k <= 2; k++) {
-            var sx = slot.x + k * (w / 5.4);
-            staves += '<path d="M' + sx.toFixed(1) + ' ' + slot.y.toFixed(1) +
-                'C' + (sx + k * bulge * 0.34).toFixed(1) + ' ' + (slot.y - h * 0.32).toFixed(1) +
-                ' ' + (sx + k * bulge * 0.34).toFixed(1) + ' ' + (slot.y - h * 0.68).toFixed(1) +
-                ' ' + sx.toFixed(1) + ' ' + top.toFixed(1) + '"/>';
         }
 
         return '<g class="sc-node sc-vat" data-state="' + state + '" data-id="' + batch.id + '"' +
@@ -609,31 +579,25 @@
 
             (state === 'ready'
                 ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5).toFixed(1) +
-                  '" rx="' + (w * 0.85).toFixed(1) + '" ry="' + (h * 0.72).toFixed(1) + '" fill="url(#sc-halo)"/>'
+                  '" rx="' + (w * 0.85).toFixed(1) + '" ry="' + (h * 0.62).toFixed(1) + '" fill="url(#sc-halo)"/>'
                 : '') +
 
-            '<ellipse class="sc-contact" cx="' + slot.x + '" cy="' + (slot.y + 2 * slot.scale).toFixed(1) +
-            '" rx="' + (w * 0.58).toFixed(1) + '" ry="' + (10 * slot.scale).toFixed(1) + '"/>' +
-
-            '<clipPath id="' + clip + '"><path d="' + body + '"/></clipPath>' +
-            '<path class="sc-vat__wood" d="' + body + '"/>' +
-
-            '<g clip-path="url(#' + clip + ')">' +
-            '<rect class="sc-vat__liquid" x="' + (slot.x - w).toFixed(1) + '" y="' + liquidTop.toFixed(1) +
-            '" width="' + (w * 2).toFixed(1) + '" height="' + (slot.y - liquidTop + 4).toFixed(1) + '"/>' +
-            '<ellipse class="sc-vat__surface" cx="' + slot.x + '" cy="' + liquidTop.toFixed(1) +
-            '" rx="' + (w * 0.49).toFixed(1) + '" ry="' + (w * 0.09).toFixed(1) + '"/>' +
+            '<image class="sc-modele" href="' + esc(modele(nom)) + '" x="' + ix.toFixed(1) + '" y="' + iy.toFixed(1) +
+            '" width="' + iw.toFixed(1) + '" height="' + h.toFixed(1) + '" preserveAspectRatio="none"/>' +
             bubbles +
-            '<g class="sc-vat__staves">' + staves + '</g>' +
-            '<path class="sc-vat__hoop" d="M' + (slot.x - w * 0.62).toFixed(1) + ' ' + (top + h * 0.2).toFixed(1) +
-            'h' + (w * 1.24).toFixed(1) + 'M' + (slot.x - w * 0.62).toFixed(1) + ' ' + (top + h * 0.74).toFixed(1) +
-            'h' + (w * 1.24).toFixed(1) + '"/>' +
-            '</g>' +
 
-            '<ellipse class="sc-vat__rim" cx="' + slot.x + '" cy="' + top.toFixed(1) +
-            '" rx="' + (w / 2).toFixed(1) + '" ry="' + (w * 0.1).toFixed(1) + '"/>' +
+            // Le fût ne montre plus son niveau : une jauge, sous le nom, dit
+            // où en est la fermentation.
+            (state === 'growing'
+                ? '<g class="sc-jauge" transform="translate(' + slot.x + ' ' + (slot.y + 52 * s).toFixed(1) + ')">' +
+                  '<rect class="sc-jauge__fond" x="' + (-34 * s).toFixed(1) + '" y="' + (-3.5 * s).toFixed(1) +
+                  '" width="' + (68 * s).toFixed(1) + '" height="' + (7 * s).toFixed(1) + '" rx="' + (3.5 * s).toFixed(1) + '"/>' +
+                  '<rect class="sc-jauge__plein" data-plein="' + (68 * s).toFixed(1) + '" x="' + (-34 * s).toFixed(1) + '" y="' + (-3.5 * s).toFixed(1) +
+                  '" width="' + (68 * s * Math.max(0.06, avance)).toFixed(1) + '" height="' + (7 * s).toFixed(1) + '" rx="' + (3.5 * s).toFixed(1) + '"/>' +
+                  '</g>'
+                : '') +
 
-            badge(slot.x, top - 34 * slot.scale, slot.scale, state === 'ready' ? 'ready' : 'growing') +
+            badge(slot.x, top - 30 * slot.scale, slot.scale, state === 'ready' ? 'ready' : 'growing') +
 
             '<text class="sc-vat__name" x="' + slot.x + '" y="' + (slot.y + 24 * slot.scale).toFixed(1) + '">' +
             esc(batch.recipeName || '') + '</text>' +
@@ -704,7 +668,6 @@
             slots.map(function (slot) { return vatNode(batches[slot.index], slot); }).join('') +
             '</g>';
     }
-
 
     /* ------------------------------------------------------------ Taverne */
 
@@ -813,7 +776,6 @@
         var carte = global.document && global.document.getElementById('worldArt');
         return (carte && carte.getAttribute('data-taverne')) || '/images/lieux/taverne-salle.webp';
     }
-
 
     function dernierMessage(room, playerId) {
         var messages = room && room.messages || [];
@@ -1326,7 +1288,6 @@
             '</g>';
     }
 
-
     /* ---------------------------------------------------------- Paillasse */
 
     /* La couleur de chaque matière dans la cuve. Elles se mélangent vraiment :
@@ -1462,7 +1423,7 @@
     function signature(place, state) {
         if (place === 'champs') {
             return (state.fields || []).map(function (f) {
-                return f.id + ':' + fieldState(f) + ':' + growthStage(f) + ':' + (f.cropName || '');
+                return f.id + ':' + fieldState(f) + ':' + modeleParcelle(f) + ':' + (f.cropName || '');
             }).join('|');
         }
         if (place === 'rucher') {
@@ -1728,9 +1689,10 @@
                 if (!node) return;
                 var time = node.querySelector('.sc-plot__time');
                 if (time) time.textContent = batchState(batch) === 'growing' ? countdown(batch.readyAt) : '';
-                var liquid = node.querySelector('.sc-vat__liquid');
-                if (liquid && batchState(batch) === 'growing') {
-                    liquid.style.setProperty('--fill', ratio(batch.startedAt, batch.readyAt).toFixed(3));
+                var plein = node.querySelector('.sc-jauge__plein');
+                if (plein && batchState(batch) === 'growing') {
+                    plein.setAttribute('width', (Number(plein.getAttribute('data-plein')) *
+                        Math.max(0.06, ratio(batch.startedAt, batch.readyAt))).toFixed(1));
                 }
             });
         }

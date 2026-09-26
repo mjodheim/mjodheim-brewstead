@@ -36,3 +36,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Rendus des objets (scripts/modeles) ###
+scripts/modeles/node_modules/
+scripts/modeles/sortie/
+scripts/modeles/fluent/
+scripts/modeles/package-lock.json

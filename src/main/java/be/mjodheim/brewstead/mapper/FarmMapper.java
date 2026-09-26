@@ -14,6 +14,10 @@ public interface FarmMapper {
             source = "crop.name",
             target = "cropName"
     )
+    @Mapping(
+            source = "crop.ingredient.type",
+            target = "cropType"
+    )
     PlayerFieldResponse toResponse(PlayerField playerField);
 
     List<PlayerFieldResponse> toResponseList(List<PlayerField> playerFields);

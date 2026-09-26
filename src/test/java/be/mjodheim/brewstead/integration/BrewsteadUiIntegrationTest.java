@@ -460,14 +460,15 @@ class BrewsteadUiIntegrationTest {
             ouvrirVue(alice, a, "taverne");
             waitForScreen(a, "Taverne");
             click(alice, a, By.cssSelector("[data-action='tavern-join-auto']"));
-            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
+            a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat[data-id='tabouret-gauche']")));
             click(alice, a, By.cssSelector(".sc-seat[data-id='tabouret-gauche']"));
             a.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
             ouvrirVue(bob, b, "taverne");
             waitForScreen(b, "Taverne");
             click(bob, b, By.cssSelector("[data-action='tavern-join-auto']"));
-            b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat")));
+            // Un tabouret pris s'éteint : Bob vise celui qui reste libre.
+            b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-seat[data-id='tabouret-centre']")));
             click(bob, b, By.cssSelector(".sc-seat[data-id='tabouret-centre']"));
             b.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".sc-patron.is-self")));
 
@@ -538,8 +539,8 @@ class BrewsteadUiIntegrationTest {
                     const r = e.getBoundingClientRect();
                     return r.width > 20 && r.height > 20 && r.bottom > 0 && r.top < innerHeight;
                     """), "L’enseigne MJÖDHEIM doit être réellement visible dans le cadrage.");
-            assertFalse(alice.findElements(By.cssSelector(".sc-seat")).isEmpty(),
-                    "Les places libres doivent rester visibles et choisissables.");
+            assertTrue(alice.findElements(By.cssSelector(".sc-seat:not(.is-prise)")).stream().anyMatch(WebElement::isDisplayed),
+                    "Les tabourets libres doivent rester visibles et choisissables.");
 
             screenshot(alice, "14-taverne-sociale-desktop.png");
             screenshot(bob, "16-taverne-libre-live-desktop.png");

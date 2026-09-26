@@ -554,10 +554,10 @@
 
     /* ----------------------------------------------------------- Brasserie */
 
+    /** La cuve suit l'état du brassin tel que le joueur le voit (voir Data.etatBrassin). */
     function batchState(batch) {
-        if (batch.status === 'READY') return 'ready';
-        if (batch.status === 'SOLD_OUT' || batch.status === 'CANCELLED') return 'done';
-        return 'growing';
+        var etat = global.BrewsteadData.etatBrassin(batch);
+        return etat === 'a-soutirer' ? 'ready' : etat === 'fini' ? 'done' : etat === 'en-cave' ? 'cellar' : 'growing';
     }
 
     function vatNode(batch, slot) {
@@ -602,8 +602,10 @@
         }
 
         return '<g class="sc-node sc-vat" data-state="' + state + '" data-id="' + batch.id + '"' +
-            (state === 'ready' ? ' data-action="taste-batch" tabindex="0" role="button"' : '') +
-            ' aria-label="' + esc(batch.recipeName || 'Brassin') + '">' +
+            // Toucher un fût prêt le range, comme on ramasse une récolte mûre.
+            // Il se goûtait : on buvait un demi-litre en croyant le récolter.
+            (state === 'ready' ? ' data-action="cellar-batch" tabindex="0" role="button"' : '') +
+            ' aria-label="' + esc((batch.recipeName || 'Brassin') + (state === 'ready' ? ' — mettre en cave' : '')) + '">' +
 
             (state === 'ready'
                 ? '<ellipse class="sc-node__glow" cx="' + slot.x + '" cy="' + (slot.y - h * 0.5).toFixed(1) +
@@ -659,10 +661,36 @@
     }
 
     function brasserie(state) {
+        // Seules les cuves occupées restent sur le plancher : un fût rangé
+        // est en cave, un fût épuisé n'est plus rien.
         var batches = (state.batches || []).filter(function (b) {
-            return b.status !== 'SOLD_OUT' && b.status !== 'CANCELLED';
+            var etat = batchState(b);
+            return etat === 'growing' || etat === 'ready';
         });
-        if (!batches.length) return '';
+        var decor = defs() + painted('brasserie') +
+            '<rect class="sc-dusk" width="' + STAGE_WIDTH + '" height="' + STAGE_HEIGHT + '"/>' +
+            floor(300, 'cellar') + light() +
+            '<g class="sc-lanterns">' +
+            '<ellipse cx="164" cy="188" rx="96" ry="84" fill="url(#sc-halo)"/>' +
+            '<ellipse cx="806" cy="176" rx="82" ry="72" fill="url(#sc-halo)"/>' +
+            '</g>';
+        // Plus une cuve au travail : c'est le moment le plus courant juste
+        // après la mise en cave. Le lieu gardait un bandeau gris écrasé sur
+        // un grand vide ; il garde maintenant son décor, et une cuve en
+        // pointillés invite à relancer.
+        if (!batches.length) {
+            return decor +
+                '<g class="sc-node sc-vat sc-vat--libre" data-action="open-brew" tabindex="0" role="button"' +
+                ' aria-label="Lancer un brassin">' +
+                '<ellipse class="sc-contact" cx="480" cy="472" rx="96" ry="12"/>' +
+                '<path class="sc-vat__libre" d="M400 470C382 420 382 356 400 306L560 306C578 356 578 420 560 470Z"/>' +
+                '<ellipse class="sc-vat__libre" cx="480" cy="306" rx="80" ry="15"/>' +
+                badge(480, 262, 1.15, 'empty') +
+                '<text class="sc-vat__name" x="480" y="502">Les cuves attendent</text>' +
+                '<text class="sc-plot__time" x="480" y="524">Touche pour lancer un brassin</text>' +
+                hit(480, 240, 220, 300) +
+                '</g>';
+        }
         var slots = ground(batches.length, { baseY: 470, depth: 116, width: 150, height: 92, spread: 214, columns: batches.length <= 3 ? batches.length : 4 });
 
         return defs() + painted('brasserie') +
@@ -1449,8 +1477,10 @@
             var messages = room && room.messages || [];
             return (room ? room.id : 'lobby') + '::' +
                 people.map(function (p) {
-                    return p.playerId + ':' + (p.seatKey || '-') + ':' + Number(p.x || 0).toFixed(1) + ':' +
-                        Number(p.y || 0).toFixed(1) + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
+                    // Pas la position : un pas n'est pas une raison de redessiner
+                    // la salle entière (ce qui coupait net toutes les marches
+                    // en cours). Les pas se jouent sur place, voir tick().
+                    return p.playerId + ':' + (p.seatKey || '-') + ':' + (p.pose || '-') + ':' + (p.action || '-') + ':' +
                         (p.emote || '-') + ':' + (p.emoteAt || '-') + ':' + JSON.stringify(p.character || {});
                 }).join('|') + '::' + (state.tavernLook || '') + '::' +
                 messages.slice(-8).map(function (m) { return m.id; }).join(',') + '::' +
@@ -1487,9 +1517,35 @@
             .forEach(function (node) { group.appendChild(node); });
     }
 
-    function movePatron(root, person, localPrediction) {
+    /**
+     * La vitesse de marche, en unités du tableau par seconde. La profondeur
+     * compte un peu plus : l'allée est étroite, un pas vers le fond se voit
+     * autant qu'un grand pas de côté.
+     */
+    var PAS_PAR_SECONDE = 380;
+
+    function peindrePatron(node, x, y, k) {
+        node._brewX = x; node._brewY = y; node._brewK = k;
+        node._bouge = performance.now();
+        node.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ') scale(' + k.toFixed(4) + ')');
+    }
+
+    function noeudPatron(root, playerId) {
+        return root && root.querySelector('.sc-patron[data-id="' + playerId + '"]');
+    }
+
+    /**
+     * Un personnage va quelque part.
+     *
+     * <p>Il marchait en accélérant puis en freinant à chaque ordre : trois
+     * clics de suite, trois départs arrêtés ; un voisin qui avançait au
+     * clavier, une suite de petits bonds. Il avance maintenant à vitesse de
+     * croisière, repart de là où il est quand on change d'avis, et ne ralentit
+     * qu'en arrivant — sauf s'il enchaîne, auquel cas il file droit.
+     */
+    function movePatron(root, person, suivi) {
         if (!root || !person) return 0;
-        var node = root.querySelector('.sc-patron[data-id="' + person.playerId + '"]');
+        var node = noeudPatron(root, person.playerId);
         if (!node) return 0;
 
         var target = normalizeTavernPoint(person.x, person.y);
@@ -1499,10 +1555,16 @@
         var fromY = Number(node._brewY == null ? node.dataset.y : node._brewY);
         var fromK = Number(node._brewK == null ? node.dataset.k : node._brewK);
         var distance = Math.hypot(target.x - fromX, (target.y - fromY) * 1.35);
-        var duration = document.documentElement.dataset.mouvement === 'sobre'
-            ? 0 : clamp(distance * 3.25, 170, 1350);
+        var enchaine = !!node._brewFrame || !!suivi;
+        var duration = document.documentElement.dataset.mouvement === 'sobre' || distance < 1
+            ? 0 : clamp(distance / PAS_PAR_SECONDE * 1000, 120, 2400);
+        // Un voisin qui marche au clavier envoie sa position par petits
+        // bouts réguliers : chaque bout dure l'intervalle observé, et ils se
+        // suivent sans pause, au lieu de courir puis d'attendre le suivant.
+        if (suivi && duration) duration = suivi;
 
         if (node._brewFrame) cancelAnimationFrame(node._brewFrame);
+        node._brewFrame = null;
         node.dataset.x = target.x;
         node.dataset.y = target.y;
         node.dataset.k = targetScale.toFixed(3);
@@ -1510,13 +1572,8 @@
         node.dataset.pose = person.pose || 'STANDING';
         node.classList.toggle('is-walking', duration > 0 && person.pose !== 'SEATED');
 
-        function paint(x, y, k) {
-            node._brewX = x; node._brewY = y; node._brewK = k;
-            node.setAttribute('transform', 'translate(' + x.toFixed(2) + ' ' + y.toFixed(2) + ') scale(' + k.toFixed(4) + ')');
-        }
-
         if (!duration) {
-            paint(target.x, target.y, targetScale);
+            peindrePatron(node, target.x, target.y, targetScale);
             node.classList.remove('is-walking');
             sortTavernPatrons(root);
             return 0;
@@ -1525,12 +1582,13 @@
         var started = performance.now();
         function frame(now) {
             var t = Math.min(1, (now - started) / duration);
-            var ease = t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            paint(
+            // À pleine allure dès le départ ; un léger freinage à l'arrivée
+            // seulement quand on ne vient pas d'une autre marche.
+            var ease = enchaine ? t : 1 - Math.pow(1 - t, 1.6);
+            peindrePatron(node,
                 fromX + (target.x - fromX) * ease,
                 fromY + (target.y - fromY) * ease,
-                fromK + (targetScale - fromK) * ease
-            );
+                fromK + (targetScale - fromK) * ease);
             if (t < 1) node._brewFrame = requestAnimationFrame(frame);
             else {
                 node._brewFrame = null;
@@ -1540,6 +1598,32 @@
         }
         node._brewFrame = requestAnimationFrame(frame);
         return duration;
+    }
+
+    /**
+     * Pose un personnage exactement ici, tout de suite : c'est la marche au
+     * clavier qui l'avance image par image. Il reste « en marche » tant que
+     * le joueur tient la touche ; `enMarche` à faux le pose.
+     */
+    function placerPatron(root, person, enMarche) {
+        var node = noeudPatron(root, person.playerId);
+        if (!node) return;
+        if (node._brewFrame) { cancelAnimationFrame(node._brewFrame); node._brewFrame = null; }
+        var target = normalizeTavernPoint(person.x, person.y);
+        var k = tavernScale(target.y, Number(node.dataset.bodyScale || 1), null);
+        node.dataset.x = target.x;
+        node.dataset.y = target.y;
+        node.dataset.k = k.toFixed(3);
+        node.dataset.facing = person.facing || node.dataset.facing || 'LEFT';
+        node.dataset.pose = 'STANDING';
+        peindrePatron(node, target.x, target.y, k);
+        node.classList.toggle('is-walking', !!enMarche);
+        // L'ordre de dessin suit la profondeur : on ne le refait que si le
+        // voisin de devant a changé, pas à chaque image.
+        var prev = node.previousElementSibling, next = node.nextElementSibling;
+        if ((prev && Number(prev.dataset.y) > target.y) || (next && Number(next.dataset.y) < target.y) || !enMarche) {
+            sortTavernPatrons(root);
+        }
     }
 
     function animateDrink(root, playerId, drinkName) {
@@ -1620,6 +1704,18 @@
 
         if (place === 'taverne') {
             var now = Date.now();
+            var salle = state.tavernRoom;
+            (salle && salle.players || []).forEach(function (p) {
+                if (p.seatKey) return;
+                var node = noeudPatron(root, p.playerId);
+                // Un personnage qui vient de bouger est plus à jour que
+                // l'instantané, toujours en retard d'un pas sur la marche.
+                if (!node || node._brewFrame || node.classList.contains('is-walking') ||
+                    performance.now() - (node._bouge || 0) < 2500) return;
+                if (Math.abs(Number(node.dataset.x) - Number(p.x)) > 1 || Math.abs(Number(node.dataset.y) - Number(p.y)) > 1) {
+                    movePatron(root, p);
+                }
+            });
             root.querySelectorAll('.sc-speech[data-until], .sc-patron__emote[data-until]').forEach(function (node) {
                 if (Number(node.dataset.until) < now) node.style.opacity = '0';
             });
@@ -1648,6 +1744,7 @@
         tavernPoint: tavernPoint,
         normalizeTavernPoint: normalizeTavernPoint,
         movePatron: movePatron,
+        placerPatron: placerPatron,
         animateDrink: animateDrink,
         showTavernDestination: showTavernDestination,
         recentrer: recentrer

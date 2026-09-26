@@ -36,6 +36,16 @@ public class BrewController {
         return brewService.taste(currentPlayer.id(principal), batchId);
     }
 
+    @PostMapping("/batches/{batchId}/cellar")
+    public BatchResponse cellar(Principal principal, @PathVariable Long batchId) {
+        return brewService.cellar(currentPlayer.id(principal), batchId);
+    }
+
+    @PostMapping("/cellar-all")
+    public List<BatchResponse> cellarAll(Principal principal) {
+        return brewService.cellarAll(currentPlayer.id(principal));
+    }
+
     @PostMapping("/batches/{batchId}/refresh")
     public BatchResponse refresh(Principal principal, @PathVariable Long batchId) {
         return brewService.updateBatchStatus(currentPlayer.id(principal), batchId);

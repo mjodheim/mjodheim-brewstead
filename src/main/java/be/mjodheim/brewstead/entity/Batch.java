@@ -44,4 +44,11 @@ public class Batch {
 
     // Un brassin qui vient de démarrer ne peut pas avoir de qualité initiale → 'Integer' au lieu de 'int'
     private Integer quality;
+
+    /**
+     * Le moment où le brasseur a rangé le fût en cave. Nul tant que le
+     * brassin prêt attend dans sa cuve : c'est ce qui distingue « à
+     * soutirer » de « en réserve ».
+     */
+    private LocalDateTime cellaredAt;
 }

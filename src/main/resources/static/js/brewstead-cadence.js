@@ -35,11 +35,54 @@
     var dernier = 0;
     var couts = [];
     var mesure = false;
-    var suivies = typeof WeakSet === 'function' ? new WeakSet() : null;
+    var suivies = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+    /**
+     * Le pas propre à une animation, en plus du pas commun.
+     *
+     * <p>Une couche qui couvre l'écran (la pluie, la brume, les reflets de
+     * la rivière) oblige à recomposer tout ce qu'il y a dessous chaque fois
+     * qu'elle bouge : c'est elle qui doublait le coût d'une carte sous la
+     * pluie. Elle avance donc au plus neuf fois par seconde, ce qui suffit à
+     * une averse. Une animation lente (un nuage qui met trente secondes à
+     * traverser) n'a besoin que de quelques pas pour paraître continue.
+     */
+    var GRANDE_COUCHE = 0.3;             // part de l'écran
+    var PAS_GRANDE_COUCHE = 150;         // ms : une averse tombe très bien à six ou sept images
+    var PAS_PAR_CYCLE_LENT = 160;
+    var PAS_PAR_CYCLE_LENT_ET_GRAND = 60; // la brume : un demi-pixel par pas, trois pas par seconde
+
+    function rythme(animation) {
+        var intervalle = 0;
+        try {
+            var cible = animation.effect.target;
+            // Sur une machine modeste, ou en mode économe, le temps qu'il
+            // fait se montre sans bouger : un voile de pluie immobile dit
+            // qu'il pleut, et ne coûte plus une image.
+            if (palierMin >= MODESTE && cible && cible.classList && cible.classList.contains('weather')) {
+                return { intervalle: Infinity, retard: 0 };
+            }
+            var r = cible && cible.getBoundingClientRect();
+            var ecran = Math.max(1, global.innerWidth * global.innerHeight);
+            var grande = !!r && r.width * r.height / ecran > GRANDE_COUCHE;
+            if (grande) intervalle = PAS_GRANDE_COUCHE;
+            var duree = Number(animation.effect.getTiming().duration) || 0;
+            if (duree > 10000) {
+                intervalle = Math.max(intervalle, duree / (grande ? PAS_PAR_CYCLE_LENT_ET_GRAND : PAS_PAR_CYCLE_LENT));
+            }
+        } catch (ignored) { /* cible détachée : pas commun */ }
+        return { intervalle: intervalle, retard: 0 };
+    }
+
+    // Les pas d'un personnage qui marche restent à pleine cadence : ils ne
+    // durent que le temps du trajet, et une démarche à quinze images par
+    // seconde boite.
+    var LIBRES = /^tavern-walk/;
 
     function sansFin(animation) {
         var effet = animation.effect;
-        return !!effet && typeof effet.getTiming === 'function' && effet.getTiming().iterations === Infinity;
+        return !!effet && typeof effet.getTiming === 'function' && effet.getTiming().iterations === Infinity
+            && !LIBRES.test(animation.animationName || '');
     }
 
     function mediane(valeurs) {
@@ -83,14 +126,23 @@
         for (var i = 0; i < animations.length; i++) {
             var a = animations[i];
             if (!sansFin(a)) continue;
-            if (suivies && !suivies.has(a)) {
-                suivies.add(a);
+            var suivi = suivies && suivies.get(a);
+            if (suivies && !suivi) {
+                suivi = rythme(a);
+                suivies.set(a, suivi);
                 // À l'arrêt entre deux pas ; la feuille de style garde la
                 // main sur la pause (lieu ouvert, onglet caché).
                 a.playbackRate = 0;
             }
             if (fige || geste || a.playState !== 'running') continue;
-            a.currentTime = (a.currentTime || 0) + ecart;
+            var avance = ecart;
+            if (suivi && suivi.intervalle) {
+                suivi.retard += ecart;
+                if (suivi.retard < suivi.intervalle) continue;
+                avance = suivi.retard;
+                suivi.retard = 0;
+            }
+            a.currentTime = (a.currentTime || 0) + avance;
             bouge = true;
         }
         if (bouge && !mesure && global.requestAnimationFrame) {
@@ -133,6 +185,8 @@
         var reduit = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
         fige = mode === 'sobre' || reduit;
         palierMin = mode === 'econome' ? ECONOME : modeste() ? MODESTE : 0;
+        // Les rythmes propres dépendent du mode : on les recalculera.
+        if (suivies) suivies = new WeakMap();
         palier = Math.max(palier, palierMin);
         couts = [];
         demarrer();

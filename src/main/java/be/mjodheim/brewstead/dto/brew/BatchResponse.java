@@ -13,6 +13,7 @@ public record BatchResponse(
         LocalDateTime startedAt,
         LocalDateTime readyAt,
         BatchStatus status,
-        Integer quality
+        Integer quality,
+        LocalDateTime cellaredAt
 ) {
 }

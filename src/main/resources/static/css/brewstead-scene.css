@@ -194,6 +194,11 @@
 /* Cuves -------------------------------------------------------------------- */
 
 .sc-vat__wood { fill: #6b4a28; }
+/* La cuve à remplir : un contour en pointillés qui respire, comme une
+   parcelle libre. */
+.sc-vat__libre { fill: rgba(255, 226, 170, .1); stroke: rgba(255, 216, 130, .9); stroke-width: 3; stroke-dasharray: 12 9; }
+.sc-vat--libre .sc-vat__libre { animation: sc-invite 2.4s ease-in-out infinite; }
+:root[data-mouvement="sobre"] .sc-vat--libre .sc-vat__libre { animation: none; }
 .sc-vat__liquid { fill: #b5762a; opacity: .95; }
 .sc-vat[data-state="ready"] .sc-vat__liquid { fill: #d8a03a; }
 .sc-vat__surface { fill: rgba(255, 236, 178, .34); }

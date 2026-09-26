@@ -114,6 +114,37 @@ public class BrewService {
         return new TastingResponse(batch.getRecipe().getName(), batch.getRecipe().getFlavour(), effect);
     }
 
+    /**
+     * Le fût prêt quitte sa cuve pour la cave.
+     *
+     * <p>C'est le geste qui clôt un brassin : la cuve se libère, la
+     * brasserie cesse d'appeler, et le fût rejoint la réserve où puisent les
+     * commandes et le comptoir. Ranger deux fois ne change rien.
+     */
+    @Transactional
+    public BatchResponse cellar(Long playerId, Long batchId) {
+        Batch batch = getOwnedBatch(playerId, batchId);
+        refreshBatchStatus(batch);
+        if (batch.getStatus() != BatchStatus.READY) {
+            throw new IllegalStateException("Ce brassin n'est pas encore prêt à rejoindre la cave.");
+        }
+        if (batch.getCellaredAt() == null) batch.setCellaredAt(LocalDateTime.now());
+        return brewMapper.toResponse(batch);
+    }
+
+    /** Tous les fûts prêts d'un coup ; renvoie ceux qu'on vient de ranger. */
+    @Transactional
+    public List<BatchResponse> cellarAll(Long playerId) {
+        getPlayer(playerId);
+        LocalDateTime now = LocalDateTime.now();
+        List<Batch> ranges = batchRepository.findAllByPlayerIdOrderByStartedAtDesc(playerId).stream()
+                .peek(this::refreshBatchStatus)
+                .filter(b -> b.getStatus() == BatchStatus.READY && b.getCellaredAt() == null)
+                .toList();
+        ranges.forEach(b -> b.setCellaredAt(now));
+        return brewMapper.toResponseList(ranges);
+    }
+
     @Transactional
     public BatchResponse updateBatchStatus(Long playerId, Long batchId) {
         Batch batch = getOwnedBatch(playerId, batchId);

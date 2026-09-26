@@ -1,0 +1,13 @@
+{
+  "name": "brewstead-modeles",
+  "private": true,
+  "type": "module",
+  "description": "Rendus 3D des objets des lieux de Brewstead",
+  "scripts": {
+    "rendre": "node rendre.mjs"
+  },
+  "dependencies": {
+    "three": "0.169.0",
+    "playwright": "1.56.1"
+  }
+}

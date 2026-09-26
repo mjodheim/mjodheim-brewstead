@@ -57,7 +57,8 @@ class MapperTest {
     @Test
     void farmMapperMapsCropNameAndAllowsEmptyField() {
         FarmMapper mapper = Mappers.getMapper(FarmMapper.class);
-        Crop crop = Crop.builder().id(2L).name("Orge du Nord").build();
+        Ingredient orge = Ingredient.builder().id(3L).name("Orge").type(IngredientType.CEREAL).build();
+        Crop crop = Crop.builder().id(2L).name("Orge du Nord").ingredient(orge).build();
         PlayerField planted = PlayerField.builder()
                 .id(5L).player(player(1)).crop(crop).status(FieldStatus.GROWING).build();
         PlayerField empty = PlayerField.builder()
@@ -67,7 +68,9 @@ class MapperTest {
         PlayerFieldResponse emptyResponse = mapper.toResponse(empty);
 
         assertEquals("Orge du Nord", plantedResponse.cropName());
+        assertEquals(IngredientType.CEREAL, plantedResponse.cropType());
         assertNull(emptyResponse.cropName());
+        assertNull(emptyResponse.cropType());
     }
 
     @Test
